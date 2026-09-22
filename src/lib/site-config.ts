@@ -11,12 +11,12 @@
  * rendering fake contact info.
  */
 
-function readEnv(name: string): string | null {
-  const value = process.env[name]?.trim();
-  return value && value.length > 0 ? value : null;
+function cleanEnv(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-const whatsappNumber = readEnv("NEXT_PUBLIC_WHATSAPP_NUMBER");
+const whatsappNumber = cleanEnv(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
 
 /** Formats a digits-only Qatar number like "97471084710" as "+974 71084710". */
 function formatQatarNumber(digits: string | null): string | null {
@@ -27,10 +27,12 @@ function formatQatarNumber(digits: string | null): string | null {
   }
   return `+${cleaned}`;
 }
-const contactEmail = readEnv("NEXT_PUBLIC_CONTACT_EMAIL");
-const contactPhone = readEnv("NEXT_PUBLIC_CONTACT_PHONE");
-const siteUrl = readEnv("NEXT_PUBLIC_SITE_URL");
-const ecommerceLicenceNumber = readEnv("NEXT_PUBLIC_ECOMMERCE_LICENCE_NUMBER");
+const contactEmail = cleanEnv(process.env.NEXT_PUBLIC_CONTACT_EMAIL);
+const contactPhone = cleanEnv(process.env.NEXT_PUBLIC_CONTACT_PHONE);
+const siteUrl = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
+const ecommerceLicenceNumber = cleanEnv(
+  process.env.NEXT_PUBLIC_ECOMMERCE_LICENCE_NUMBER
+);
 
 export const siteConfig = {
   brand: {
