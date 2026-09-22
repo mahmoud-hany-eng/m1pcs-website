@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * M1 Gaming PCs — design tokens
+ * Derived directly from the official M1 logo:
+ *   - Brand red gradient: #E73225 -> #9D2E16
+ *   - Brand gold:         #F9C204
+ * Centralized here as CSS variables so the palette can be adjusted in one
+ * place without touching component code.
+ */
+:root {
+  /*
+   * Values are space-separated RGB channels (not hex) so Tailwind can
+   * compose them as rgb(var(--token) / <alpha-value>) — this is what makes
+   * opacity modifiers like `bg-background/80` or `border-primary/60` work
+   * correctly against a CSS-variable-based palette.
+   */
+
+  /* Brand */
+  --color-primary: 231 50 37; /* #e73225 — bright red (logo gradient top) */
+  --color-primary-dark: 157 46 22; /* #9d2e16 — deep red (logo gradient bottom) */
+  --color-primary-light: 240 88 74; /* #f0584a */
+  --color-accent: 249 194 4; /* #f9c204 — logo gold */
+  --color-accent-hover: 220 174 3; /* #dcae03 */
+
+  /* Surfaces */
+  --color-background: 10 10 11; /* #0a0a0b */
+  --color-surface: 21 21 23; /* #151517 */
+  --color-surface-elevated: 29 29 32; /* #1d1d20 */
+  --color-border: 42 42 46; /* #2a2a2e */
+  --color-border-strong: 58 58 63; /* #3a3a3f */
+
+  /* Text */
+  --color-text-primary: 245 245 247; /* #f5f5f7 */
+  --color-text-secondary: 166 166 173; /* #a6a6ad */
+  --color-text-muted: 117 117 124; /* #75757c */
+
+  /* Semantic */
+  --color-success: 34 197 94; /* #22c55e */
+  --color-warning: 245 165 36; /* #f5a524 */
+  --color-error: 239 68 68; /* #ef4444 */
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+* {
+  border-color: rgb(var(--color-border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: rgb(var(--color-background));
+  color: rgb(var(--color-text-primary));
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: rgb(var(--color-primary));
+  color: #ffffff;
+}
+
+/* Utility: brand gradient text/backgrounds reused across the site */
+.brand-gradient {
+  background-image: linear-gradient(
+    135deg,
+    rgb(var(--color-primary)) 0%,
+    rgb(var(--color-primary-dark)) 100%
+  );
+}
+
+.brand-gradient-text {
+  background-image: linear-gradient(
+    135deg,
+    rgb(var(--color-primary)) 0%,
+    rgb(var(--color-primary-dark)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Focus visibility for accessibility (keyboard nav) */
+:focus-visible {
+  outline: 2px solid rgb(var(--color-accent));
+  outline-offset: 2px;
+}
