@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BuildImageFrame } from "@/components/cards/BuildImageFrame";
 import type { CompletedBuild } from "@/types";
 
 const coreSpecRows: { key: keyof CompletedBuild; label: string }[] = [
@@ -13,15 +13,7 @@ export function BuildCard({ build }: { build: CompletedBuild }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-card border border-border bg-surface shadow-card transition-all duration-200 hover:border-primary/60 hover:shadow-card-hover">
       {build.imageSrc ? (
-        <div className="relative aspect-[4/5] w-full border-b border-border">
-          <Image
-            src={build.imageSrc}
-            alt={build.imageAlt}
-            fill
-            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover"
-          />
-        </div>
+        <BuildImageFrame src={build.imageSrc} alt={build.imageAlt} />
       ) : (
         <div
           role="img"

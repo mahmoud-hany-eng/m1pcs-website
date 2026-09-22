@@ -22,7 +22,7 @@ export const completedBuilds: CompletedBuild[] = [
       "A high-performance 1440p-ready build with a fully modular PSU and a clean white-and-black cable theme.",
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 7 5800X and NVIDIA RTX 3070, white-and-black themed case with pink-purple ARGB lighting.",
-    imageSrc: "/builds/ryzen-7-rtx-3070.png",
+    imageSrc: "/builds/ryzen-7-rtx-3070.webp",
   },
   {
     slug: "ryzen-5-rtx-5060-ti",
@@ -39,7 +39,7 @@ export const completedBuilds: CompletedBuild[] = [
       "A modern, current-generation build balancing strong 1080p/1440p gaming performance with efficient power draw.",
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 7600X and NVIDIA RTX 5060 Ti, black case with purple ARGB fan lighting.",
-    imageSrc: "/builds/ryzen-5-rtx-5060-ti.png",
+    imageSrc: "/builds/ryzen-5-rtx-5060-ti.webp",
   },
   {
     slug: "ryzen-5-rtx-4060",
@@ -56,7 +56,7 @@ export const completedBuilds: CompletedBuild[] = [
       "A well-rounded everyday gaming build with plenty of RAM headroom for multitasking alongside gaming.",
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 8600G and NVIDIA RTX 4060, black case with multicolor ARGB fan lighting.",
-    imageSrc: "/builds/ryzen-5-rtx-4060.png",
+    imageSrc: "/builds/ryzen-5-rtx-4060.webp",
   },
   {
     slug: "ryzen-5-rtx-3060-white",
@@ -73,7 +73,7 @@ export const completedBuilds: CompletedBuild[] = [
       "A clean all-white themed build, finished with an added Wi-Fi/Bluetooth adapter for wireless connectivity.",
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 5600X and NVIDIA RTX 3060, all-white case with blue-purple ARGB fan lighting.",
-    imageSrc: "/builds/ryzen-5-rtx-3060-white.png",
+    imageSrc: "/builds/ryzen-5-rtx-3060-white.webp",
   },
   {
     slug: "ryzen-5-gtx-1660-ti",
@@ -90,6 +90,6 @@ export const completedBuilds: CompletedBuild[] = [
       "A value-focused 1080p gaming build with heavy RGB fan presence and matching sleeved cables.",
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 3600 and NVIDIA GTX 1660 Ti, black-and-white case with multicolor ARGB fan lighting.",
-    imageSrc: "/builds/ryzen-5-gtx-1660-ti.png",
+    imageSrc: "/builds/ryzen-5-gtx-1660-ti.webp",
   },
 ];

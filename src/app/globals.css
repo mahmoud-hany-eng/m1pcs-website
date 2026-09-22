@@ -87,6 +87,15 @@ body {
   color: transparent;
 }
 
+/* Soft ambient glow behind a completed build's transparent product photo */
+.build-photo-glow {
+  background-image: radial-gradient(
+    ellipse 60% 48% at 50% 42%,
+    rgb(var(--color-primary) / 0.18),
+    transparent 70%
+  );
+}
+
 /* Focus visibility for accessibility (keyboard nav) */
 :focus-visible {
   outline: 2px solid rgb(var(--color-accent));
