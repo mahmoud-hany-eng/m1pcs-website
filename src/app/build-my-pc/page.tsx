@@ -6,9 +6,9 @@ import { QuoteForm } from "@/components/forms/QuoteForm";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata: Metadata = {
-  title: "Build My PC / Request a Quote",
+  title: "Request a Quote",
   description:
-    "Tell M1 your budget, games and performance goals to receive a custom PC quotation with current component pricing.",
+    "Looking for a complete PC or a specific component? Tell M1 what you need and get a quotation with current pricing and availability.",
   alternates: { canonical: "/build-my-pc" },
 };
 
@@ -18,9 +18,9 @@ export default function BuildMyPcPage() {
       <Container className="py-16 sm:py-24">
         <SectionHeading
           align="left"
-          eyebrow="Build My PC"
-          title="Request a quote"
-          description="Answer as much as you can — anything you leave blank, we'll follow up on directly."
+          eyebrow="Get a Quote"
+          title="Request a Quote"
+          description="Looking for a complete PC or a specific component? Tell us what you need and we'll help you find the right option at current pricing and availability."
         />
 
         <p className="mt-4 text-sm text-text-secondary">

@@ -6,134 +6,110 @@ import { FieldWrapper } from "@/components/forms/FieldWrapper";
 import { TextInput } from "@/components/forms/TextInput";
 import { TextArea } from "@/components/forms/TextArea";
 import { PillOptionGroup } from "@/components/forms/PillOptionGroup";
-import { MultiPillOptionGroup } from "@/components/forms/MultiPillOptionGroup";
+import { SelectInput } from "@/components/forms/SelectInput";
+import { DynamicField } from "@/components/forms/DynamicField";
 import { Button } from "@/components/ui/Button";
 import { buildQuoteMessage, buildWhatsAppLink } from "@/lib/whatsapp";
-import type {
-  Accessory,
-  BuildColor,
-  CpuPreference,
-  GpuPreference,
-  MainUse,
-  MonitorPreference,
-  QuoteFormData,
-  Resolution,
-  RgbPreference,
-  StorageOption,
-  TargetFps,
-  WifiPreference,
-} from "@/types";
+import { getVisibleCategoryFields, resolveQuoteCategoryFromParam } from "@/lib/quote-schema";
+import { PRODUCT_PREFERENCES, QUOTE_CATEGORIES } from "@/types/quote";
+import type { QuoteAnswers, QuoteCategory, QuoteGeneralData } from "@/types/quote";
 
-const mainUseOptions: MainUse[] = [
-  "Gaming",
-  "Gaming + Streaming",
-  "Work",
-  "Editing",
-  "Mixed use",
-];
-const resolutionOptions: Resolution[] = ["1080p", "1440p", "4K", "Not sure"];
-const fpsOptions: TargetFps[] = [
-  "60 FPS",
-  "120+ FPS",
-  "144+ FPS",
-  "240+ FPS",
-  "Not sure",
-];
-const cpuOptions: CpuPreference[] = ["AMD", "Intel", "No preference"];
-const gpuOptions: GpuPreference[] = ["NVIDIA", "AMD", "No preference"];
-const storageOptions: StorageOption[] = [
-  "1TB",
-  "2TB",
-  "More than 2TB",
-  "Not sure",
-];
-const colorOptions: BuildColor[] = ["Black", "White", "Other", "No preference"];
-const rgbOptions: RgbPreference[] = ["Yes", "No", "Minimal"];
-const wifiOptions: WifiPreference[] = ["Required", "Not required", "Not sure"];
-const monitorOptions: MonitorPreference[] = [
-  "I already have one",
-  "I need a monitor",
-];
-const accessoryOptions: Accessory[] = ["Keyboard", "Mouse", "Headset"];
-
-const initialData: QuoteFormData = {
+const initialGeneral: QuoteGeneralData = {
   fullName: "",
   mobile: "",
   email: "",
   budgetQar: "",
-  mainUse: "",
-  games: "",
-  resolution: "",
-  targetFps: "",
-  cpuPreference: "",
-  gpuPreference: "",
-  storage: "",
-  buildColor: "",
-  rgb: "",
-  wifi: "",
-  monitor: "",
-  accessories: [],
+  quantity: "1",
+  productPreference: "",
+  specificModel: "",
   additionalRequirements: "",
 };
 
 export function QuoteForm() {
   const searchParams = useSearchParams();
-  const [data, setData] = useState<QuoteFormData>(initialData);
+  const [category, setCategory] = useState<QuoteCategory | "">("");
+  const [general, setGeneral] = useState<QuoteGeneralData>(initialGeneral);
+  const [categoryData, setCategoryData] = useState<QuoteAnswers>({});
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const reference = searchParams.get("reference");
-    const category = searchParams.get("category");
+    const categoryParam = searchParams.get("category");
 
-    if (reference || category) {
-      setData((prev) => ({
+    if (reference) {
+      setCategory("Complete Custom PC");
+      setGeneral((prev) => ({
         ...prev,
-        referenceBuild: reference ?? undefined,
-        additionalRequirements: category
-          ? `Interested in: ${category}${
-              prev.additionalRequirements ? `\n${prev.additionalRequirements}` : ""
-            }`
-          : prev.additionalRequirements,
+        additionalRequirements: `Reference build: ${reference}${
+          prev.additionalRequirements ? `\n${prev.additionalRequirements}` : ""
+        }`,
       }));
+      return;
     }
+
+    const resolved = resolveQuoteCategoryFromParam(categoryParam);
+    if (resolved) setCategory(resolved);
     // Only run once on mount — intentionally not reacting to further param changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function update<K extends keyof QuoteFormData>(key: K, value: QuoteFormData[K]) {
-    setData((prev) => ({ ...prev, [key]: value }));
+  function updateGeneral<K extends keyof QuoteGeneralData>(key: K, value: QuoteGeneralData[K]) {
+    setGeneral((prev) => ({ ...prev, [key]: value }));
   }
 
-  function toggleAccessory(accessory: Accessory) {
-    setData((prev) => {
-      const has = prev.accessories.includes(accessory);
-      return {
-        ...prev,
-        accessories: has
-          ? prev.accessories.filter((a) => a !== accessory)
-          : [...prev.accessories, accessory],
-      };
-    });
+  function handleCategoryChange(next: QuoteCategory) {
+    setCategory(next);
+    // A category change means every field shown a moment ago belonged to a
+    // different question set — clear it so nothing stale from the old
+    // category can end up in the submitted message.
+    setCategoryData({});
   }
+
+  function updateCategoryField(id: string, value: string | string[]) {
+    setCategoryData((prev) => ({ ...prev, [id]: value }));
+  }
+
+  const visibleFields = getVisibleCategoryFields(category, categoryData);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
-    // "Main use" is a custom pill group, not a native form control, so the
-    // browser's built-in `required` validation (which already covers Full
-    // name / Mobile / Budget) can't catch it — check it explicitly.
-    if (!data.fullName.trim() || !data.mobile.trim() || !data.budgetQar.trim()) {
-      setError("Please fill in your name, mobile number and budget.");
+    if (!category) {
+      setError("Please select what you'd like a quote for.");
       return;
     }
-    if (!data.mainUse) {
-      setError("Please select a main use for the PC.");
+    if (!general.fullName.trim() || !general.mobile.trim()) {
+      setError("Please fill in your name and mobile number.");
+      return;
+    }
+    // Product preference and the category questions below are custom pill
+    // groups, not native form controls, so the browser's built-in
+    // `required` validation can't catch them — check explicitly.
+    if (!general.productPreference) {
+      setError("Please let us know your product preference.");
+      return;
+    }
+    if (
+      general.productPreference === "I want a specific model" &&
+      !general.specificModel.trim()
+    ) {
+      setError("Please tell us the specific brand/model you have in mind.");
       return;
     }
 
-    const message = buildQuoteMessage(data);
+    for (const field of visibleFields) {
+      if (!field.required) continue;
+      const value = categoryData[field.id];
+      const hasValue = Array.isArray(value) ? value.length > 0 : Boolean(value?.trim());
+      if (!hasValue) {
+        setError(`Please answer: ${field.label}`);
+        return;
+      }
+    }
+
+    const message = buildQuoteMessage({ category, general, categoryData });
     const href = buildWhatsAppLink(message);
 
     if (!href) {
@@ -185,6 +161,41 @@ export function QuoteForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-10">
+      {/* What do you want a quote for? */}
+      <fieldset className="flex flex-col gap-4">
+        <legend className="font-display text-lg font-semibold text-text-primary">
+          What would you like a quote for?
+        </legend>
+        <FieldWrapper label="Quote category" htmlFor="quote-category" required>
+          <SelectInput
+            id="quote-category"
+            required
+            value={category}
+            onChange={(e) => handleCategoryChange(e.target.value as QuoteCategory)}
+          >
+            <option value="" disabled>
+              Select a category…
+            </option>
+            {QUOTE_CATEGORIES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </SelectInput>
+        </FieldWrapper>
+        {category !== "Complete Custom PC" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="self-start"
+            onClick={() => handleCategoryChange("Complete Custom PC")}
+          >
+            Build a Complete PC
+          </Button>
+        )}
+      </fieldset>
+
       {/* Customer details */}
       <fieldset className="flex flex-col gap-5">
         <legend className="font-display text-lg font-semibold text-text-primary">
@@ -195,8 +206,8 @@ export function QuoteForm() {
             <TextInput
               id="fullName"
               required
-              value={data.fullName}
-              onChange={(e) => update("fullName", e.target.value)}
+              value={general.fullName}
+              onChange={(e) => updateGeneral("fullName", e.target.value)}
               autoComplete="name"
             />
           </FieldWrapper>
@@ -206,8 +217,8 @@ export function QuoteForm() {
               type="tel"
               required
               placeholder="e.g. 5xxxxxxx"
-              value={data.mobile}
-              onChange={(e) => update("mobile", e.target.value)}
+              value={general.mobile}
+              onChange={(e) => updateGeneral("mobile", e.target.value)}
               autoComplete="tel"
             />
           </FieldWrapper>
@@ -216,173 +227,93 @@ export function QuoteForm() {
           <TextInput
             id="email"
             type="email"
-            value={data.email}
-            onChange={(e) => update("email", e.target.value)}
+            value={general.email}
+            onChange={(e) => updateGeneral("email", e.target.value)}
             autoComplete="email"
           />
         </FieldWrapper>
       </fieldset>
 
-      {/* Budget */}
+      {/* Budget, quantity & preference */}
       <fieldset className="flex flex-col gap-5">
         <legend className="font-display text-lg font-semibold text-text-primary">
-          Budget
+          Budget &amp; preference
         </legend>
-        <FieldWrapper label="Budget in QAR" htmlFor="budget" required>
-          <TextInput
-            id="budget"
-            inputMode="numeric"
-            required
-            placeholder="e.g. 5000"
-            value={data.budgetQar}
-            onChange={(e) => update("budgetQar", e.target.value)}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <FieldWrapper
+            label="Budget in QAR"
+            htmlFor="budget"
+            hint="Leave blank if you don't know yet."
+          >
+            <TextInput
+              id="budget"
+              inputMode="numeric"
+              placeholder="e.g. 5000"
+              value={general.budgetQar}
+              onChange={(e) => updateGeneral("budgetQar", e.target.value)}
+            />
+          </FieldWrapper>
+          <FieldWrapper label="Quantity" htmlFor="quantity" required>
+            <TextInput
+              id="quantity"
+              type="number"
+              min={1}
+              required
+              value={general.quantity}
+              onChange={(e) => updateGeneral("quantity", e.target.value)}
+            />
+          </FieldWrapper>
+        </div>
+
+        <FieldWrapper label="Product preference" required>
+          <PillOptionGroup
+            name="Product preference"
+            options={PRODUCT_PREFERENCES}
+            value={general.productPreference}
+            onChange={(v) => updateGeneral("productPreference", v)}
           />
         </FieldWrapper>
+
+        {general.productPreference === "I want a specific model" && (
+          <FieldWrapper label="Specific brand/model" htmlFor="specificModel" required>
+            <TextInput
+              id="specificModel"
+              required
+              value={general.specificModel}
+              onChange={(e) => updateGeneral("specificModel", e.target.value)}
+            />
+          </FieldWrapper>
+        )}
       </fieldset>
 
-      {/* Usage */}
-      <fieldset className="flex flex-col gap-6">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Usage &amp; performance
-        </legend>
-
-        <FieldWrapper label="Main use" required>
-          <PillOptionGroup
-            name="Main use"
-            options={mainUseOptions}
-            value={data.mainUse}
-            onChange={(v) => update("mainUse", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper
-          label="Games you play"
-          htmlFor="games"
-          hint="List the games you play most, if any."
-        >
-          <TextInput
-            id="games"
-            value={data.games}
-            onChange={(e) => update("games", e.target.value)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Resolution">
-          <PillOptionGroup
-            name="Resolution"
-            options={resolutionOptions}
-            value={data.resolution}
-            onChange={(v) => update("resolution", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Target FPS">
-          <PillOptionGroup
-            name="Target FPS"
-            options={fpsOptions}
-            value={data.targetFps}
-            onChange={(v) => update("targetFps", v)}
-          />
-        </FieldWrapper>
-      </fieldset>
-
-      {/* Component preferences */}
-      <fieldset className="flex flex-col gap-6">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Component preferences
-        </legend>
-
-        <FieldWrapper label="CPU preference">
-          <PillOptionGroup
-            name="CPU preference"
-            options={cpuOptions}
-            value={data.cpuPreference}
-            onChange={(v) => update("cpuPreference", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="GPU preference">
-          <PillOptionGroup
-            name="GPU preference"
-            options={gpuOptions}
-            value={data.gpuPreference}
-            onChange={(v) => update("gpuPreference", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Storage">
-          <PillOptionGroup
-            name="Storage"
-            options={storageOptions}
-            value={data.storage}
-            onChange={(v) => update("storage", v)}
-          />
-        </FieldWrapper>
-      </fieldset>
-
-      {/* Look & feel */}
-      <fieldset className="flex flex-col gap-6">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Look &amp; connectivity
-        </legend>
-
-        <FieldWrapper label="Build color">
-          <PillOptionGroup
-            name="Build color"
-            options={colorOptions}
-            value={data.buildColor}
-            onChange={(v) => update("buildColor", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="RGB lighting">
-          <PillOptionGroup
-            name="RGB"
-            options={rgbOptions}
-            value={data.rgb}
-            onChange={(v) => update("rgb", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Wi-Fi">
-          <PillOptionGroup
-            name="Wi-Fi"
-            options={wifiOptions}
-            value={data.wifi}
-            onChange={(v) => update("wifi", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Monitor">
-          <PillOptionGroup
-            name="Monitor"
-            options={monitorOptions}
-            value={data.monitor}
-            onChange={(v) => update("monitor", v)}
-          />
-        </FieldWrapper>
-
-        <FieldWrapper label="Accessories">
-          <MultiPillOptionGroup
-            name="Accessories"
-            options={accessoryOptions}
-            values={data.accessories}
-            onToggle={toggleAccessory}
-          />
-        </FieldWrapper>
-      </fieldset>
+      {/* Category-specific questions — driven entirely by @/lib/quote-schema */}
+      {category && visibleFields.length > 0 && (
+        <fieldset className="flex flex-col gap-6">
+          <legend className="font-display text-lg font-semibold text-text-primary">
+            {category} details
+          </legend>
+          {visibleFields.map((field) => (
+            <DynamicField
+              key={field.id}
+              field={field}
+              value={categoryData[field.id]}
+              onChange={updateCategoryField}
+            />
+          ))}
+        </fieldset>
+      )}
 
       {/* Additional requirements */}
       <fieldset className="flex flex-col gap-5">
         <legend className="font-display text-lg font-semibold text-text-primary">
           Anything else?
         </legend>
-        <FieldWrapper label="Additional requirements" htmlFor="additional">
+        <FieldWrapper label="Additional requirements / notes" htmlFor="additional">
           <TextArea
             id="additional"
             rows={5}
-            value={data.additionalRequirements}
-            onChange={(e) => update("additionalRequirements", e.target.value)}
+            value={general.additionalRequirements}
+            onChange={(e) => updateGeneral("additionalRequirements", e.target.value)}
           />
         </FieldWrapper>
       </fieldset>
@@ -391,7 +322,7 @@ export function QuoteForm() {
         <p className="text-xs text-text-muted">
           Submitting this form does not place an order or require payment. M1
           will review your requirements and contact you with a proposed
-          configuration and current quotation.
+          option and current quotation.
         </p>
         {error && (
           <p role="alert" className="text-sm font-medium text-error">

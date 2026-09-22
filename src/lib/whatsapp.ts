@@ -1,5 +1,6 @@
 import { siteConfig } from "@/lib/site-config";
-import type { QuoteFormData } from "@/types";
+import { categoryWaHeading, getVisibleCategoryFields } from "@/lib/quote-schema";
+import type { QuoteFormState } from "@/types/quote";
 
 /**
  * Builds a wa.me deep link that opens WhatsApp with a pre-filled message.
@@ -17,50 +18,79 @@ export function buildWhatsAppLink(
   return `https://wa.me/${digitsOnly}?text=${encodeURIComponent(message)}`;
 }
 
-function line(label: string, value?: string | null) {
-  return `${label}: ${value && value.trim().length > 0 ? value.trim() : "-"}`;
+/** Trims a single answer to a display string, or null when it has no content worth sending. */
+function formatAnswer(value: string | string[] | undefined | null): string | null {
+  if (Array.isArray(value)) {
+    const joined = value.map((v) => v.trim()).filter(Boolean).join(", ");
+    return joined.length > 0 ? joined : null;
+  }
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
 /**
- * Formats a completed quote form into a clean, readable WhatsApp message
- * matching the structure requested for the "Build My PC" flow.
+ * Formats a completed quote form into a clean, readable WhatsApp message.
+ * The message adapts to whichever category was selected — it only ever
+ * includes that category's questions (via `getVisibleCategoryFields`,
+ * which also drops any question hidden by a `showIf`) and skips any field
+ * left blank, so no undefined/null/empty lines are ever sent.
  */
-export function buildQuoteMessage(data: QuoteFormData): string {
-  const accessories =
-    data.accessories.length > 0 ? data.accessories.join(", ") : "None";
+export function buildQuoteMessage(state: QuoteFormState): string {
+  const { category, general, categoryData } = state;
 
-  const rows = [
-    "*New M1 PC Quote Request*",
-    "",
-    line("Name", data.fullName),
-    line("Mobile/WhatsApp", data.mobile),
-    line("Email", data.email),
-    line("Budget (QAR)", data.budgetQar),
-    line("Main use", data.mainUse),
-    line("Games", data.games),
-    line("Resolution", data.resolution),
-    line("Target FPS", data.targetFps),
-    line("CPU preference", data.cpuPreference),
-    line("GPU preference", data.gpuPreference),
-    line("Storage", data.storage),
-    line("Build color", data.buildColor),
-    line("RGB", data.rgb),
-    line("Wi-Fi", data.wifi),
-    line("Monitor", data.monitor),
-    line("Accessories", accessories),
-    line("Additional requirements", data.additionalRequirements || "None"),
-  ];
+  const headerSection = ["*New M1 Quote Request*"];
 
-  if (data.referenceBuild) {
-    rows.push(line("Reference build", data.referenceBuild));
+  const categorySection = category ? [`Quote For: ${category}`] : [];
+
+  const customerLines = [
+    formatAnswer(general.fullName) && `Name: ${formatAnswer(general.fullName)}`,
+    formatAnswer(general.mobile) && `Phone: ${formatAnswer(general.mobile)}`,
+    formatAnswer(general.email) && `Email: ${formatAnswer(general.email)}`,
+  ].filter((line): line is string => Boolean(line));
+  const customerSection = customerLines.length > 0 ? ["Customer", ...customerLines] : [];
+
+  const orderLines: string[] = [];
+  const budget = formatAnswer(general.budgetQar);
+  if (budget) orderLines.push(`Budget: QAR ${budget}`);
+  const quantity = formatAnswer(general.quantity);
+  if (quantity) orderLines.push(`Quantity: ${quantity}`);
+  const preference = formatAnswer(general.productPreference);
+  if (preference) {
+    orderLines.push(`Preference: ${preference}`);
+    if (general.productPreference === "I want a specific model") {
+      const model = formatAnswer(general.specificModel);
+      if (model) orderLines.push(`Preferred Model: ${model}`);
+    }
   }
 
-  rows.push(
-    "",
-    "(Submitted via m1pcs.qa — this is a quote request, not an order.)"
-  );
+  const categoryFieldLines = getVisibleCategoryFields(category, categoryData)
+    .map((field) => {
+      const answer = formatAnswer(categoryData[field.id]);
+      return answer ? `${field.waLabel ?? field.label}: ${answer}` : null;
+    })
+    .filter((line): line is string => Boolean(line));
+  const categoryFieldSection =
+    category && categoryFieldLines.length > 0
+      ? [`${categoryWaHeading[category]} Requirements`, ...categoryFieldLines]
+      : [];
 
-  return rows.join("\n");
+  const notes = formatAnswer(general.additionalRequirements);
+  const notesSection = notes ? ["Additional Notes:", notes] : [];
+
+  const footerSection = ["(Submitted via m1pcs.qa — this is a quote request, not an order.)"];
+
+  return [
+    headerSection,
+    categorySection,
+    customerSection,
+    orderLines,
+    categoryFieldSection,
+    notesSection,
+    footerSection,
+  ]
+    .filter((section) => section.length > 0)
+    .map((section) => section.join("\n"))
+    .join("\n\n");
 }
 
 /** Short, generic WhatsApp message used by "Request current price" CTAs on category cards. */
