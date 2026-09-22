@@ -87,12 +87,21 @@ body {
   color: transparent;
 }
 
-/* Soft ambient glow behind a completed build's transparent product photo */
-.build-photo-glow {
+/*
+ * Localized near-black vignette behind a completed build's transparent
+ * product photo. Transparent PNG/WebP cutouts almost always carry a faint
+ * light fringe along the silhouette edge (residual anti-aliasing from the
+ * background removal) — placed directly on the lighter part of the panel
+ * gradient below, that fringe reads as a visible outline. Darkening the
+ * area immediately behind the case toward pure black, then fading back out
+ * to the panel colour, makes that edge disappear instead of standing out.
+ */
+.build-photo-vignette {
   background-image: radial-gradient(
-    ellipse 60% 48% at 50% 42%,
-    rgb(var(--color-primary) / 0.18),
-    transparent 70%
+    ellipse 62% 54% at 50% 46%,
+    rgb(var(--color-background) / 0.95) 0%,
+    rgb(var(--color-background) / 0.6) 45%,
+    transparent 78%
   );
 }
 
