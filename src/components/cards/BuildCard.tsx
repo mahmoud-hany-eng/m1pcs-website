@@ -13,7 +13,13 @@ export function BuildCard({ build }: { build: CompletedBuild }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-card border border-border bg-surface shadow-card transition-all duration-200 hover:border-primary/60 hover:shadow-card-hover">
       {build.imageSrc ? (
-        <BuildImageFrame src={build.imageSrc} alt={build.imageAlt} />
+        <BuildImageFrame
+          src={build.imageSrc}
+          alt={build.imageAlt}
+          scale={build.imageScale}
+          translateX={build.imageTranslateX}
+          translateY={build.imageTranslateY}
+        />
       ) : (
         <div
           role="img"

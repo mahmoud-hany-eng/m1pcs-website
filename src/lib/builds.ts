@@ -5,6 +5,12 @@ import type { CompletedBuild } from "@/types";
  * paired with real photos of each build (see /public/builds/). Each
  * `imageSrc` points at the corresponding image supplied by the business
  * owner — do not add builds beyond these five or invent pricing.
+ *
+ * `imageScale`/`imageTranslateX`/`imageTranslateY` correct for each photo's
+ * transparent canvas having a different amount of empty padding around the
+ * case (and not always being centered within it) — see BuildImageFrame.
+ * They were derived by measuring each photo's actual visible bounding box,
+ * not eyeballed; re-measure and update them if a photo is ever replaced.
  */
 export const completedBuilds: CompletedBuild[] = [
   {
@@ -23,6 +29,9 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 7 5800X and NVIDIA RTX 3070, white-and-black themed case with pink-purple ARGB lighting.",
     imageSrc: "/builds/ryzen-7-rtx-3070.webp",
+    imageScale: 0.92,
+    imageTranslateX: -5.3,
+    imageTranslateY: 3.2,
   },
   {
     slug: "ryzen-5-rtx-5060-ti",
@@ -40,6 +49,9 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 7600X and NVIDIA RTX 5060 Ti, black case with purple ARGB fan lighting.",
     imageSrc: "/builds/ryzen-5-rtx-5060-ti.webp",
+    imageScale: 1.02,
+    imageTranslateX: -0.8,
+    imageTranslateY: 2.7,
   },
   {
     slug: "ryzen-5-rtx-4060",
@@ -57,6 +69,9 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 8600G and NVIDIA RTX 4060, black case with multicolor ARGB fan lighting.",
     imageSrc: "/builds/ryzen-5-rtx-4060.webp",
+    imageScale: 1.14,
+    imageTranslateX: 2.6,
+    imageTranslateY: -2.0,
   },
   {
     slug: "ryzen-5-rtx-3060-white",
@@ -74,6 +89,9 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 5600X and NVIDIA RTX 3060, all-white case with blue-purple ARGB fan lighting.",
     imageSrc: "/builds/ryzen-5-rtx-3060-white.webp",
+    imageScale: 1.08,
+    imageTranslateX: 4.2,
+    imageTranslateY: 1.4,
   },
   {
     slug: "ryzen-5-gtx-1660-ti",
@@ -91,5 +109,8 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 3600 and NVIDIA GTX 1660 Ti, black-and-white case with multicolor ARGB fan lighting.",
     imageSrc: "/builds/ryzen-5-gtx-1660-ti.webp",
+    imageScale: 0.88,
+    imageTranslateX: 0.8,
+    imageTranslateY: 1.6,
   },
 ];
