@@ -9,6 +9,10 @@ import { CinematicHero } from "@/components/home/CinematicHero";
 import { FeaturedSpecScroll } from "@/components/home/FeaturedSpecScroll";
 import { ProcessSection } from "@/components/home/ProcessSection";
 import { FeaturedBuilds } from "@/components/home/FeaturedBuilds";
+import { PricingReveal } from "@/components/home/PricingReveal";
+import { PartsShowcase } from "@/components/home/PartsShowcase";
+import { WhyM1 } from "@/components/home/WhyM1";
+import { FinalCTA } from "@/components/home/FinalCTA";
 import { categories } from "@/lib/categories";
 
 export const metadata: Metadata = {
@@ -41,26 +45,19 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* Why quotation instead of fixed prices */}
-      <section className="border-b border-border bg-surface">
-        <Container className="py-16 sm:py-24">
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-            <SectionHeading
-              align="left"
-              eyebrow="Pricing"
-              title="Why don't we show fixed prices?"
-              description="PC component prices and availability can change frequently. Instead of displaying outdated pricing, M1 prepares quotations using current component availability and pricing at the time of your request."
-            />
-            <div className="flex flex-col gap-4 sm:flex-row lg:justify-end">
-              <Button href="/build-my-pc" size="lg">
-                Request Current Price
-              </Button>
-            </div>
-          </div>
-        </Container>
-      </section>
+      {/* Why quotation instead of fixed prices — "editorial split reveal" motion */}
+      <PricingReveal />
 
-      {/* Business categories */}
+      {/* Every Part Matters — kinetic typography replacement for the old category grid below */}
+      <PartsShowcase />
+
+      {/* Why M1 — quiet spotlight trust section */}
+      <WhyM1 />
+
+      {/* Final CTA — cinematic bookend to the hero, reusing the hero photo */}
+      <FinalCTA />
+
+      {/* Business categories (legacy — superseded by PartsShowcase above, kept for testing until cleanup phase) */}
       <section>
         <Container className="py-16 sm:py-24">
           <SectionHeading
