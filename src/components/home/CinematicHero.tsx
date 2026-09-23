@@ -11,14 +11,15 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
  * Cinematic homepage hero. Two-column product-launch composition on
- * desktop (headline+copy+CTAs left, hero PC right, via flex-row-reverse so
- * the PC stays first in DOM order); on mobile the PC leads (before any
- * copy), which read stronger than interleaving it mid-text once tested
- * against the real photo — a deliberate stack, not a shrunk desktop copy.
+ * desktop (headline+copy+CTAs left, brand mark right, via flex-row-reverse
+ * so the mark stays first in DOM order); on mobile the mark leads (before
+ * any copy) — a deliberate stack, not a shrunk desktop copy.
  *
- * The PC photo (public/hero/featured-build.webp) is never recolored,
- * cropped, or filtered — only resized/positioned via CSS transform, with a
- * very low-opacity ambient glow placed *behind* it.
+ * Shows the logo (public/logo.png, never edited/cropped as a file) rather
+ * than the hero PC photo: the PC photo now appears in FeaturedSpecScroll
+ * immediately below instead, so the two sections read as "introduce the
+ * brand, then show the product" rather than repeating the same photo
+ * twice back to back.
  */
 export function CinematicHero() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -87,11 +88,12 @@ export function CinematicHero() {
 
       <Container className="relative flex min-h-[85svh] flex-col justify-center py-24 sm:py-28 lg:min-h-[90svh] lg:py-16">
         <div className="flex flex-col gap-12 lg:flex-row-reverse lg:items-center lg:justify-between lg:gap-12 xl:gap-20">
-          {/* PC — first in the DOM (leads on mobile), sits on the right on
-              desktop via flex-row-reverse. */}
+          {/* Brand mark — first in the DOM (leads on mobile), sits on the
+              right on desktop via flex-row-reverse. Sized to the logo's own
+              4:5 aspect ratio rather than the PC photo's. */}
           <motion.div
             style={{ scale: scrollFxEnabled ? scrollScale : 1 }}
-            className="mx-auto w-full max-w-[320px] sm:max-w-[400px] lg:mx-0 lg:max-w-[480px] lg:shrink-0 xl:max-w-[560px]"
+            className="mx-auto w-full max-w-[260px] sm:max-w-[320px] lg:mx-0 lg:max-w-[380px] lg:shrink-0 xl:max-w-[440px]"
           >
             <motion.div
               {...(reduceMotion
@@ -105,15 +107,15 @@ export function CinematicHero() {
                     animate: { opacity: 1, scale: 1, y: 0 },
                     transition: { duration: 0.9, delay: 0.1, ease: EASE },
                   })}
-              className="relative aspect-[1206/1724] w-full"
+              className="relative aspect-[4/5] w-full"
             >
               <Image
-                src="/hero/featured-build.webp"
-                alt="M1 Gaming PCs custom build with red interior lighting and tempered glass panels"
+                src="/logo.png"
+                alt="M1 Gaming PCs"
                 fill
-                sizes="(min-width: 1280px) 560px, (min-width: 1024px) 480px, (min-width: 640px) 400px, 320px"
+                sizes="(min-width: 1280px) 440px, (min-width: 1024px) 380px, (min-width: 640px) 320px, 260px"
                 priority
-                className="object-contain"
+                className="object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
               />
             </motion.div>
           </motion.div>

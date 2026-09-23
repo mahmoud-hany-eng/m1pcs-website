@@ -42,16 +42,9 @@ function interp(t: number, input: readonly number[], output: readonly number[]):
   return output[last];
 }
 
-/**
- * This section sits directly after CinematicHero, which already shows the
- * hero PC photo — repeating it immediately here read as redundant. The
- * brand mark carries the section instead: the existing logo.png (never
- * edited/cropped as a file), given real presence via size, an ambient glow,
- * and the section's own scroll-driven drift/scale rather than being treated
- * as a small static badge.
- */
-const LOGO_SRC = "/logo.png";
-const LOGO_ALT = "M1 Gaming PCs";
+const HERO_IMAGE_SRC = "/hero/featured-build.webp";
+const HERO_IMAGE_ALT =
+  "M1 Gaming PCs custom build with red interior lighting and tempered glass panels";
 
 interface SpecStage {
   eyebrow: string;
@@ -91,17 +84,18 @@ const STAGES: SpecStage[] = [
 ];
 
 /**
- * Homepage "Featured Spec / Scroll Story" — the one section that uses true
- * scroll-driven storytelling. Desktop pins the brand mark in a sticky
+ * Homepage "Featured PC / Spec Scroll Story" — the one section that uses
+ * true scroll-driven storytelling. Desktop pins the hero PC in a sticky
  * viewport while four short stages crossfade over ~200vh of scroll, driven
  * by a single section-level scroll-progress value (not one listener per
  * stage). Mobile (and reduced motion, at any width) instead gets a normal
  * stacked flow with `whileInView` reveals — no sticky pin, no scroll-linked
  * transforms, no artificial scroll length.
  *
- * Shows the logo rather than the hero PC photo: this section sits right
- * after CinematicHero, which already carries that same photo, so repeating
- * it here read as redundant across the page — see the LOGO_SRC comment.
+ * Continuity with CinematicHero: same image file, same aspect ratio, a
+ * similar right-hand position/size. CinematicHero itself now shows the
+ * brand mark instead of this photo, so the PC is introduced for the first
+ * time here rather than being shown twice back to back.
  */
 export function FeaturedSpecScroll() {
   // SSR-safe: both default to the "normal motion, unknown width" state so
@@ -216,25 +210,25 @@ function StickyScrollStory() {
           style={{
             opacity: glowOpacity,
             background:
-              "radial-gradient(40% 40% at 74% 46%, rgb(var(--color-primary)) 0%, transparent 72%)",
+              "radial-gradient(42% 38% at 74% 46%, rgb(var(--color-primary)) 0%, transparent 72%)",
           }}
           className="pointer-events-none absolute inset-0"
         />
 
         <Container className="relative flex w-full flex-row-reverse items-center justify-between gap-12 xl:gap-20">
-          {/* Brand mark — same whole-sequence drift/scale the PC used to
-              carry, now applied to the logo instead. */}
+          {/* PC — same asset/position language as CinematicHero, on the
+              right, moving only as one continuous whole-sequence drift. */}
           <motion.div
             style={{ scale: pcScale, x: pcX, y: pcY }}
-            className="w-full max-w-[340px] shrink-0 xl:max-w-[400px]"
+            className="w-full max-w-[420px] shrink-0 xl:max-w-[500px]"
           >
-            <div className="relative aspect-[4/5] w-full">
+            <div className="relative aspect-[1206/1724] w-full">
               <Image
-                src={LOGO_SRC}
-                alt={LOGO_ALT}
+                src={HERO_IMAGE_SRC}
+                alt={HERO_IMAGE_ALT}
                 fill
-                sizes="(min-width: 1280px) 400px, 340px"
-                className="object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+                sizes="(min-width: 1280px) 500px, 420px"
+                className="object-contain"
               />
             </div>
           </motion.div>
@@ -325,15 +319,15 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
       <Container className="relative flex flex-col gap-16">
         <motion.div
           {...reveal(0)}
-          className="mx-auto w-full max-w-[240px] sm:max-w-[280px]"
+          className="mx-auto w-full max-w-[320px] sm:max-w-[400px]"
         >
-          <div className="relative aspect-[4/5] w-full">
+          <div className="relative aspect-[1206/1724] w-full">
             <Image
-              src={LOGO_SRC}
-              alt={LOGO_ALT}
+              src={HERO_IMAGE_SRC}
+              alt={HERO_IMAGE_ALT}
               fill
-              sizes="(min-width: 640px) 280px, 240px"
-              className="object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+              sizes="(min-width: 640px) 400px, 320px"
+              className="object-contain"
             />
           </div>
         </motion.div>
