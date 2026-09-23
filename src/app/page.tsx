@@ -7,6 +7,8 @@ import { CategoryCard } from "@/components/cards/CategoryCard";
 import { CTABlock } from "@/components/cta/CTABlock";
 import { CinematicHero } from "@/components/home/CinematicHero";
 import { FeaturedSpecScroll } from "@/components/home/FeaturedSpecScroll";
+import { ProcessSection } from "@/components/home/ProcessSection";
+import { FeaturedBuilds } from "@/components/home/FeaturedBuilds";
 import { categories } from "@/lib/categories";
 
 export const metadata: Metadata = {
@@ -25,6 +27,8 @@ export default function HomePage() {
     <>
       <CinematicHero />
       <FeaturedSpecScroll />
+      <ProcessSection />
+      <FeaturedBuilds />
 
       {/* Value proposition */}
       <section className="border-b border-border">
