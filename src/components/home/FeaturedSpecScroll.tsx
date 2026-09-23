@@ -68,7 +68,7 @@ const STAGES: SpecStage[] = [
   },
   {
     eyebrow: "COMPONENTS",
-    lines: ["Every part matters."],
+    lines: ["Chosen together."],
     supporting: "A balanced system starts with choosing the right parts together.",
   },
   {
