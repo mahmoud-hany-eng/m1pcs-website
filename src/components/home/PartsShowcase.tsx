@@ -7,6 +7,7 @@ import {
   useMotionValue,
   useMotionValueEvent,
   useScroll,
+  useSpring,
   useTransform,
   type MotionValue,
 } from "framer-motion";
@@ -69,7 +70,7 @@ export function PartsShowcase() {
     : {
         initial: { opacity: 0, y: 24 },
         whileInView: { opacity: 1, y: 0 },
-        viewport: { once: false, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-20% 0px" },
         transition: { duration: 0.7, ease: EASE },
       };
 
@@ -115,6 +116,16 @@ function KineticParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMoti
     offset: ["start end", "end start"],
   });
 
+  // Same light spring used by the other scroll-progress sections — a fast
+  // wheel jump glides the rows toward their new position instead of
+  // visibly snapping. Native scrolling is untouched; this only smooths the
+  // derived progress value feeding the row x-offsets below.
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 180,
+    damping: 35,
+    mass: 0.2,
+  });
+
   const directions = rows.map((_, i) => (i % 2 === 0 ? 1 : -1)) as (1 | -1)[];
 
   // Fixed seven rows -> fixed seven motion values, called unconditionally
@@ -128,7 +139,7 @@ function KineticParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMoti
   const x6 = useMotionValue(0);
   const xs = [x0, x1, x2, x3, x4, x5, x6];
 
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
+  useMotionValueEvent(smoothProgress, "change", (p) => {
     directions.forEach((dir, i) => {
       xs[i]?.set(dir * (-TRAVEL_PERCENT + 2 * TRAVEL_PERCENT * p));
     });
@@ -201,7 +212,7 @@ function MobileParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMotio
       : {
           initial: { opacity: 0, y: 16 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: false, margin: "-10% 0px" },
+          viewport: { once: false, margin: "-20% 0px" },
           transition: { duration: 0.5, delay, ease: EASE },
         };
 

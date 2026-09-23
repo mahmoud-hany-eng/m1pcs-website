@@ -82,7 +82,7 @@ export function WhyM1() {
     : {
         initial: { opacity: 0, y: 24 },
         whileInView: { opacity: 1, y: 0 },
-        viewport: { once: false, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-20% 0px" },
         transition: { duration: 0.7, ease: EASE },
       };
 
@@ -186,7 +186,7 @@ function SimpleWhyM1({ reduceMotion }: { reduceMotion: boolean }) {
       : {
           initial: { opacity: 0, y: 16 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: false, margin: "-10% 0px" },
+          viewport: { once: false, margin: "-20% 0px" },
           transition: { duration: 0.5, delay, ease: EASE },
         };
 

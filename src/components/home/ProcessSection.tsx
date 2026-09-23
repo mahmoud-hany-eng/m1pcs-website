@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useMotionValueEvent, useScroll } from "framer-motion";
+import { motion, useMotionValue, useMotionValueEvent, useScroll, useSpring } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 
 /** Premium, restrained "expo-out" easing — matches the other homepage sections. */
@@ -86,7 +86,7 @@ export function ProcessSection() {
     : {
         initial: { opacity: 0, y: 24 },
         whileInView: { opacity: 1, y: 0 },
-        viewport: { once: false, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-20% 0px" },
         transition: { duration: 0.7, ease: EASE },
       };
 
@@ -120,6 +120,16 @@ function StickyProcess() {
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end end"],
+  });
+
+  // Same light spring as FeaturedSpecScroll's sticky story — smooths a
+  // fast/large scroll jump into a visible interpolation instead of a
+  // teleport, without touching native scroll itself. Only rendered when
+  // !reduceMotion (see the lg:hidden/hidden lg:block split below).
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 180,
+    damping: 35,
+    mass: 0.2,
   });
 
   // Five equal 20%-wide stage windows with a short internal crossfade at
@@ -160,7 +170,7 @@ function StickyProcess() {
     { opacity: op4, y: y4 },
   ];
 
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
+  useMotionValueEvent(smoothProgress, "change", (p) => {
     stageMotion.forEach(({ opacity, y }, i) => {
       opacity.set(interp(p, ranges[i], opOuts[i]));
       y.set(interp(p, ranges[i], yOuts[i]));
@@ -220,7 +230,7 @@ function SimpleProcess({ reduceMotion }: { reduceMotion: boolean }) {
       : {
           initial: { opacity: 0, y: 20 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: false, margin: "-10% 0px" },
+          viewport: { once: false, margin: "-20% 0px" },
           transition: { duration: 0.6, delay, ease: EASE },
         };
 

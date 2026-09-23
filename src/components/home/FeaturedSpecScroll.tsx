@@ -7,6 +7,7 @@ import {
   useMotionValue,
   useMotionValueEvent,
   useScroll,
+  useSpring,
   useTransform,
 } from "framer-motion";
 import { Container } from "@/components/ui/Container";
@@ -143,16 +144,31 @@ function StickyScrollStory() {
     offset: ["start start", "end end"],
   });
 
+  // A light spring over the raw scroll progress so a fast/large wheel jump
+  // visually interpolates through the crossfade instead of teleporting —
+  // native scrolling itself is completely untouched, this only smooths the
+  // derived progress value that drives opacity/position below. Deliberately
+  // stiff/lightly damped so it catches up within a couple of frames rather
+  // than trailing behind once the user stops scrolling (only rendered when
+  // !reduceMotion in the first place — see FeaturedSpecScroll's own
+  // lg:hidden/hidden lg:block split — so this never runs for reduced-motion
+  // visitors).
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 180,
+    damping: 35,
+    mass: 0.2,
+  });
+
   // Whole-PC motion across the ENTIRE sequence — heavy/stationary, not
   // animated per stage. Scale 1 → 1.035, a few px of drift, nothing more.
-  const pcScale = useTransform(scrollYProgress, [0, 1], [1, 1.035]);
-  const pcX = useTransform(scrollYProgress, [0, 1], [0, 14]);
-  const pcY = useTransform(scrollYProgress, [0, 1], [0, -10]);
+  const pcScale = useTransform(smoothProgress, [0, 1], [1, 1.035]);
+  const pcX = useTransform(smoothProgress, [0, 1], [0, 14]);
+  const pcY = useTransform(smoothProgress, [0, 1], [0, -10]);
 
   // Very subtle ambient warm-up over the whole sequence (one continuous
   // interpolation, not four discrete gradient swaps) — echoes Hero's own
   // low-opacity glow for continuity.
-  const glowOpacity = useTransform(scrollYProgress, [0, 1], [0.08, 0.16]);
+  const glowOpacity = useTransform(smoothProgress, [0, 1], [0.08, 0.16]);
 
   // Four fixed stage windows (25% of progress each) with a short internal
   // crossfade at each boundary so at most one stage is ever fully
@@ -188,7 +204,7 @@ function StickyScrollStory() {
     { opacity: op3, y: y3 },
   ];
 
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
+  useMotionValueEvent(smoothProgress, "change", (p) => {
     op0.set(interp(p, r0, opOut0));
     y0.set(interp(p, r0, yOut0));
     op1.set(interp(p, r1, opOut1));
@@ -301,7 +317,7 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
       : {
           initial: { opacity: 0, y: 20 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: false, margin: "-10% 0px" },
+          viewport: { once: false, margin: "-20% 0px" },
           transition: { duration: 0.6, delay, ease: EASE },
         };
 
