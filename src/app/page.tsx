@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { CategoryCard } from "@/components/cards/CategoryCard";
 import { CTABlock } from "@/components/cta/CTABlock";
+import { CinematicHero } from "@/components/home/CinematicHero";
 import { categories } from "@/lib/categories";
 
 export const metadata: Metadata = {
@@ -21,49 +22,7 @@ const processSteps = [
 export default function HomePage() {
   return (
     <>
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 50% 0%, rgba(231,50,37,0.18) 0%, rgba(10,10,11,0) 70%)",
-          }}
-        />
-        <Container className="relative py-20 sm:py-28 lg:py-32">
-          <div className="flex flex-col items-center gap-8 text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface px-4 py-2 text-xs sm:text-sm font-medium text-text-secondary">
-              Custom Gaming PCs &bull; Components &bull; Qatar
-            </span>
-
-            <h1 className="font-display max-w-4xl text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
-              CUSTOM PCs.{" "}
-              <span className="brand-gradient-text">BUILT AROUND YOU.</span>
-            </h1>
-
-            <p className="max-w-2xl text-base text-text-secondary sm:text-lg">
-              Tell us your budget, games, and performance goals. M1
-              recommends suitable components and prepares a custom quotation
-              based on current availability and pricing.
-            </p>
-
-            <div className="flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
-              <Button href="/build-my-pc" size="lg" className="w-full sm:w-auto">
-                Request a PC Quote
-              </Button>
-              <Button
-                href="/completed-builds"
-                variant="outline"
-                size="lg"
-                className="w-full sm:w-auto"
-              >
-                View Completed Builds
-              </Button>
-            </div>
-          </div>
-        </Container>
-      </section>
+      <CinematicHero />
 
       {/* Value proposition */}
       <section className="border-b border-border">

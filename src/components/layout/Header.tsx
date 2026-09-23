@@ -19,6 +19,13 @@ const navLinks = [
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Only the homepage gets the transparent-at-top / solid-after-scroll
+  // treatment for its cinematic hero — every other route keeps today's
+  // always-solid header untouched.
+  const isHomepage = pathname === "/";
+  const transparent = isHomepage && !scrolled;
 
   useEffect(() => {
     setOpen(false);
@@ -31,8 +38,36 @@ export function Header() {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!isHomepage) return;
+
+    const SCROLL_THRESHOLD = 64;
+    let ticking = false;
+
+    function update() {
+      setScrolled(window.scrollY > SCROLL_THRESHOLD);
+      ticking = false;
+    }
+
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+
+    update(); // correct state immediately if the page loads already scrolled
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isHomepage]);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header
+      className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
+        transparent
+          ? "border-transparent bg-transparent"
+          : "border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      }`}
+    >
       <Container>
         <div className="flex h-16 sm:h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="M1 Gaming PCs home">
@@ -57,7 +92,11 @@ export function Header() {
                   key={link.href}
                   href={link.href}
                   className={`text-sm font-medium transition-colors hover:text-accent ${
-                    isActive ? "text-accent" : "text-text-secondary"
+                    isActive
+                      ? "text-accent"
+                      : transparent
+                        ? "text-white"
+                        : "text-text-secondary"
                   }`}
                   aria-current={isActive ? "page" : undefined}
                 >
