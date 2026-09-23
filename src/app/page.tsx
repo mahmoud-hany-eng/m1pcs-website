@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { CategoryCard } from "@/components/cards/CategoryCard";
 import { CTABlock } from "@/components/cta/CTABlock";
 import { CinematicHero } from "@/components/home/CinematicHero";
+import { FeaturedSpecScroll } from "@/components/home/FeaturedSpecScroll";
 import { categories } from "@/lib/categories";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function HomePage() {
   return (
     <>
       <CinematicHero />
+      <FeaturedSpecScroll />
 
       {/* Value proposition */}
       <section className="border-b border-border">
