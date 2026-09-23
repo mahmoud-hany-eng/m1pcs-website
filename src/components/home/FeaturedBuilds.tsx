@@ -77,12 +77,20 @@ export function FeaturedBuilds() {
     <section className="bg-background py-24 sm:py-28 lg:py-32">
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
-          <h2 className="text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary">
-            {/* "M1" stays in the site's own display font — Instrument
-                Serif's numeral "1" reads as a lowercase "l" at this size,
-                which made the brand name illegible ("Built by Ml."). */}
-            <span className={instrumentSerif.className}>Built by </span>
-            <span className="font-display font-bold">M1.</span>
+          <h2
+            className={`${instrumentSerif.className} text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary`}
+          >
+            {/* Whole phrase stays in Instrument Serif. In this typeface the
+                numeral "1" and lowercase "l" are drawn as the same plain
+                stroke, so no spacing/feature trick can tell them apart at
+                the regular weight — confirmed by rendering the two glyphs
+                side by side. A synthesized bold weight on "M1." (the font
+                only ships regular, so the browser fattens the strokes)
+                gives the numeral real contrast against the "l"s around it,
+                reading unmistakably as "M1" while staying Instrument Serif
+                throughout — no second font, no hand-drawn glyph. */}
+            Built by{" "}
+            <span className="text-[1.05em] font-bold tracking-[0.01em]">M1.</span>
           </h2>
           <p className="mt-4 text-lg text-text-secondary sm:text-xl">
             Real systems.
