@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Instrument_Serif } from "next/font/google";
+import { DM_Serif_Display } from "next/font/google";
 import { motion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { BuildImageFrame } from "@/components/cards/BuildImageFrame";
@@ -13,8 +13,16 @@ import type { CompletedBuild } from "@/types";
  * Homepage-only editorial accent — scoped to this file, not the root
  * layout, so it's only ever fetched on pages that render this component
  * (the homepage), never loaded site-wide. Used for exactly one heading.
+ *
+ * Replaces Instrument Serif: that face draws numeral "1" as a plain
+ * vertical stroke indistinguishable from lowercase "l" (confirmed by
+ * rendering both glyphs side by side), which no amount of weight/spacing
+ * could fix. DM Serif Display keeps the same elegant, high-contrast
+ * editorial character but draws "1" with a real top flag and base serif,
+ * so it reads unmistakably as a numeral at the same weight as the rest of
+ * the phrase — no bold/size trick needed, no second font.
  */
-const instrumentSerif = Instrument_Serif({
+const dmSerifDisplay = DM_Serif_Display({
   subsets: ["latin"],
   weight: "400",
   style: "normal",
@@ -78,19 +86,14 @@ export function FeaturedBuilds() {
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
           <h2
-            className={`${instrumentSerif.className} text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary`}
+            className={`${dmSerifDisplay.className} text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary`}
           >
-            {/* Whole phrase stays in Instrument Serif. In this typeface the
-                numeral "1" and lowercase "l" are drawn as the same plain
-                stroke, so no spacing/feature trick can tell them apart at
-                the regular weight — confirmed by rendering the two glyphs
-                side by side. A synthesized bold weight on "M1." (the font
-                only ships regular, so the browser fattens the strokes)
-                gives the numeral real contrast against the "l"s around it,
-                reading unmistakably as "M1" while staying Instrument Serif
-                throughout — no second font, no hand-drawn glyph. */}
-            Built by{" "}
-            <span className="text-[1.05em] font-bold tracking-[0.01em]">M1.</span>
+            {/* Same font, same weight and size as "Built by" throughout —
+                DM Serif Display's numeral already reads clearly as "1" on
+                its own, so no bold/size trick is needed. A hair of extra
+                letter-spacing on "M1." is purely optical breathing room
+                between the glyphs, not a different treatment. */}
+            Built by <span className="tracking-[0.015em]">M1.</span>
           </h2>
           <p className="mt-4 text-lg text-text-secondary sm:text-xl">
             Real systems.
