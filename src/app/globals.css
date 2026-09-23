@@ -105,6 +105,17 @@ body {
   );
 }
 
+/* Hides the native scrollbar on a horizontally scrollable element (e.g. the
+   Built by M1 gallery rail) while leaving native scroll/swipe/keyboard
+   behavior fully intact — purely cosmetic. */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Focus visibility for accessibility (keyboard nav) */
 :focus-visible {
   outline: 2px solid rgb(var(--color-accent));

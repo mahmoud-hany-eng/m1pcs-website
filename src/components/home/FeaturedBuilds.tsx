@@ -1,37 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Instrument_Serif } from "next/font/google";
 import { motion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { BuildImageFrame } from "@/components/cards/BuildImageFrame";
 import { completedBuilds } from "@/lib/builds";
 import type { CompletedBuild } from "@/types";
 
-/** Premium, restrained "expo-out" easing — matches the other homepage sections. */
-const EASE = [0.16, 1, 0.3, 1] as const;
-
 /**
- * Editorial column placement per build, in array order. BuildImageFrame is
- * a fixed aspect-[4/5] box, so a wider grid column only ever makes the
- * whole frame proportionally larger — it can never distort or crop the
- * photo inside it, which is what makes varying these safe.
+ * Homepage-only editorial accent — scoped to this file, not the root
+ * layout, so it's only ever fetched on pages that render this component
+ * (the homepage), never loaded site-wide. Used for exactly one heading.
  */
-const PLACEMENT = [
-  "lg:col-span-8 lg:col-start-1", // build 1 — large, featured, left
-  "lg:col-span-5 lg:col-start-1", // build 2 — paired, left half
-  "lg:col-span-6", // build 3 — paired, right half (auto-placed after build 2)
-  "lg:col-span-8 lg:col-start-5", // build 4 — large, right-offset
-  "lg:col-span-5 lg:col-start-4", // build 5 — smaller, centered, closing
-];
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: "normal",
+  display: "swap",
+});
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+/** Low-bounce, heavy-feeling settle for the active/inactive card transition. */
+const CARD_SPRING = { type: "spring", stiffness: 260, damping: 32, mass: 0.9 } as const;
 
 /**
- * Homepage "Built by M1" showcase. Reuses BuildImageFrame + completedBuilds
- * exactly as they already exist for /completed-builds — no build data is
- * duplicated, and the image presentation (including each build's approved
- * imageScale/imageTranslateX/imageTranslateY) is untouched. Only the
- * surrounding editorial composition (column widths, metadata layout,
- * entrance reveal) is homepage-specific.
+ * Homepage "Built by M1" showcase — a uniform-card horizontal gallery
+ * (native overflow-x + scroll-snap, not a hijacked/virtual carousel) built
+ * entirely from the existing BuildImageFrame + completedBuilds. Every card
+ * is the same size; only the surrounding scale/opacity of the *frame*
+ * changes with proximity to center — the photo inside never crops,
+ * stretches, or otherwise changes from how it already renders on
+ * /completed-builds.
  */
 export function FeaturedBuilds() {
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -58,12 +59,30 @@ export function FeaturedBuilds() {
         transition: { duration: 0.7, ease: EASE },
       };
 
+  const railReveal = reduceMotion
+    ? {
+        initial: { opacity: 0 },
+        whileInView: { opacity: 1 },
+        viewport: { once: true, margin: "-10% 0px" },
+        transition: { duration: 0.4, delay: 0.1 },
+      }
+    : {
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: "-10% 0px" },
+        transition: { duration: 0.6, delay: 0.15, ease: EASE },
+      };
+
   return (
     <section className="bg-background py-24 sm:py-28 lg:py-32">
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
-          <h2 className="font-display text-[clamp(2.5rem,5vw,4.5rem)] font-bold leading-[1.05] tracking-tight text-text-primary">
-            Built by M1.
+          <h2 className="text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary">
+            {/* "M1" stays in the site's own display font — Instrument
+                Serif's numeral "1" reads as a lowercase "l" at this size,
+                which made the brand name illegible ("Built by Ml."). */}
+            <span className={instrumentSerif.className}>Built by </span>
+            <span className="font-display font-bold">M1.</span>
           </h2>
           <p className="mt-4 text-lg text-text-secondary sm:text-xl">
             Real systems.
@@ -71,74 +90,195 @@ export function FeaturedBuilds() {
             Built for real customers.
           </p>
         </motion.div>
-
-        <div className="mt-16 grid grid-cols-1 gap-x-10 gap-y-20 sm:gap-y-24 lg:grid-cols-12 lg:gap-x-12">
-          {completedBuilds.map((build, i) => (
-            <BuildEntry
-              key={build.slug}
-              build={build}
-              className={PLACEMENT[i] ?? "lg:col-span-6"}
-              editorialLabel={i === 0 ? "M1 / 01" : undefined}
-              reduceMotion={reduceMotion}
-            />
-          ))}
-        </div>
       </Container>
+
+      <motion.div {...railReveal} className="mt-16">
+        <BuildGallery reduceMotion={reduceMotion} />
+      </motion.div>
     </section>
   );
 }
 
-function BuildEntry({
-  build,
-  className,
-  editorialLabel,
-  reduceMotion,
-}: {
-  build: CompletedBuild;
-  className: string;
-  editorialLabel?: string;
-  reduceMotion: boolean;
-}) {
-  const reveal = reduceMotion
-    ? {
-        initial: { opacity: 0 },
-        whileInView: { opacity: 1 },
-        viewport: { once: true, margin: "-10% 0px" },
-        transition: { duration: 0.4 },
-      }
-    : {
-        initial: { opacity: 0, y: 30 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, margin: "-10% 0px" },
-        transition: { duration: 0.7, ease: EASE },
-      };
+function BuildGallery({ reduceMotion }: { reduceMotion: boolean }) {
+  const builds = completedBuilds.filter((b) => b.imageSrc);
+  const railRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [active, setActive] = useState(0);
 
-  if (!build.imageSrc) return null;
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    let ticking = false;
+    function computeActive() {
+      const railEl = railRef.current;
+      if (!railEl) return;
+      const railRect = railEl.getBoundingClientRect();
+      const railCenter = railRect.left + railRect.width / 2;
+      let closestIndex = 0;
+      let closestDistance = Infinity;
+      cardRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const cardCenter = r.left + r.width / 2;
+        const distance = Math.abs(cardCenter - railCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = i;
+        }
+      });
+      setActive(closestIndex);
+      ticking = false;
+    }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(computeActive);
+    }
+
+    computeActive();
+    rail.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      rail.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  function scrollToIndex(index: number) {
+    const rail = railRef.current;
+    const card = cardRefs.current[index];
+    if (!rail || !card) return;
+    const railRect = rail.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const delta = cardRect.left + cardRect.width / 2 - (railRect.left + railRect.width / 2);
+    rail.scrollBy({ left: delta, behavior: "smooth" });
+  }
+
+  function onRailKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      scrollToIndex(Math.min(active + 1, builds.length - 1));
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      scrollToIndex(Math.max(active - 1, 0));
+    }
+  }
 
   return (
-    <motion.div {...reveal} className={`group flex flex-col gap-5 ${className}`}>
-      <BuildImageFrame src={build.imageSrc} alt={build.imageAlt} scale={build.imageScale} translateX={build.imageTranslateX} translateY={build.imageTranslateY} />
-
-      <div className="flex flex-col gap-1">
-        {editorialLabel && (
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-            {editorialLabel}
-          </span>
-        )}
-        <h3 className="font-display text-lg font-semibold text-text-primary">{build.name}</h3>
-        <p className="text-sm text-text-secondary">
-          {build.cpu} &middot; {build.gpu}
-        </p>
-        <Link
-          href="/completed-builds"
-          className="mt-2 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors group-hover:text-accent"
-        >
-          View Build
-          <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
-            &rarr;
-          </span>
-        </Link>
+    <div className="flex flex-col gap-6">
+      <div
+        ref={railRef}
+        role="region"
+        aria-label="Completed builds gallery"
+        aria-roledescription="carousel"
+        tabIndex={0}
+        onKeyDown={onRailKeyDown}
+        className="scrollbar-hide flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth pb-2 pl-[6.5vw] pr-[6.5vw] sm:pl-[12.5vw] sm:pr-[12.5vw] lg:gap-8 lg:pl-[calc(50%_-_clamp(180px,19vw,280px))] lg:pr-[calc(50%_-_clamp(180px,19vw,280px))]"
+      >
+        {builds.map((build, i) => (
+          <GalleryCard
+            key={build.slug}
+            ref={(el) => {
+              cardRefs.current[i] = el;
+            }}
+            build={build}
+            index={i}
+            isActive={i === active}
+            reduceMotion={reduceMotion}
+          />
+        ))}
       </div>
-    </motion.div>
+
+      <Container>
+        <div className="flex items-center justify-between">
+          <span className="font-display text-sm font-medium tracking-wide text-text-muted">
+            {String(active + 1).padStart(2, "0")} / {String(builds.length).padStart(2, "0")}
+          </span>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              aria-label="Previous build"
+              disabled={active === 0}
+              onClick={() => scrollToIndex(Math.max(active - 1, 0))}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-30"
+            >
+              <span aria-hidden="true">&larr;</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Next build"
+              disabled={active === builds.length - 1}
+              onClick={() => scrollToIndex(Math.min(active + 1, builds.length - 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-30"
+            >
+              <span aria-hidden="true">&rarr;</span>
+            </button>
+          </div>
+        </div>
+      </Container>
+    </div>
+  );
+}
+
+function GalleryCard({
+  build,
+  index,
+  isActive,
+  reduceMotion,
+  ref,
+}: {
+  build: CompletedBuild;
+  index: number;
+  isActive: boolean;
+  reduceMotion: boolean;
+  ref: (el: HTMLDivElement | null) => void;
+}) {
+  if (!build.imageSrc) return null;
+
+  const target = reduceMotion
+    ? { scale: 1, opacity: 1, y: 0 }
+    : isActive
+      ? { scale: 1, opacity: 1, y: 0 }
+      : { scale: 0.94, opacity: 0.6, y: 16 };
+
+  return (
+    <div
+      ref={ref}
+      className="w-[87vw] shrink-0 snap-center sm:w-[75vw] lg:w-[clamp(360px,38vw,560px)]"
+    >
+      <motion.div
+        animate={target}
+        transition={reduceMotion ? { duration: 0 } : CARD_SPRING}
+        className="flex flex-col gap-5"
+      >
+        <BuildImageFrame
+          src={build.imageSrc}
+          alt={build.imageAlt}
+          scale={build.imageScale}
+          translateX={build.imageTranslateX}
+          translateY={build.imageTranslateY}
+        />
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <h3 className="font-display text-lg font-semibold text-text-primary">{build.name}</h3>
+          <p className="text-sm text-text-secondary">
+            {build.cpu} &middot; {build.gpu}
+          </p>
+          <Link
+            href="/completed-builds"
+            className="group mt-2 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors hover:text-accent"
+          >
+            View Build
+            <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+              &rarr;
+            </span>
+          </Link>
+        </div>
+      </motion.div>
+    </div>
   );
 }
