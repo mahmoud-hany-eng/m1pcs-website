@@ -68,16 +68,24 @@ export function FinalCTA() {
 
   return (
     <section className="relative isolate flex min-h-[75svh] items-center overflow-hidden bg-background py-24 sm:min-h-[85svh] sm:py-28">
+      {/* Bleeds off the right edge and is oversized relative to its own
+          box on every breakpoint (mobile already had this right; desktop
+          used to anchor flush at the edge, small and fully opaque, which
+          read as an isolated product cutout rather than atmosphere — the
+          wider box + right-edge bleed + lower opacity here is the same
+          mobile formula, just scaled up). The inner wrapper carries a
+          static zoom independent of the entrance motion.div's own
+          scale/y, so the two transforms don't collide. */}
       <motion.div
         {...pcReveal}
-        className="pointer-events-none absolute -right-12 bottom-0 w-[70vw] max-w-[380px] opacity-70 sm:right-0 sm:w-[42vw] sm:opacity-90 lg:max-w-[520px] lg:opacity-100"
+        className="pointer-events-none absolute -right-12 bottom-0 w-[70vw] max-w-[380px] opacity-70 sm:right-0 sm:w-[42vw] sm:opacity-90 lg:-right-32 lg:w-[68vw] lg:max-w-[860px] lg:opacity-35"
       >
-        <div className="relative aspect-[1206/1724] w-full">
+        <div className="relative aspect-[1206/1724] w-full lg:scale-125">
           <Image
             src="/hero/featured-build.webp"
             alt="M1 Gaming PCs custom build with red interior lighting and tempered glass panels"
             fill
-            sizes="(min-width: 1024px) 520px, (min-width: 640px) 42vw, 70vw"
+            sizes="(min-width: 1024px) 860px, (min-width: 640px) 42vw, 70vw"
             className="object-contain"
           />
         </div>
@@ -85,10 +93,13 @@ export function FinalCTA() {
 
       {/* Darkens the text side only, purely with CSS — the photo itself is
           never filtered/recolored, this sits in front of it as a separate
-          layer so the headline stays legible over the PC. */}
+          layer so the headline stays legible over the PC. Extends further
+          right on desktop (rather than fading to fully transparent) so the
+          now-larger PC still reads as blended atmosphere, not a crisp
+          cutout sitting on top of the background. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40 sm:via-background/70 sm:to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40 sm:via-background/70 sm:to-transparent lg:via-background/80 lg:to-background/55"
       />
 
       <Container className="relative">

@@ -17,11 +17,22 @@ import type { CategoryItem } from "@/types";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * The six hardware categories this row shows, pulled by slug from the
+ * The seven hardware categories this row shows, pulled by slug from the
  * single real category list (src/lib/categories.ts) — labels and routes
- * are read from that data, never duplicated/hardcoded here.
+ * are read from that data, never duplicated/hardcoded here. Power Supplies
+ * sits last, after Cooling — both are system-support categories rather
+ * than core compute/storage parts, so pairing them keeps the sequence
+ * reading as a deliberate group rather than an afterthought tacked on.
  */
-const SHOWCASE_SLUGS = ["gpus", "cpus", "ram", "ssd-storage", "motherboards", "cooling"];
+const SHOWCASE_SLUGS = [
+  "gpus",
+  "cpus",
+  "ram",
+  "ssd-storage",
+  "motherboards",
+  "cooling",
+  "power-supplies",
+];
 
 /** How far each row travels, as a percent of its own width (±6% = 12% total swing — within the 5–12% spec, under the 15% cap). */
 const TRAVEL_PERCENT = 6;
@@ -90,7 +101,7 @@ export function PartsShowcase() {
 
 /**
  * ONE section-level useScroll drives every row — a single
- * useMotionValueEvent callback updates all six row motion values together,
+ * useMotionValueEvent callback updates all seven row motion values together,
  * rather than each row deriving its own transform independently (the same
  * "one shared scroll source" pattern used by ProcessSection/FeaturedSpecScroll,
  * kept here for the same reason: multiple siblings deriving position from
@@ -106,15 +117,16 @@ function KineticParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMoti
 
   const directions = rows.map((_, i) => (i % 2 === 0 ? 1 : -1)) as (1 | -1)[];
 
-  // Fixed six rows -> fixed six motion values, called unconditionally (not
-  // inside the .map) to keep hook call order stable.
+  // Fixed seven rows -> fixed seven motion values, called unconditionally
+  // (not inside the .map) to keep hook call order stable.
   const x0 = useMotionValue(0);
   const x1 = useMotionValue(0);
   const x2 = useMotionValue(0);
   const x3 = useMotionValue(0);
   const x4 = useMotionValue(0);
   const x5 = useMotionValue(0);
-  const xs = [x0, x1, x2, x3, x4, x5];
+  const x6 = useMotionValue(0);
+  const xs = [x0, x1, x2, x3, x4, x5, x6];
 
   useMotionValueEvent(scrollYProgress, "change", (p) => {
     directions.forEach((dir, i) => {
