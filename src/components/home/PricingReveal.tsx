@@ -33,7 +33,7 @@ export function PricingReveal() {
     : {
         initial: { opacity: 0, y: 40 },
         whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-10% 0px" },
         transition: { duration: 1, ease: EASE },
       };
 
@@ -47,14 +47,14 @@ export function PricingReveal() {
     : {
         initial: { y: "100%" },
         whileInView: { y: 0 },
-        viewport: { once: true, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-10% 0px" },
         transition: { duration: 0.8, ease: EASE },
       };
 
   const copyReveal = {
     initial: { opacity: 0 },
     whileInView: { opacity: 1 },
-    viewport: { once: true, margin: "-10% 0px" },
+    viewport: { once: reduceMotion, margin: "-10% 0px" },
     transition: { duration: 0.6, delay: reduceMotion ? 0 : 0.35 },
   };
 
@@ -63,7 +63,7 @@ export function PricingReveal() {
     : {
         initial: { scaleX: 0 },
         whileInView: { scaleX: 1 },
-        viewport: { once: true, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-10% 0px" },
         transition: { duration: 0.7, delay: 0.5, ease: EASE },
       };
 
@@ -77,7 +77,7 @@ export function PricingReveal() {
     : {
         initial: { opacity: 0, x: 40 },
         whileInView: { opacity: 1, x: 0 },
-        viewport: { once: true, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-10% 0px" },
         transition: { duration: 0.6, delay: 0.4, ease: EASE },
       };
 

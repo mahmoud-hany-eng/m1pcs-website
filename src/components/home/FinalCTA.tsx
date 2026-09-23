@@ -40,7 +40,7 @@ export function FinalCTA() {
     : {
         initial: { opacity: 0, scale: 1.07, y: 12 },
         whileInView: { opacity: 1, scale: 1, y: 0 },
-        viewport: { once: true, margin: "-15% 0px" },
+        viewport: { once: false, margin: "-15% 0px" },
         transition: { duration: 1, ease: EASE },
       };
 
@@ -55,14 +55,14 @@ export function FinalCTA() {
       : {
           initial: { y: "100%" },
           whileInView: { y: 0 },
-          viewport: { once: true, margin: "-15% 0px" },
+          viewport: { once: false, margin: "-15% 0px" },
           transition: { duration: 0.8, delay, ease: EASE },
         };
 
   const fadeReveal = (delay: number) => ({
     initial: { opacity: 0, y: reduceMotion ? 0 : 16 },
     whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-15% 0px" },
+    viewport: { once: reduceMotion, margin: "-15% 0px" },
     transition: { duration: reduceMotion ? 0.4 : 0.6, delay, ease: EASE },
   });
 

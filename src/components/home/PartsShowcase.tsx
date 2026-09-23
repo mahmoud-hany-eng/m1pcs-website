@@ -69,7 +69,7 @@ export function PartsShowcase() {
     : {
         initial: { opacity: 0, y: 24 },
         whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, margin: "-10% 0px" },
+        viewport: { once: false, margin: "-10% 0px" },
         transition: { duration: 0.7, ease: EASE },
       };
 
@@ -201,7 +201,7 @@ function MobileParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMotio
       : {
           initial: { opacity: 0, y: 16 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: true, margin: "-10% 0px" },
+          viewport: { once: false, margin: "-10% 0px" },
           transition: { duration: 0.5, delay, ease: EASE },
         };
 
