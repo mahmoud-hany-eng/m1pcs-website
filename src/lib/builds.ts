@@ -272,8 +272,8 @@ export const completedBuilds: CompletedBuild[] = [
     imageAlt:
       "M1 completed gaming PC build with an AMD Ryzen 5 5600X and NVIDIA RTX 2060, dark case with blue front panel lighting.",
     imageSrc: "/builds/ryzen-5-rtx-2060-b450.png",
-    imageScale: 2.3,
-    imageTranslateX: 8,
-    imageTranslateY: -3,
+    imageScale: 1.6,
+    imageTranslateX: 7.3,
+    imageTranslateY: -1.6,
   },
 ];
