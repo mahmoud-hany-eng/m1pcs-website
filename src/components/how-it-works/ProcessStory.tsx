@@ -154,7 +154,7 @@ function DesktopFocusStack() {
     <div ref={sectionRef} className="relative h-[600vh] bg-background">
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
         <Container className="h-full">
-          <div className="relative mx-auto h-full max-w-[850px]">
+          <div className="relative mx-auto h-full max-w-[980px]">
             <FocusPanel index={0} step={STEPS[0]} focus={focus} />
             <FocusPanel index={1} step={STEPS[1]} focus={focus} />
             <FocusPanel index={2} step={STEPS[2]} focus={focus} />
@@ -201,7 +201,10 @@ function FocusPanel({
 
   return (
     <div className="absolute inset-x-0 -translate-y-1/2" style={{ top: ACTIVE_ANCHOR }}>
-      <motion.div style={{ opacity, scale, y, pointerEvents }} className="relative">
+      <motion.div
+        style={{ opacity, scale, y, pointerEvents }}
+        className="relative mx-auto w-full max-w-[900px] text-center"
+      >
         <div className="relative h-5">
           <motion.p
             style={{ opacity: counterOpacity }}
@@ -227,7 +230,7 @@ function FocusPanel({
             from ever pushing its own box into a neighbour's. */}
         <motion.div
           style={{ opacity: focusStrength }}
-          className="absolute left-0 top-full mt-5 max-w-[560px]"
+          className="absolute left-1/2 top-full mt-5 w-full max-w-[640px] -translate-x-1/2"
         >
           {index === 1 && (
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
@@ -280,7 +283,7 @@ function WordStagger({
   const ys = [y0, y1, y2, y3];
 
   return (
-    <div className="mt-5 flex flex-wrap gap-x-4 gap-y-1">
+    <div className="mx-auto mt-5 inline-flex flex-wrap justify-center gap-x-4 gap-y-1">
       {words.map((word, i) => (
         <motion.span
           key={word}
@@ -305,7 +308,7 @@ function SourceRoute({ focusStrength }: { focusStrength: MotionValue<number> }) 
   const endOpacity = useTransform(focusStrength, [0.55, 0.8], [0.3, 1]);
 
   return (
-    <div className="mt-8 flex max-w-md items-center gap-5">
+    <div className="mx-auto mt-8 inline-flex max-w-md items-center gap-5">
       <span className="font-display text-lg font-bold tracking-[0.1em] text-text-primary">U.S.A.</span>
       <div className="relative h-px flex-1 bg-border">
         <motion.div
@@ -350,7 +353,7 @@ function QuotationLines({
   const rowYs = [y0, y1, y2, y3, y4];
 
   return (
-    <div className="mt-4 flex max-w-sm flex-col divide-y divide-border border-t border-border">
+    <div className="mx-auto mt-4 inline-flex max-w-sm flex-col divide-y divide-border border-t border-border text-left">
       {rows.map((row, i) => (
         <motion.div
           key={row}
@@ -385,7 +388,7 @@ function ConfirmProgression({
   const connectorOps = [connector0, connector1];
 
   return (
-    <div className="mt-6 flex max-w-lg flex-wrap items-center gap-3">
+    <div className="mx-auto mt-6 inline-flex max-w-lg flex-wrap items-center justify-center gap-3">
       {stages.map((stage, i) => (
         <div key={stage} className="flex items-center gap-3">
           <motion.span
@@ -421,7 +424,7 @@ function DeliveredWords({
   const ops = [op0, op1, op2, op3];
 
   return (
-    <div className="mt-6 flex max-w-lg flex-wrap gap-x-6 gap-y-3">
+    <div className="mx-auto mt-6 inline-flex max-w-lg flex-wrap justify-center gap-x-6 gap-y-3">
       {words.map((word, i) => (
         <motion.span
           key={word}
