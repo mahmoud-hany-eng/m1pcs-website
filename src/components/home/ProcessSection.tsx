@@ -13,11 +13,10 @@ interface ProcessStage {
 }
 
 /**
- * Copy sourced directly from the existing, already-published process
- * content on /how-it-works (six detailed steps) and the homepage's prior
- * three-step summary — condensed to five stages for this section, not
- * invented. No turnaround times, prices, or guarantees are stated beyond
- * what those pages already say.
+ * Copy condensed from the fuller process content on /how-it-works, not
+ * invented — including stage 2's U.S.-sourcing differentiator, which
+ * /how-it-works now covers in full as its own step. No turnaround times,
+ * prices, or guarantees are stated beyond what that page already says.
  */
 const STAGES: ProcessStage[] = [
   {
@@ -25,8 +24,9 @@ const STAGES: ProcessStage[] = [
     supporting: "Submit your budget and PC requirements.",
   },
   {
-    headline: "We select the right components.",
-    supporting: "M1 recommends suitable components and prepares current pricing.",
+    headline: "We source it from the U.S.",
+    supporting:
+      "Your selected components are sourced directly from the U.S. based on your requested specification and current availability.",
   },
   {
     headline: "Review your options.",
