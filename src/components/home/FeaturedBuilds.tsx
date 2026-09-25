@@ -87,7 +87,7 @@ interface DepthPoints {
 
 const DEPTH_DESKTOP: DepthPoints = {
   d: [-2, -1, 0, 1, 2, 3, 4],
-  x: [190, 100, 0, -300, -510, -680, -820],
+  x: [190, 100, 0, -300, -500, -660, -800],
   y: [30, 18, 0, -5, -10, -16, -22],
   scale: [0.62, 0.85, 1, 0.8, 0.6, 0.45, 0.34],
   opacity: [0, 0, 1, 0.55, 0.32, 0.16, 0],
@@ -288,7 +288,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         style={{ touchAction: "pan-y" }}
-        className="relative h-[400px] w-full sm:h-[460px] lg:h-[480px] xl:h-[540px]"
+        className="relative h-[400px] w-full sm:h-[460px] lg:h-[560px] xl:h-[620px]"
       >
         {/* Restrained environmental support for the active PC only — a soft
             ambient glow and a grounding floor shadow, both anchored to the
@@ -296,7 +296,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
             not a card: no border, no fill box, no edges — just atmosphere. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-[2%] w-[220px] sm:w-[280px] lg:w-[300px] xl:w-[360px]"
+          className="pointer-events-none absolute inset-y-0 right-[2%] w-[220px] sm:w-[280px] lg:right-[7%] lg:w-[340px] xl:right-[17%] xl:w-[420px]"
         >
           <div className="absolute left-1/2 top-1/2 h-[70%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.07] blur-[80px]" />
           <div className="absolute bottom-[6%] left-1/2 h-[10%] w-[85%] -translate-x-1/2 rounded-full bg-black/50 blur-2xl" />
@@ -316,12 +316,12 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
           return (
             <div
               key={build.slug}
-              className="absolute inset-y-0 right-[2%] flex items-center"
+              className="absolute inset-y-0 right-[2%] flex items-center lg:right-[7%] xl:right-[17%]"
               style={{ zIndex: depthZIndex(clampedD), pointerEvents: isActive ? "auto" : "none" }}
             >
               <motion.div
                 aria-hidden={!isActive}
-                className="aspect-[4/5] w-[220px] sm:w-[280px] lg:w-[300px] xl:w-[360px]"
+                className="aspect-[4/5] w-[220px] sm:w-[280px] lg:w-[340px] xl:w-[420px]"
                 animate={{
                   x: s.x,
                   y: s.y,
@@ -448,7 +448,7 @@ function RunwayImage({ build, isActive }: { build: CompletedBuild; isActive: boo
         alt={build.imageAlt}
         fill
         draggable={false}
-        sizes="(min-width: 1024px) 360px, 60vw"
+        sizes="(min-width: 1024px) 420px, 60vw"
         className={
           isActive
             ? "object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.6)]"
