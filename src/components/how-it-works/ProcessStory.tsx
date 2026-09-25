@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  motion,
-  useMotionValueEvent,
-  useScroll,
-  useSpring,
-  useTransform,
-  type MotionValue,
-} from "framer-motion";
+import { motion, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 
@@ -62,12 +55,35 @@ const QUOTE_LINES = ["CPU", "GPU", "RAM", "STORAGE", "SHIPPING"];
 const CONFIRM_STAGES = ["DEPOSIT", "ORDER CONFIRMED", "TRACKING"];
 const DELIVERED_WORDS = ["BUILD", "SETUP", "READY", "DELIVERED"];
 
-/** Vertical distance (px) between the active item's heading and a faded
- *  neighbour's heading on desktop. Sized generously enough that the active
- *  step's full detail copy (which is absolutely positioned below its own
- *  heading, see FocusPanel) never visually collides with a neighbour's
- *  heading — verified against the tallest step's content during testing. */
-const DESKTOP_SPACING = 380;
+/** The three fixed slots' offsets (px) from the active anchor — see
+ *  FocusPanel. PREV is a modest lift (a faded heading only needs to clear
+ *  the active heading itself); NEXT is much larger because it has to clear
+ *  the active step's own full detail block underneath it, which can run
+ *  ~250-400px tall depending on the step — verified against the tallest
+ *  step's content during testing. */
+// Expressed in vh (of the full viewport, not just the pinned area) rather
+// than fixed px, so the three-slot composition scales with viewport
+// height instead of clipping at short viewports (1024x768 was getting its
+// NEXT slot clipped by the pinned viewport's own bottom edge at a fixed
+// 400px offset) or looking sparse at tall ones.
+const PREV_OFFSET_VH = 15;
+const NEXT_OFFSET_VH = 44;
+
+/** Vertical anchor for the active slot, as a percentage of the pinned
+ *  viewport's height below the header (roughly the brief's 42-48% band —
+ *  pulled slightly toward the low end so the tallest step's detail block
+ *  and the next slot both still fit above the viewport's bottom edge). */
+const ACTIVE_ANCHOR = "43%";
+
+/** Piecewise slot offset for a panel at the given signed distance from the
+ *  active slot: 0 at distance 0, -PREV_OFFSET_VH at distance -1 (and
+ *  beyond), +NEXT_OFFSET_VH at distance +1 (and beyond) — see FocusPanel. */
+function slotOffset(d: number): string {
+  if (d <= -1) return `-${PREV_OFFSET_VH}vh`;
+  if (d >= 1) return `${NEXT_OFFSET_VH}vh`;
+  if (d <= 0) return `${PREV_OFFSET_VH * d}vh`;
+  return `${NEXT_OFFSET_VH * d}vh`;
+}
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
@@ -134,21 +150,11 @@ function DesktopFocusStack() {
 
   const focus = useTransform(smoothProgress, FOCUS_INPUT, FOCUS_OUTPUT);
 
-  const [activeStep, setActiveStep] = useState(0);
-  useMotionValueEvent(focus, "change", (f) => {
-    const idx = Math.min(4, Math.max(0, Math.round(f)));
-    setActiveStep((prev) => (prev === idx ? prev : idx));
-  });
-
   return (
     <div ref={sectionRef} className="relative h-[600vh] bg-background">
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
         <Container className="h-full">
           <div className="relative mx-auto h-full max-w-[850px]">
-            <p className="absolute left-0 top-10 font-display text-xs font-semibold tracking-[0.2em] text-text-muted sm:top-14">
-              {String(activeStep + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
-            </p>
-
             <FocusPanel index={0} step={STEPS[0]} focus={focus} />
             <FocusPanel index={1} step={STEPS[1]} focus={focus} />
             <FocusPanel index={2} step={STEPS[2]} focus={focus} />
@@ -174,16 +180,42 @@ function FocusPanel({
   const absDistance = useTransform(distance, (d) => Math.abs(d));
   const opacity = useTransform(absDistance, [0, 1, 2], [1, 0.25, 0]);
   const scale = useTransform(absDistance, [0, 1, 2], [1, 0.9, 0.85]);
-  const y = useTransform(distance, (d) => d * DESKTOP_SPACING);
+  // Three fixed slots, not a continuous per-item offset: at distance -1 the
+  // item sits in the PREV slot (a modest distance above centre, since a
+  // faded neighbour is just a heading preview), at 0 it's in the ACTIVE
+  // slot (the shared anchor below), and at +1 the NEXT slot (a much larger
+  // offset, since it must clear the active step's own full detail copy,
+  // which is absolutely positioned below ITS heading and can run 250-400px
+  // tall depending on the step). Framer's array-based useTransform clamps
+  // beyond [-1, 1], so an item 2+ away just stays parked at whichever slot
+  // it last reached while fading to opacity 0 — never flies further away.
+  const y = useTransform(distance, slotOffset);
   const focusStrength = useTransform(absDistance, (d) => 1 - clamp01(d / 0.45));
   const pointerEvents = useTransform(opacity, (o) => (o < 0.05 ? "none" : "auto"));
+  // The two step-number treatments cross-fade rather than stack: a faded
+  // neighbour shows only its bare ordinal ("02"), and only once a step is
+  // genuinely active does that hand off to the "0X / 05" counter — so the
+  // counter only ever appears beside the active content, never a neighbour.
+  const counterOpacity = focusStrength;
+  const ordinalOpacity = useTransform([opacity, focusStrength], ([o, fs]: number[]) => o * (1 - fs));
 
   return (
-    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
+    <div className="absolute inset-x-0 -translate-y-1/2" style={{ top: ACTIVE_ANCHOR }}>
       <motion.div style={{ opacity, scale, y, pointerEvents }} className="relative">
-        <span className="block font-display text-xs font-semibold tracking-[0.2em] text-text-muted">
-          {String(index + 1).padStart(2, "0")}
-        </span>
+        <div className="relative h-5">
+          <motion.p
+            style={{ opacity: counterOpacity }}
+            className="absolute inset-0 font-display text-sm font-semibold tracking-[0.2em] text-text-muted"
+          >
+            {String(index + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
+          </motion.p>
+          <motion.span
+            style={{ opacity: ordinalOpacity }}
+            className="absolute inset-0 font-display text-xs font-semibold tracking-[0.2em] text-text-muted"
+          >
+            {String(index + 1).padStart(2, "0")}
+          </motion.span>
+        </div>
         <h3 className="mt-3 font-display text-[clamp(2.5rem,4.5vw,3.75rem)] font-bold leading-[1.06] tracking-tight text-text-primary">
           {step.heading}
         </h3>
@@ -318,12 +350,12 @@ function QuotationLines({
   const rowYs = [y0, y1, y2, y3, y4];
 
   return (
-    <div className="mt-5 flex max-w-sm flex-col divide-y divide-border border-t border-border">
+    <div className="mt-4 flex max-w-sm flex-col divide-y divide-border border-t border-border">
       {rows.map((row, i) => (
         <motion.div
           key={row}
           style={{ opacity: rowOps[i], y: rowYs[i] }}
-          className="flex items-center justify-between py-2"
+          className="flex items-center justify-between py-1.5"
         >
           <span className="text-sm font-semibold uppercase tracking-[0.15em] text-text-secondary">
             {row}
