@@ -6,7 +6,7 @@ import Image from "next/image";
 import { DM_Serif_Display } from "next/font/google";
 import { AnimatePresence, motion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
-import { BuildImageFrame, buildImageTransform } from "@/components/cards/BuildImageFrame";
+import { buildImageTransform } from "@/components/cards/BuildImageFrame";
 import { completedBuilds } from "@/lib/builds";
 import type { CompletedBuild } from "@/types";
 
@@ -68,6 +68,13 @@ function interp(t: number, input: readonly number[], output: readonly number[]):
  * converge cleanly (Framer Motion just retargets mid-flight) and makes
  * every transition automatically reversible (going "previous" is simply the
  * same function evaluated at a different `d`, not a separate animation).
+ *
+ * `x`/`y` are raw pixels, not percentages of each layer's own box — every
+ * layer starts from the exact same anchored box (see the identical wrapper
+ * each one renders in), so a pixel offset gives consistent, predictable
+ * spacing between silhouettes regardless of how much a given depth level's
+ * `scale` has shrunk it. (An earlier percentage-based version compounded
+ * with `scale` in a way that read as cramped/overlapping.)
  */
 interface DepthPoints {
   d: readonly number[];
@@ -80,20 +87,20 @@ interface DepthPoints {
 
 const DEPTH_DESKTOP: DepthPoints = {
   d: [-2, -1, 0, 1, 2, 3, 4],
-  x: [34, 20, 0, -30, -52, -70, -84],
-  y: [16, 9, 0, -10, -19, -27, -33],
-  scale: [0.68, 0.85, 1, 0.8, 0.6, 0.42, 0.34],
-  opacity: [0, 0, 1, 0.78, 0.52, 0.3, 0],
-  blur: [0, 0, 0, 0.5, 1.5, 3, 4],
+  x: [190, 100, 0, -300, -510, -680, -820],
+  y: [30, 18, 0, -5, -10, -16, -22],
+  scale: [0.62, 0.85, 1, 0.8, 0.6, 0.45, 0.34],
+  opacity: [0, 0, 1, 0.55, 0.32, 0.16, 0],
+  blur: [0, 0, 0, 0.5, 1.5, 2.5, 3.5],
 };
 
 const DEPTH_MOBILE: DepthPoints = {
   d: [-1, 0, 1, 2, 3],
-  x: [24, 0, -30, -50, -60],
-  y: [12, 0, -10, -17, -21],
-  scale: [0.78, 1, 0.64, 0.46, 0.34],
-  opacity: [0, 1, 0.6, 0.28, 0],
-  blur: [0, 0, 1, 2, 3],
+  x: [64, 0, -160, -260, -330],
+  y: [10, 0, -3, -6, -10],
+  scale: [0.85, 1, 0.72, 0.54, 0.4],
+  opacity: [0, 1, 0.5, 0.25, 0.12],
+  blur: [0, 0, 0.5, 1.5, 2.5],
 };
 
 function depthStyle(d: number, points: DepthPoints) {
@@ -106,20 +113,22 @@ function depthStyle(d: number, points: DepthPoints) {
   };
 }
 
-/** Exiting builds fly forward and past the viewer (in front of the whole
- *  depth stack) rather than sinking behind it, matching "foreground →
- *  exit"; the background queue is layered strictly by how far back it is. */
+/** Exiting builds sit above the receding background queue (matching
+ *  "foreground → exit" — the build that just had focus stays in front of
+ *  the queue as it fades, it doesn't sink behind), which is layered strictly
+ *  by how far back it is. */
 function depthZIndex(d: number): number {
-  return d <= 0 ? 100 + Math.round(Math.abs(d) * 3) : 100 - Math.round(d * 10);
+  return d <= 0 ? 100 - Math.round(Math.abs(d) * 5) : 100 - Math.round(d * 10);
 }
 
 /**
- * Homepage "Built by M1" showcase — a depth-runway gallery (not a card
- * carousel): the active build is the large, sharp foreground hero, three
- * more recede into a soft, scaled-down, blurred background queue, and the
- * build just replaced travels forward past the viewer and fades. Every
- * build's transform is recomputed from `activeIndex` on every render (see
- * `depthStyle`), so this stays correct under rapid/rapid-reversed input.
+ * Homepage "Built by M1" showcase — a depth-runway gallery: real PC photos
+ * floating free (no card/frame chrome), the active build large and sharp on
+ * the right, up to three more receding to the left into a smaller, fainter,
+ * softly blurred background queue, and the build just replaced fading out
+ * in place. Every build's transform is recomputed from `activeIndex` on
+ * every render (see `depthStyle`), so this stays correct under
+ * rapid/rapid-reversed input.
  */
 export function FeaturedBuilds() {
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -182,10 +191,8 @@ export function FeaturedBuilds() {
         </motion.div>
       </Container>
 
-      <motion.div {...railReveal} className="mt-16">
-        <Container>
-          <PortfolioRunway reduceMotion={reduceMotion} />
-        </Container>
+      <motion.div {...railReveal} className="mt-14 lg:mt-16">
+        <PortfolioRunway reduceMotion={reduceMotion} />
       </motion.div>
     </section>
   );
@@ -235,7 +242,9 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
   // Pointer-based swipe/drag: covers mouse-drag on desktop and touch swipe
   // on mobile through one code path. `touchAction: pan-y` on the stage
   // leaves native vertical scrolling to the browser; only a clearly
-  // horizontal release gesture changes the active build.
+  // horizontal release gesture changes the active build. Native image drag
+  // is disabled per-image (see RunwayImage) so it never swallows the
+  // pointerup this relies on.
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     pointerStart.current = { x: e.clientX, y: e.clientY };
@@ -268,7 +277,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
   const activeBuild = builds[activeIndex];
 
   return (
-    <div className="flex flex-col gap-10 lg:flex-row lg:items-center lg:gap-4">
+    <div className="flex flex-col gap-8 lg:gap-10">
       <div
         role="region"
         aria-label="Completed builds gallery"
@@ -279,8 +288,20 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         style={{ touchAction: "pan-y" }}
-        className="relative order-1 mx-auto aspect-[4/5] w-full max-w-[300px] shrink-0 sm:max-w-[400px] lg:order-2 lg:mx-0 lg:ml-auto lg:max-w-[520px] xl:max-w-[560px]"
+        className="relative h-[400px] w-full sm:h-[460px] lg:h-[480px] xl:h-[540px]"
       >
+        {/* Restrained environmental support for the active PC only — a soft
+            ambient glow and a grounding floor shadow, both anchored to the
+            fixed "active" slot rather than animated per-build. Explicitly
+            not a card: no border, no fill box, no edges — just atmosphere. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-[2%] w-[220px] sm:w-[280px] lg:w-[300px] xl:w-[360px]"
+        >
+          <div className="absolute left-1/2 top-1/2 h-[70%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.07] blur-[80px]" />
+          <div className="absolute bottom-[6%] left-1/2 h-[10%] w-[85%] -translate-x-1/2 rounded-full bg-black/50 blur-2xl" />
+        </div>
+
         {builds.map((build, i) => {
           let d = i - activeIndex;
           const half = total / 2;
@@ -293,76 +314,74 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
           if (!build.imageSrc) return null;
 
           return (
-            <motion.div
+            <div
               key={build.slug}
-              aria-hidden={!isActive}
-              className="absolute inset-0"
+              className="absolute inset-y-0 right-[2%] flex items-center"
               style={{ zIndex: depthZIndex(clampedD), pointerEvents: isActive ? "auto" : "none" }}
-              animate={{
-                x: `${s.x}%`,
-                y: `${s.y}%`,
-                scale: s.scale,
-                opacity: s.opacity,
-                filter: `blur(${s.blur}px)`,
-              }}
-              whileHover={isActive && !reduceMotion ? { scale: s.scale * 1.015 } : undefined}
-              transition={reduceMotion ? RUNWAY_TRANSITION_REDUCED : RUNWAY_TRANSITION}
             >
-              {isActive ? (
-                <BuildImageFrame
-                  src={build.imageSrc}
-                  alt={build.imageAlt}
-                  scale={build.imageScale}
-                  translateX={build.imageTranslateX}
-                  translateY={build.imageTranslateY}
-                />
-              ) : (
-                <DepthImage build={build} />
-              )}
-            </motion.div>
+              <motion.div
+                aria-hidden={!isActive}
+                className="aspect-[4/5] w-[220px] sm:w-[280px] lg:w-[300px] xl:w-[360px]"
+                animate={{
+                  x: s.x,
+                  y: s.y,
+                  scale: s.scale,
+                  opacity: s.opacity,
+                  filter: `blur(${s.blur}px)`,
+                }}
+                whileHover={isActive && !reduceMotion ? { scale: s.scale * 1.02 } : undefined}
+                transition={reduceMotion ? RUNWAY_TRANSITION_REDUCED : RUNWAY_TRANSITION}
+              >
+                <RunwayImage build={build} isActive={isActive} />
+              </motion.div>
+            </div>
           );
         })}
       </div>
 
-      <div className="order-2 flex flex-col gap-6 lg:order-1 lg:w-[280px] lg:shrink-0 xl:w-[320px]">
-        <div className="relative min-h-[200px] sm:min-h-[188px]">
-          <AnimatePresence initial={false}>
-            <BuildInfo key={activeBuild.slug} build={activeBuild} index={activeIndex} reduceMotion={reduceMotion} />
-          </AnimatePresence>
-        </div>
+      <Container>
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-t border-border pt-6">
+          <div className="relative min-h-[64px] flex-1 basis-[280px]">
+            <AnimatePresence initial={false}>
+              <BuildInfo key={activeBuild.slug} build={activeBuild} index={activeIndex} reduceMotion={reduceMotion} />
+            </AnimatePresence>
+          </div>
 
-        <div className="flex items-center gap-4">
-          <span className="font-display text-sm font-medium tracking-wide text-text-muted">
-            {String(activeIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
-          </span>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              aria-label="Previous build"
-              onClick={goPrev}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
-            >
-              <span aria-hidden="true">&larr;</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Next build"
-              onClick={goNext}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
-            >
-              <span aria-hidden="true">&rarr;</span>
-            </button>
+          <div className="flex items-center gap-4">
+            <span className="font-display text-sm font-medium tracking-wide text-text-muted">
+              {String(activeIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            </span>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                aria-label="Previous build"
+                onClick={goPrev}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
+              >
+                <span aria-hidden="true">&larr;</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Next build"
+                onClick={goNext}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
+              >
+                <span aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </Container>
     </div>
   );
 }
 
 /**
- * The focused build's identity — restrained on purpose (per the brief, the
- * PCs are the spectacle, the typography stays calm): a short crossfade with
- * a small vertical settle, never the runway's travel/scale/blur.
+ * The focused build's identity — deliberately compact (a title line, one
+ * spec line, and a link, not the full spec sheet BuildCard shows on
+ * /completed-builds) so it reads as a caption for the runway rather than
+ * competing with it for space. A short crossfade with a small vertical
+ * settle, never the runway's own travel/scale/blur.
  */
 function BuildInfo({
   build,
@@ -385,20 +404,20 @@ function BuildInfo({
     <motion.div
       {...variants}
       transition={reduceMotion ? { duration: 0.15 } : { duration: 0.35, ease: EASE }}
-      className="absolute inset-0 flex flex-col gap-1"
+      className="absolute inset-0 flex flex-wrap items-baseline gap-x-3 gap-y-1"
     >
       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
         {String(index + 1).padStart(2, "0")}
       </span>
-      <h3 className="font-display text-xl font-semibold text-text-primary sm:text-2xl">
+      <h3 className="font-display text-lg font-semibold text-text-primary sm:text-xl">
         {build.name}
       </h3>
-      <p className="text-sm text-text-secondary sm:text-base">
+      <p className="text-sm text-text-secondary">
         {build.cpu} &middot; {build.gpu}
       </p>
       <Link
         href="/completed-builds"
-        className="group mt-3 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors hover:text-accent"
+        className="group ml-auto inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors hover:text-accent sm:ml-0"
       >
         View Build
         <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
@@ -410,17 +429,17 @@ function BuildInfo({
 }
 
 /**
- * A chrome-free rendering of the same real build photo used by
- * BuildImageFrame, for the runway's background depth layers — full
- * BuildImageFrame (its bordered showroom-stage chrome + vignette) reads
- * fine for the one dominant hero photo, but four overlapping bordered boxes
- * for the receding, scaled-down, blurred queue would read as literal "cards
- * stacked in space" rather than PCs receding into depth, so these layers
- * are just the photo itself, normalized through the exact same
- * `buildImageTransform` BuildImageFrame uses — one shared formula, not a
- * second normalization system.
+ * A single, chrome-free rendering of a real build photo used at every depth
+ * level, active included — no border, no background panel, no vignette:
+ * just the transparent-background cutout with a drop shadow, normalized
+ * through the exact same `buildImageTransform` BuildImageFrame uses on
+ * /completed-builds, so the per-build imageScale/imageTranslateX/
+ * imageTranslateY tuning carries over unchanged. `draggable={false}`
+ * matters here, not just cosmetically — Next/Image's underlying `<img>` is
+ * natively draggable in Chromium, which was found to swallow the
+ * `pointerup` this component's swipe handling depends on.
  */
-function DepthImage({ build }: { build: CompletedBuild }) {
+function RunwayImage({ build, isActive }: { build: CompletedBuild; isActive: boolean }) {
   if (!build.imageSrc) return null;
   return (
     <div className="relative h-full w-full">
@@ -429,8 +448,12 @@ function DepthImage({ build }: { build: CompletedBuild }) {
         alt={build.imageAlt}
         fill
         draggable={false}
-        sizes="(min-width: 1024px) 560px, 90vw"
-        className="object-contain p-6 drop-shadow-[0_24px_30px_rgba(0,0,0,0.5)] sm:p-8"
+        sizes="(min-width: 1024px) 360px, 60vw"
+        className={
+          isActive
+            ? "object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.6)]"
+            : "object-contain drop-shadow-[0_20px_26px_rgba(0,0,0,0.5)]"
+        }
         style={buildImageTransform({
           scale: build.imageScale,
           translateX: build.imageTranslateX,
