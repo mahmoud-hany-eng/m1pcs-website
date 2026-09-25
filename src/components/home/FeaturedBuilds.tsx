@@ -85,9 +85,22 @@ interface DepthPoints {
   blur: readonly number[];
 }
 
-const DEPTH_DESKTOP: DepthPoints = {
+/** 1024–1279 (Tailwind `lg` but not `xl`) — a smaller stage/box, so spacing
+ *  is widened less than the `xl` tier to avoid pushing the depth queue past
+ *  the section's left edge. */
+const DEPTH_DESKTOP_LG: DepthPoints = {
   d: [-2, -1, 0, 1, 2, 3, 4],
-  x: [190, 100, 0, -300, -500, -660, -800],
+  x: [210, 115, 0, -350, -580, -750, -900],
+  y: [30, 18, 0, -5, -10, -16, -22],
+  scale: [0.62, 0.85, 1, 0.8, 0.6, 0.45, 0.34],
+  opacity: [0, 0, 1, 0.55, 0.32, 0.16, 0],
+  blur: [0, 0, 0, 0.5, 1.5, 2.5, 3.5],
+};
+
+/** 1280px+ — the larger stage/box has more room, so spacing widens further. */
+const DEPTH_DESKTOP_XL: DepthPoints = {
+  d: [-2, -1, 0, 1, 2, 3, 4],
+  x: [220, 120, 0, -380, -630, -820, -970],
   y: [30, 18, 0, -5, -10, -16, -22],
   scale: [0.62, 0.85, 1, 0.8, 0.6, 0.45, 0.34],
   opacity: [0, 0, 1, 0.55, 0.32, 0.16, 0],
@@ -202,20 +215,33 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
   const builds = useMemo(() => completedBuilds.filter((b) => b.imageSrc), []);
   const total = builds.length;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+  const [tier, setTier] = useState<"mobile" | "lg" | "xl">("lg");
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 1023px)");
-    const update = () => setIsMobile(query.matches);
+    const mobileQuery = window.matchMedia("(max-width: 1023px)");
+    const xlQuery = window.matchMedia("(min-width: 1280px)");
+    const update = () => setTier(mobileQuery.matches ? "mobile" : xlQuery.matches ? "xl" : "lg");
     update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    mobileQuery.addEventListener("change", update);
+    xlQuery.addEventListener("change", update);
+    return () => {
+      mobileQuery.removeEventListener("change", update);
+      xlQuery.removeEventListener("change", update);
+    };
   }, []);
 
-  const goNext = useCallback(() => {
+  // Named for the *visual* direction they move the selection in, not raw
+  // array order — the depth queue (d=1..4) sits to the LEFT of the active
+  // build and the just-replaced build exits to the RIGHT (see the DepthPoints
+  // comment above), so pulling the next build in from the left means
+  // *incrementing* activeIndex, and pulling one in from the right means
+  // *decrementing* it. Every input (buttons, keyboard, wheel, swipe) is
+  // wired to these two so a leftward gesture/control always visually
+  // matches a leftward-sourced transition, and likewise for the right.
+  const advanceLeft = useCallback(() => {
     setActiveIndex((i) => (i + 1) % total);
   }, [total]);
-  const goPrev = useCallback(() => {
+  const advanceRight = useCallback(() => {
     setActiveIndex((i) => (i - 1 + total) % total);
   }, [total]);
 
@@ -230,13 +256,13 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
       e.preventDefault();
       if (wheelCooldown.current) return;
       wheelCooldown.current = true;
-      if (e.deltaX > 0) goNext();
-      else goPrev();
+      if (e.deltaX > 0) advanceRight();
+      else advanceLeft();
       window.setTimeout(() => {
         wheelCooldown.current = false;
       }, 450);
     },
-    [goNext, goPrev]
+    [advanceLeft, advanceRight]
   );
 
   // Pointer-based swipe/drag: covers mouse-drag on desktop and touch swipe
@@ -257,23 +283,23 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy)) return;
-      if (dx < 0) goNext();
-      else goPrev();
+      if (dx < 0) advanceRight();
+      else advanceLeft();
     },
-    [goNext, goPrev]
+    [advanceLeft, advanceRight]
   );
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === "ArrowRight") {
       e.preventDefault();
-      goNext();
+      advanceRight();
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
-      goPrev();
+      advanceLeft();
     }
   }
 
-  const points = isMobile ? DEPTH_MOBILE : DEPTH_DESKTOP;
+  const points = tier === "mobile" ? DEPTH_MOBILE : tier === "xl" ? DEPTH_DESKTOP_XL : DEPTH_DESKTOP_LG;
   const activeBuild = builds[activeIndex];
 
   return (
@@ -355,7 +381,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
               <button
                 type="button"
                 aria-label="Previous build"
-                onClick={goPrev}
+                onClick={advanceLeft}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
               >
                 <span aria-hidden="true">&larr;</span>
@@ -363,7 +389,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
               <button
                 type="button"
                 aria-label="Next build"
-                onClick={goNext}
+                onClick={advanceRight}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
               >
                 <span aria-hidden="true">&rarr;</span>
