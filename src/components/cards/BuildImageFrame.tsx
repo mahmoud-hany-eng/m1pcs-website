@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 
 /**
  * Consistent "showroom" frame for a completed build's transparent-background
@@ -18,6 +19,25 @@ import Image from "next/image";
  * eyeballing (see the imageScale/imageTranslateX/imageTranslateY comment on
  * CompletedBuild); the default (1, 0, 0) leaves object-contain untouched.
  */
+
+/**
+ * The same per-photo normalization transform this frame applies, exported so
+ * a chrome-free rendering of the same photo (e.g. the homepage portfolio's
+ * background depth layers) can stay perfectly aligned with how it renders
+ * here — one formula, two call sites, never two competing implementations.
+ */
+export function buildImageTransform({
+  scale = 1,
+  translateX = 0,
+  translateY = 0,
+}: {
+  scale?: number;
+  translateX?: number;
+  translateY?: number;
+}): CSSProperties {
+  return { transform: `translate(${translateX}%, ${translateY}%) scale(${scale})` };
+}
+
 export function BuildImageFrame({
   src,
   alt,
@@ -38,9 +58,10 @@ export function BuildImageFrame({
         src={src}
         alt={alt}
         fill
+        draggable={false}
         sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
         className="object-contain p-8 drop-shadow-[0_20px_24px_rgba(0,0,0,0.55)] sm:p-10"
-        style={{ transform: `translate(${translateX}%, ${translateY}%) scale(${scale})` }}
+        style={buildImageTransform({ scale, translateX, translateY })}
       />
     </div>
   );
