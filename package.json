@@ -12,16 +12,19 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@react-three/fiber": "^9.8.1",
     "framer-motion": "^13.4.1",
     "next": "^15.5.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "^0.182.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.182.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "^15.5.0",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CinematicHero } from "@/components/home/CinematicHero";
 import { FeaturedSpecScroll } from "@/components/home/FeaturedSpecScroll";
 import { ProcessSection } from "@/components/home/ProcessSection";
+import { SourcingTeaser } from "@/components/home/SourcingTeaser";
 import { FeaturedBuilds } from "@/components/home/FeaturedBuilds";
 import { PartsShowcase } from "@/components/home/PartsShowcase";
 import { PricingReveal } from "@/components/home/PricingReveal";
@@ -19,6 +20,7 @@ export default function HomePage() {
       <CinematicHero />
       <FeaturedSpecScroll />
       <ProcessSection />
+      <SourcingTeaser />
       <FeaturedBuilds />
       <PartsShowcase />
       <PricingReveal />
