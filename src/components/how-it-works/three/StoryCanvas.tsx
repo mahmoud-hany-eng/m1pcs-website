@@ -98,7 +98,9 @@ function World({ playhead, anchors, clock, quality, initialDpr }: StoryCanvasPro
   // later chapters — so no shader compiles (and stutters) mid-story.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
-      gl.compileAsync(scene, camera).catch(() => gl.compile(scene, camera));
+      // Off the main thread where the driver allows it; otherwise once, during the fade-in.
+      if (gl.extensions.has("KHR_parallel_shader_compile")) gl.compileAsync(scene, camera).catch(() => {});
+      else gl.compile(scene, camera);
     });
     return () => cancelAnimationFrame(id);
   }, [gl, scene, camera]);
