@@ -130,12 +130,16 @@ function DesktopStory() {
   return (
     <div ref={sectionRef} className="relative h-[650vh] bg-background">
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
-        <Container className="flex h-full flex-col items-center justify-center gap-6">
+        <Container className="flex h-full flex-col items-center justify-center gap-3 sm:gap-5">
           <p className="font-display text-xs font-semibold tracking-[0.25em] text-text-muted">
             {String(activeStep + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
           </p>
 
-          <div className="relative h-[38vh] min-h-[280px] w-full max-w-[720px]">
+          {/* The dominant element: a tall stage whose own SceneFrame
+              centres the desk/character tableau within it, so the scene's
+              visual weight sits at the middle of the stage rather than
+              pinned low with dead space above it. */}
+          <div className="relative h-[54vh] min-h-[360px] max-w-[720px] w-full sm:max-h-[500px]">
             <StagePanel index={0} step={STEPS[0]} focus={focus} smoothProgress={smoothProgress} />
             <StagePanel index={1} step={STEPS[1]} focus={focus} smoothProgress={smoothProgress} />
             <StagePanel index={2} step={STEPS[2]} focus={focus} smoothProgress={smoothProgress} />
@@ -143,7 +147,7 @@ function DesktopStory() {
             <StagePanel index={4} step={STEPS[4]} focus={focus} smoothProgress={smoothProgress} />
           </div>
 
-          <div className="relative h-[9.5rem] w-full max-w-xl text-center sm:h-[8rem]">
+          <div className="relative h-[7.5rem] w-full max-w-xl text-center sm:h-[6.5rem]">
             <TextPanel index={0} step={STEPS[0]} focus={focus} />
             <TextPanel index={1} step={STEPS[1]} focus={focus} />
             <TextPanel index={2} step={STEPS[2]} focus={focus} />
@@ -252,7 +256,7 @@ function MobileStep({ step, index }: { step: ProcessStep; index: number }) {
         <p className="font-display text-xs font-semibold tracking-[0.25em] text-text-muted">
           {String(index + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
         </p>
-        <div className="relative mx-auto mt-4 h-[240px] w-full max-w-[380px]">
+        <div className="relative mx-auto mt-4 h-[270px] w-full max-w-[380px]">
           <Scene progress={progress} />
         </div>
         <h3 className="mt-5 font-display text-2xl font-bold leading-tight tracking-tight text-text-primary">
