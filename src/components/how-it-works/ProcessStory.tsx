@@ -56,33 +56,46 @@ const CONFIRM_STAGES = ["DEPOSIT", "ORDER CONFIRMED", "TRACKING"];
 const DELIVERED_WORDS = ["BUILD", "SETUP", "READY", "DELIVERED"];
 
 /** The three fixed slots' offsets (px) from the active anchor — see
- *  FocusPanel. PREV is a modest lift (a faded heading only needs to clear
- *  the active heading itself); NEXT is much larger because it has to clear
- *  the active step's own full detail block underneath it, which can run
- *  ~250-400px tall depending on the step — verified against the tallest
- *  step's content during testing. */
-// Expressed in vh (of the full viewport, not just the pinned area) rather
-// than fixed px, so the three-slot composition scales with viewport
-// height instead of clipping at short viewports (1024x768 was getting its
-// NEXT slot clipped by the pinned viewport's own bottom edge at a fixed
-// 400px offset) or looking sparse at tall ones.
-const PREV_OFFSET_VH = 15;
-const NEXT_OFFSET_VH = 44;
+ *  FocusPanel. Each is a viewport-proportional value clamped between a
+ *  floor and a ceiling (computed in JS against window.innerHeight rather
+ *  than CSS clamp(), since the value feeds a framer motion transform, not
+ *  a stylesheet): scales down gracefully on short viewports instead of
+ *  clipping, and never balloons into a huge gap on tall ones. PREV is
+ *  smaller (a faded heading only needs to clear the active heading
+ *  itself); NEXT is a little larger, since it has to clear the active
+ *  step's own detail block underneath it — the tallest step (the
+ *  quotation lines) is trimmed to fit comfortably inside it. */
+const PREV_OFFSET_MIN = 160;
+const PREV_OFFSET_VH_FRACTION = 0.18;
+const PREV_OFFSET_MAX = 220;
+
+const NEXT_OFFSET_MIN = 290;
+const NEXT_OFFSET_VH_FRACTION = 0.32;
+const NEXT_OFFSET_MAX = 320;
 
 /** Vertical anchor for the active slot, as a percentage of the pinned
- *  viewport's height below the header (roughly the brief's 42-48% band —
- *  pulled slightly toward the low end so the tallest step's detail block
- *  and the next slot both still fit above the viewport's bottom edge). */
-const ACTIVE_ANCHOR = "43%";
+ *  viewport's height below the header — the header height itself comes
+ *  from the site's actual header (h-16/h-20 in Header.tsx), already
+ *  matched by this section's own sticky offset below, not a separate
+ *  invented number. Close to true centre now that PREV/NEXT are a much
+ *  tighter, near-symmetric cluster around it. */
+const ACTIVE_ANCHOR = "46%";
 
-/** Piecewise slot offset for a panel at the given signed distance from the
- *  active slot: 0 at distance 0, -PREV_OFFSET_VH at distance -1 (and
- *  beyond), +NEXT_OFFSET_VH at distance +1 (and beyond) — see FocusPanel. */
-function slotOffset(d: number): string {
-  if (d <= -1) return `-${PREV_OFFSET_VH}vh`;
-  if (d >= 1) return `${NEXT_OFFSET_VH}vh`;
-  if (d <= 0) return `${PREV_OFFSET_VH * d}vh`;
-  return `${NEXT_OFFSET_VH * d}vh`;
+function clampedOffset(min: number, vhFraction: number, max: number): number {
+  if (typeof window === "undefined") return (min + max) / 2;
+  return Math.min(max, Math.max(min, window.innerHeight * vhFraction));
+}
+
+/** Piecewise slot offset (px) for a panel at the given signed distance
+ *  from the active slot: 0 at distance 0, -PREV at distance -1 (and
+ *  beyond), +NEXT at distance +1 (and beyond) — see FocusPanel. */
+function slotOffset(d: number): number {
+  const prev = clampedOffset(PREV_OFFSET_MIN, PREV_OFFSET_VH_FRACTION, PREV_OFFSET_MAX);
+  const next = clampedOffset(NEXT_OFFSET_MIN, NEXT_OFFSET_VH_FRACTION, NEXT_OFFSET_MAX);
+  if (d <= -1) return -prev;
+  if (d >= 1) return next;
+  if (d <= 0) return prev * d;
+  return next * d;
 }
 
 function clamp01(n: number): number {
@@ -238,7 +251,7 @@ function FocusPanel({
             </p>
           )}
           <p className="text-lg text-text-secondary">{step.supporting}</p>
-          {step.secondary && <p className="mt-2 text-sm text-text-muted">{step.secondary}</p>}
+          {step.secondary && <p className="mt-3 text-sm text-text-muted">{step.secondary}</p>}
 
           {index === 0 && <WordStagger words={SOURCE_WORDS} focusStrength={focusStrength} />}
           {index === 1 && <SourceRoute focusStrength={focusStrength} />}
@@ -283,7 +296,7 @@ function WordStagger({
   const ys = [y0, y1, y2, y3];
 
   return (
-    <div className="mx-auto mt-5 inline-flex flex-wrap justify-center gap-x-4 gap-y-1">
+    <div className="mx-auto mt-6 inline-flex flex-wrap justify-center gap-x-4 gap-y-1">
       {words.map((word, i) => (
         <motion.span
           key={word}
@@ -308,7 +321,7 @@ function SourceRoute({ focusStrength }: { focusStrength: MotionValue<number> }) 
   const endOpacity = useTransform(focusStrength, [0.55, 0.8], [0.3, 1]);
 
   return (
-    <div className="mx-auto mt-8 inline-flex max-w-md items-center gap-5">
+    <div className="mx-auto mt-7 inline-flex max-w-md items-center gap-5">
       <span className="font-display text-lg font-bold tracking-[0.1em] text-text-primary">U.S.A.</span>
       <div className="relative h-px flex-1 bg-border">
         <motion.div
@@ -353,14 +366,14 @@ function QuotationLines({
   const rowYs = [y0, y1, y2, y3, y4];
 
   return (
-    <div className="mx-auto mt-4 inline-flex max-w-sm flex-col divide-y divide-border border-t border-border text-left">
+    <div className="mx-auto mt-5 inline-flex max-w-sm flex-col divide-y divide-border border-t border-border text-left">
       {rows.map((row, i) => (
         <motion.div
           key={row}
           style={{ opacity: rowOps[i], y: rowYs[i] }}
-          className="flex items-center justify-between py-1.5"
+          className="flex items-center justify-between py-0.5"
         >
-          <span className="text-sm font-semibold uppercase tracking-[0.15em] text-text-secondary">
+          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-text-secondary">
             {row}
           </span>
           <span aria-hidden="true" className="h-px w-16 bg-border-strong" />
