@@ -1,116 +1,86 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
+import { motion, useMotionValueEvent, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import {
+  CaseIcon,
+  CheckIcon,
+  CpuIcon,
+  ParcelIcon,
+  ReceiptIcon,
+} from "./icons";
+import {
+  SceneConfirm,
+  SceneDelivered,
+  SceneParts,
+  SceneQuotation,
+  SceneSourcing,
+} from "./scenes";
 
 interface ProcessStep {
   heading: string;
-  supporting: string;
+  body: string;
   secondary?: string;
+  Scene: (props: { progress: MotionValue<number> }) => React.ReactElement;
+  StaticIcon: (props: { size?: number }) => React.ReactElement;
 }
 
-/**
- * Copy verbatim from the brief — no retailer names, shipping times,
- * guarantees, prices or warranty periods invented beyond what's given here
- * or already published in src/lib/site-config.ts (used for the static
- * deposit/delivery note below the story, not fabricated here).
- */
+/** Copy verbatim from the brief. */
 const STEPS: ProcessStep[] = [
   {
-    heading: "Tell Us What You Need",
-    supporting:
-      "Tell us your budget, what you use the PC for, your preferred components, and the look you want.",
-  },
-  {
-    heading: "Sourced From The U.S.",
-    supporting:
-      "Your selected components are sourced directly from the U.S. based on your requested specification and current availability.",
-    secondary:
-      "We don't push fixed inventory. We source the components selected for your build from trusted U.S. retailers and suppliers.",
+    heading: "Pick Your Parts",
+    body: "Tell us your budget, performance needs and preferred design. We help you choose the right parts for your build.",
+    Scene: SceneParts,
+    StaticIcon: CpuIcon,
   },
   {
     heading: "Review Your Quotation",
-    supporting:
-      "Receive a detailed quotation with your selected components, current pricing and estimated shipping timeframe.",
+    body: "You receive a detailed quotation with your selected components, current pricing and estimated shipping timeframe.",
+    Scene: SceneQuotation,
+    StaticIcon: ReceiptIcon,
   },
   {
     heading: "Confirm Your Order",
-    supporting:
-      "Confirm your order with the applicable deposit. You'll receive a payment receipt and confirmation that the order has been placed.",
-    secondary: "An Aramex tracking number is provided after shipping so you can follow the shipment.",
+    body: "Once you approve the quotation, a deposit confirms your order. You receive a payment receipt and confirmation that the order has been placed.",
+    Scene: SceneConfirm,
+    StaticIcon: CheckIcon,
+  },
+  {
+    heading: "Sourced From The U.S.",
+    body: "When requested, we source your parts directly from the U.S. and ship them to Qatar with live shipment tracking.",
+    Scene: SceneSourcing,
+    StaticIcon: ParcelIcon,
   },
   {
     heading: "Built. Set Up. Delivered.",
-    supporting:
-      "Once the parts arrive, M1 assembles and sets up your PC with Windows 11 Pro, required drivers and system updates so it is ready to use.",
-    secondary:
-      "Choose pickup or home delivery. Eligible warranty cases for parts supplied through M1 are handled through us.",
+    body: "Once the parts arrive, M1 assembles and sets up your PC with Windows 11 Pro, drivers and updates so it is ready to use.",
+    secondary: "Pickup or delivery can then be arranged.",
+    Scene: SceneDelivered,
+    StaticIcon: CaseIcon,
   },
 ];
-
-const SOURCE_WORDS = ["BUDGET", "PERFORMANCE", "DESIGN", "USE CASE"];
-const QUOTE_LINES = ["CPU", "GPU", "RAM", "STORAGE", "SHIPPING"];
-const CONFIRM_STAGES = ["DEPOSIT", "ORDER CONFIRMED", "TRACKING"];
-const DELIVERED_WORDS = ["BUILD", "SETUP", "READY", "DELIVERED"];
-
-/** The three fixed slots' offsets (px) from the active anchor — see
- *  FocusPanel. Each is a viewport-proportional value clamped between a
- *  floor and a ceiling (computed in JS against window.innerHeight rather
- *  than CSS clamp(), since the value feeds a framer motion transform, not
- *  a stylesheet): scales down gracefully on short viewports instead of
- *  clipping, and never balloons into a huge gap on tall ones. PREV is
- *  smaller (a faded heading only needs to clear the active heading
- *  itself); NEXT is a little larger, since it has to clear the active
- *  step's own detail block underneath it — the tallest step (the
- *  quotation lines) is trimmed to fit comfortably inside it. */
-const PREV_OFFSET_MIN = 160;
-const PREV_OFFSET_VH_FRACTION = 0.18;
-const PREV_OFFSET_MAX = 220;
-
-const NEXT_OFFSET_MIN = 290;
-const NEXT_OFFSET_VH_FRACTION = 0.32;
-const NEXT_OFFSET_MAX = 320;
-
-/** Vertical anchor for the active slot, as a percentage of the pinned
- *  viewport's height below the header — the header height itself comes
- *  from the site's actual header (h-16/h-20 in Header.tsx), already
- *  matched by this section's own sticky offset below, not a separate
- *  invented number. Close to true centre now that PREV/NEXT are a much
- *  tighter, near-symmetric cluster around it. */
-const ACTIVE_ANCHOR = "46%";
-
-function clampedOffset(min: number, vhFraction: number, max: number): number {
-  if (typeof window === "undefined") return (min + max) / 2;
-  return Math.min(max, Math.max(min, window.innerHeight * vhFraction));
-}
-
-/** Piecewise slot offset (px) for a panel at the given signed distance
- *  from the active slot: 0 at distance 0, -PREV at distance -1 (and
- *  beyond), +NEXT at distance +1 (and beyond) — see FocusPanel. */
-function slotOffset(d: number): number {
-  const prev = clampedOffset(PREV_OFFSET_MIN, PREV_OFFSET_VH_FRACTION, PREV_OFFSET_MAX);
-  const next = clampedOffset(NEXT_OFFSET_MIN, NEXT_OFFSET_VH_FRACTION, NEXT_OFFSET_MAX);
-  if (d <= -1) return -prev;
-  if (d >= 1) return next;
-  if (d <= 0) return prev * d;
-  return next * d;
-}
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+// Each step holds a 20%-wide scroll window: mostly flat (the scene fully
+// resolved and readable), with the last 40% smoothly morphing into the
+// next. Same shape already proven on this page — generous hold, a real
+// scroll distance for the transition, fully reversible since focus is a
+// pure function of scroll position.
+const FOCUS_INPUT: number[] = [0, 0.1, 0.18, 0.3, 0.38, 0.5, 0.58, 0.7, 0.78, 1.0];
+const FOCUS_OUTPUT: number[] = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4];
+
 /**
- * The "How It Works" process story — a vertical focus stack on desktop
- * (previous/active/next items visible at once, the active one clear and
- * centred, everything else fading out completely), a per-item scroll-linked
- * fade on mobile that preserves native scrolling, and a fully-visible
- * static list under reduced motion. Every visual value is a pure function
- * of scroll position (via framer's useTransform chains off one spring), so
- * every transition is bidirectional by construction — scrolling up just
- * re-evaluates the same functions at a smaller progress value.
+ * The "How It Works" process story — a cinematic scroll-driven scene
+ * sequence on desktop (one illustrated scene centred at a time, morphing
+ * into the next as the user scrolls), a lighter per-step version on mobile
+ * that keeps native scrolling, and a fully static fallback under reduced
+ * motion. Every visual value is a pure function of scroll position, so
+ * every transition is bidirectional by construction.
  */
 export function ProcessStory() {
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -132,47 +102,53 @@ export function ProcessStory() {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  if (reduceMotion) return <StaticProcess />;
-  if (isMobile) return <MobileFocusStack />;
-  return <DesktopFocusStack />;
+  if (reduceMotion) return <StaticStory />;
+  if (isMobile) return <MobileStory />;
+  return <DesktopStory />;
 }
 
 /* ------------------------------------------------------------------ */
-/* Desktop — vertical focus stack                                      */
+/* Desktop — cinematic scroll-driven scene sequence                    */
 /* ------------------------------------------------------------------ */
 
-// A single continuous "focus" position (0 -> 4, one per step) derived from
-// scroll progress. Each step's own 20%-wide window holds flat once
-// reached, then spends 40% of the window crossfading to the next — see the
-// ProcessStory doc comment in the PR/commit for the full derivation.
-const FOCUS_INPUT: number[] = [0, 0.1, 0.18, 0.3, 0.38, 0.5, 0.58, 0.7, 0.78, 1.0];
-const FOCUS_OUTPUT: number[] = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4];
-
-function DesktopFocusStack() {
+function DesktopStory() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end end"],
   });
 
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 180,
-    damping: 35,
-    mass: 0.2,
-  });
-
+  const smoothProgress = useSpring(scrollYProgress, { stiffness: 170, damping: 34, mass: 0.25 });
   const focus = useTransform(smoothProgress, FOCUS_INPUT, FOCUS_OUTPUT);
 
+  const [activeStep, setActiveStep] = useState(0);
+  useMotionValueEvent(focus, "change", (f) => {
+    const idx = Math.min(4, Math.max(0, Math.round(f)));
+    setActiveStep((prev) => (prev === idx ? prev : idx));
+  });
+
   return (
-    <div ref={sectionRef} className="relative h-[600vh] bg-background">
+    <div ref={sectionRef} className="relative h-[650vh] bg-background">
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
-        <Container className="h-full">
-          <div className="relative mx-auto h-full max-w-[980px]">
-            <FocusPanel index={0} step={STEPS[0]} focus={focus} />
-            <FocusPanel index={1} step={STEPS[1]} focus={focus} />
-            <FocusPanel index={2} step={STEPS[2]} focus={focus} />
-            <FocusPanel index={3} step={STEPS[3]} focus={focus} />
-            <FocusPanel index={4} step={STEPS[4]} focus={focus} />
+        <Container className="flex h-full flex-col items-center justify-center gap-6">
+          <p className="font-display text-xs font-semibold tracking-[0.25em] text-text-muted">
+            {String(activeStep + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
+          </p>
+
+          <div className="relative h-[38vh] min-h-[280px] w-full max-w-[720px]">
+            <StagePanel index={0} step={STEPS[0]} focus={focus} smoothProgress={smoothProgress} />
+            <StagePanel index={1} step={STEPS[1]} focus={focus} smoothProgress={smoothProgress} />
+            <StagePanel index={2} step={STEPS[2]} focus={focus} smoothProgress={smoothProgress} />
+            <StagePanel index={3} step={STEPS[3]} focus={focus} smoothProgress={smoothProgress} />
+            <StagePanel index={4} step={STEPS[4]} focus={focus} smoothProgress={smoothProgress} />
+          </div>
+
+          <div className="relative h-[9.5rem] w-full max-w-xl text-center sm:h-[8rem]">
+            <TextPanel index={0} step={STEPS[0]} focus={focus} />
+            <TextPanel index={1} step={STEPS[1]} focus={focus} />
+            <TextPanel index={2} step={STEPS[2]} focus={focus} />
+            <TextPanel index={3} step={STEPS[3]} focus={focus} />
+            <TextPanel index={4} step={STEPS[4]} focus={focus} />
           </div>
         </Container>
       </div>
@@ -180,354 +156,119 @@ function DesktopFocusStack() {
   );
 }
 
-function FocusPanel({
+function useCrossfade(focus: MotionValue<number>, index: number) {
+  const distance = useTransform(focus, (f) => index - f);
+  const absDistance = useTransform(distance, (d) => Math.abs(d));
+  const opacity = useTransform(absDistance, [0, 0.4, 1], [1, 0, 0]);
+  const scale = useTransform(absDistance, [0, 1], [1, 0.94]);
+  const pointerEvents = useTransform(opacity, (o) => (o < 0.05 ? "none" : "auto"));
+  return { opacity, scale, pointerEvents };
+}
+
+function StagePanel({
   index,
   step,
   focus,
+  smoothProgress,
 }: {
   index: number;
   step: ProcessStep;
   focus: MotionValue<number>;
+  smoothProgress: MotionValue<number>;
 }) {
-  const distance = useTransform(focus, (f) => index - f);
-  const absDistance = useTransform(distance, (d) => Math.abs(d));
-  const opacity = useTransform(absDistance, [0, 1, 2], [1, 0.25, 0]);
-  const scale = useTransform(absDistance, [0, 1, 2], [1, 0.9, 0.85]);
-  // Three fixed slots, not a continuous per-item offset: at distance -1 the
-  // item sits in the PREV slot (a modest distance above centre, since a
-  // faded neighbour is just a heading preview), at 0 it's in the ACTIVE
-  // slot (the shared anchor below), and at +1 the NEXT slot (a much larger
-  // offset, since it must clear the active step's own full detail copy,
-  // which is absolutely positioned below ITS heading and can run 250-400px
-  // tall depending on the step). Framer's array-based useTransform clamps
-  // beyond [-1, 1], so an item 2+ away just stays parked at whichever slot
-  // it last reached while fading to opacity 0 — never flies further away.
-  const y = useTransform(distance, slotOffset);
-  const focusStrength = useTransform(absDistance, (d) => 1 - clamp01(d / 0.45));
-  const pointerEvents = useTransform(opacity, (o) => (o < 0.05 ? "none" : "auto"));
-  // The two step-number treatments cross-fade rather than stack: a faded
-  // neighbour shows only its bare ordinal ("02"), and only once a step is
-  // genuinely active does that hand off to the "0X / 05" counter — so the
-  // counter only ever appears beside the active content, never a neighbour.
-  const counterOpacity = focusStrength;
-  const ordinalOpacity = useTransform([opacity, focusStrength], ([o, fs]: number[]) => o * (1 - fs));
-
+  const { opacity, scale, pointerEvents } = useCrossfade(focus, index);
+  // Distinct from the crossfade's own opacity: this is the scene's own
+  // scroll position within its 20%-wide window, rising smoothly from 0 to
+  // 1 across the WHOLE window (hold included) — not "how close to active"
+  // (which snaps to 1 almost immediately and then stays flat through the
+  // whole hold). Multi-beat scenes (coin -> confirmed -> receipt, the
+  // sourcing map draw + parcel travel, build -> handoff) need this so
+  // their sequence actually plays out as the user scrolls through the
+  // step, instead of resolving to its final frame instantly.
+  const progress = useTransform(smoothProgress, (p) => clamp01((p - index * 0.2) / 0.2));
+  const Scene = step.Scene;
   return (
-    <div className="absolute inset-x-0 -translate-y-1/2" style={{ top: ACTIVE_ANCHOR }}>
-      <motion.div
-        style={{ opacity, scale, y, pointerEvents }}
-        className="relative mx-auto w-full max-w-[900px] text-center"
-      >
-        <div className="relative h-5">
-          <motion.p
-            style={{ opacity: counterOpacity }}
-            className="absolute inset-0 font-display text-sm font-semibold tracking-[0.2em] text-text-muted"
-          >
-            {String(index + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
-          </motion.p>
-          <motion.span
-            style={{ opacity: ordinalOpacity }}
-            className="absolute inset-0 font-display text-xs font-semibold tracking-[0.2em] text-text-muted"
-          >
-            {String(index + 1).padStart(2, "0")}
-          </motion.span>
+    <motion.div style={{ opacity, scale, pointerEvents }} className="absolute inset-0">
+      <Scene progress={progress} />
+    </motion.div>
+  );
+}
+
+function TextPanel({ index, step, focus }: { index: number; step: ProcessStep; focus: MotionValue<number> }) {
+  const { opacity, pointerEvents } = useCrossfade(focus, index);
+  const y = useTransform(opacity, [0, 1], [10, 0]);
+  return (
+    <motion.div style={{ opacity, y, pointerEvents }} className="absolute inset-x-0 top-0">
+      <h3 className="font-display text-[clamp(1.75rem,3.4vw,2.75rem)] font-bold leading-[1.08] tracking-tight text-text-primary">
+        {step.heading}
+      </h3>
+      <p className="mx-auto mt-3 max-w-lg text-base text-text-secondary sm:text-lg">{step.body}</p>
+      {step.secondary && <p className="mt-1.5 text-sm text-text-muted">{step.secondary}</p>}
+      {index === STEPS.length - 1 && (
+        <div className="mt-4">
+          <Button href="/build-my-pc" size="lg">
+            Get a Quote
+          </Button>
         </div>
-        <h3 className="mt-3 font-display text-[clamp(2.5rem,4.5vw,3.75rem)] font-bold leading-[1.06] tracking-tight text-text-primary">
-          {step.heading}
-        </h3>
-
-        {/* Absolutely positioned so it never inflates this panel's own
-            height — every panel's static footprint stays just its number
-            + heading, which is what the neighbouring panels' spacing is
-            measured against, preventing the detail copy of an active step
-            from ever pushing its own box into a neighbour's. */}
-        <motion.div
-          style={{ opacity: focusStrength }}
-          className="absolute left-1/2 top-full mt-5 w-full max-w-[640px] -translate-x-1/2"
-        >
-          {index === 1 && (
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-              Important
-            </p>
-          )}
-          <p className="text-lg text-text-secondary">{step.supporting}</p>
-          {step.secondary && <p className="mt-3 text-sm text-text-muted">{step.secondary}</p>}
-
-          {index === 0 && <WordStagger words={SOURCE_WORDS} focusStrength={focusStrength} />}
-          {index === 1 && <SourceRoute focusStrength={focusStrength} />}
-          {index === 2 && <QuotationLines rows={QUOTE_LINES} focusStrength={focusStrength} />}
-          {index === 3 && (
-            <ConfirmProgression stages={CONFIRM_STAGES} focusStrength={focusStrength} />
-          )}
-          {index === 4 && (
-            <>
-              <DeliveredWords words={DELIVERED_WORDS} focusStrength={focusStrength} />
-              <motion.div style={{ opacity: focusStrength }} className="mt-8">
-                <Button href="/build-my-pc" size="lg">
-                  Request a PC Quote
-                </Button>
-              </motion.div>
-            </>
-          )}
-        </motion.div>
-      </motion.div>
-    </div>
-  );
-}
-
-/** Step 1 — BUDGET / PERFORMANCE / DESIGN / USE CASE entering individually
- *  staggered as small tags once the step is active. */
-function WordStagger({
-  words,
-  focusStrength,
-}: {
-  words: string[];
-  focusStrength: MotionValue<number>;
-}) {
-  const op0 = useTransform(focusStrength, [0.05, 0.35], [0, 1]);
-  const op1 = useTransform(focusStrength, [0.2, 0.5], [0, 1]);
-  const op2 = useTransform(focusStrength, [0.35, 0.65], [0, 1]);
-  const op3 = useTransform(focusStrength, [0.5, 0.8], [0, 1]);
-  const ops = [op0, op1, op2, op3];
-  const y0 = useTransform(op0, [0, 1], [10, 0]);
-  const y1 = useTransform(op1, [0, 1], [10, 0]);
-  const y2 = useTransform(op2, [0, 1], [10, 0]);
-  const y3 = useTransform(op3, [0, 1], [10, 0]);
-  const ys = [y0, y1, y2, y3];
-
-  return (
-    <div className="mx-auto mt-6 inline-flex flex-wrap justify-center gap-x-4 gap-y-1">
-      {words.map((word, i) => (
-        <motion.span
-          key={word}
-          style={{ opacity: ops[i], y: ys[i] }}
-          className="font-display text-sm font-bold uppercase tracking-[0.15em] text-text-muted"
-        >
-          {word}
-        </motion.span>
-      ))}
-    </div>
-  );
-}
-
-/** Step 2 — the section's strongest visual moment: a minimal abstract
- *  sourcing route (no map, no plane, no logos) that draws while the step
- *  is active, with a small marker travelling along it. */
-function SourceRoute({ focusStrength }: { focusStrength: MotionValue<number> }) {
-  const lineScale = useTransform(focusStrength, [0.1, 0.7], [0, 1]);
-  const dotOpacity = useTransform(focusStrength, [0.1, 0.25], [0, 1]);
-  const dotX = useTransform(focusStrength, [0.1, 0.75], [0, 100]);
-  const dotLeft = useTransform(dotX, (v) => `${v}%`);
-  const endOpacity = useTransform(focusStrength, [0.55, 0.8], [0.3, 1]);
-
-  return (
-    <div className="mx-auto mt-7 inline-flex max-w-md items-center gap-5">
-      <span className="font-display text-lg font-bold tracking-[0.1em] text-text-primary">U.S.A.</span>
-      <div className="relative h-px flex-1 bg-border">
-        <motion.div
-          style={{ scaleX: lineScale }}
-          className="absolute inset-0 origin-left bg-accent"
-        />
-        <motion.div
-          style={{ left: dotLeft, opacity: dotOpacity }}
-          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent"
-        />
-      </div>
-      <motion.span
-        style={{ opacity: endOpacity }}
-        className="font-display text-lg font-bold tracking-[0.1em] text-text-primary"
-      >
-        QATAR
-      </motion.span>
-    </div>
-  );
-}
-
-/** Step 3 — an editorial quotation document made from typography only, no
- *  fake prices, rows assembling while the step is active. */
-function QuotationLines({
-  rows,
-  focusStrength,
-}: {
-  rows: string[];
-  focusStrength: MotionValue<number>;
-}) {
-  const op0 = useTransform(focusStrength, [0.05, 0.25], [0, 1]);
-  const op1 = useTransform(focusStrength, [0.19, 0.39], [0, 1]);
-  const op2 = useTransform(focusStrength, [0.33, 0.53], [0, 1]);
-  const op3 = useTransform(focusStrength, [0.47, 0.67], [0, 1]);
-  const op4 = useTransform(focusStrength, [0.61, 0.81], [0, 1]);
-  const rowOps = [op0, op1, op2, op3, op4];
-  const y0 = useTransform(op0, [0, 1], [10, 0]);
-  const y1 = useTransform(op1, [0, 1], [10, 0]);
-  const y2 = useTransform(op2, [0, 1], [10, 0]);
-  const y3 = useTransform(op3, [0, 1], [10, 0]);
-  const y4 = useTransform(op4, [0, 1], [10, 0]);
-  const rowYs = [y0, y1, y2, y3, y4];
-
-  return (
-    <div className="mx-auto mt-5 inline-flex max-w-sm flex-col divide-y divide-border border-t border-border text-left">
-      {rows.map((row, i) => (
-        <motion.div
-          key={row}
-          style={{ opacity: rowOps[i], y: rowYs[i] }}
-          className="flex items-center justify-between py-0.5"
-        >
-          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-text-secondary">
-            {row}
-          </span>
-          <span aria-hidden="true" className="h-px w-16 bg-border-strong" />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/** Step 4 — DEPOSIT -> ORDER CONFIRMED -> TRACKING, revealing sequentially
- *  while the step is active, no invented order/tracking numbers. */
-function ConfirmProgression({
-  stages,
-  focusStrength,
-}: {
-  stages: string[];
-  focusStrength: MotionValue<number>;
-}) {
-  const stage0 = useTransform(focusStrength, [0, 0.15], [0.3, 1]);
-  const connector0 = useTransform(focusStrength, [0.15, 0.35], [0, 1]);
-  const stage1 = useTransform(focusStrength, [0.3, 0.5], [0.3, 1]);
-  const connector1 = useTransform(focusStrength, [0.5, 0.65], [0, 1]);
-  const stage2 = useTransform(focusStrength, [0.6, 0.8], [0.3, 1]);
-  const stageOps = [stage0, stage1, stage2];
-  const connectorOps = [connector0, connector1];
-
-  return (
-    <div className="mx-auto mt-6 inline-flex max-w-lg flex-wrap items-center justify-center gap-3">
-      {stages.map((stage, i) => (
-        <div key={stage} className="flex items-center gap-3">
-          <motion.span
-            style={{ opacity: stageOps[i] }}
-            className="font-display text-sm font-bold uppercase tracking-[0.15em] text-text-primary"
-          >
-            {stage}
-          </motion.span>
-          {i < stages.length - 1 && (
-            <motion.span aria-hidden="true" style={{ opacity: connectorOps[i] }} className="text-text-muted">
-              &rarr;
-            </motion.span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Step 5 — BUILD / SETUP / READY / DELIVERED progressing as a restrained
- *  checklist-style highlight while the step is active. */
-function DeliveredWords({
-  words,
-  focusStrength,
-}: {
-  words: string[];
-  focusStrength: MotionValue<number>;
-}) {
-  const op0 = useTransform(focusStrength, [0, 0.15], [0.3, 1]);
-  const op1 = useTransform(focusStrength, [0.2, 0.4], [0.3, 1]);
-  const op2 = useTransform(focusStrength, [0.4, 0.6], [0.3, 1]);
-  const op3 = useTransform(focusStrength, [0.6, 0.8], [0.3, 1]);
-  const ops = [op0, op1, op2, op3];
-
-  return (
-    <div className="mx-auto mt-6 inline-flex max-w-lg flex-wrap justify-center gap-x-6 gap-y-3">
-      {words.map((word, i) => (
-        <motion.span
-          key={word}
-          style={{ opacity: ops[i] }}
-          className="font-display text-xl font-bold tracking-tight text-text-primary sm:text-2xl"
-        >
-          {word}
-        </motion.span>
-      ))}
-    </div>
+      )}
+    </motion.div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Mobile — per-item scroll-linked focus fade, fully native scrolling  */
+/* Mobile — simplified per-step scroll-linked scenes, native scrolling */
 /* ------------------------------------------------------------------ */
 
-function MobileFocusStack() {
+function MobileStory() {
   return (
-    <Container className="py-20 sm:py-24">
-      <ol className="flex flex-col">
-        {STEPS.map((step, i) => (
-          <MobileFocusItem key={step.heading} step={step} index={i} />
-        ))}
-      </ol>
+    <Container className="flex flex-col gap-20 py-16 sm:py-20">
+      {STEPS.map((step, i) => (
+        <MobileStep key={step.heading} step={step} index={i} />
+      ))}
     </Container>
   );
 }
 
-function MobileFocusItem({ step, index }: { step: ProcessStep; index: number }) {
-  const itemRef = useRef<HTMLLIElement>(null);
-
-  // Tracks this item's OWN position relative to the viewport — progress
-  // 0.5 exactly when its centre aligns with the viewport centre — rather
-  // than one shared pinned/sticky story. No position:sticky is used on
-  // mobile at all, so scrolling stays completely native; each item simply
-  // fades in as it approaches the viewport's centre and fades out as it
-  // leaves, independently and reversibly, in either scroll direction.
-  const { scrollYProgress } = useScroll({
-    target: itemRef,
-    offset: ["center end", "center start"],
-  });
-  const smooth = useSpring(scrollYProgress, { stiffness: 180, damping: 32, mass: 0.2 });
+function MobileStep({ step, index }: { step: ProcessStep; index: number }) {
+  const itemRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: itemRef, offset: ["center end", "center start"] });
+  const smooth = useSpring(scrollYProgress, { stiffness: 170, damping: 32, mass: 0.25 });
   const deviation = useTransform(smooth, (v) => Math.abs(v - 0.5) * 2);
 
-  const opacity = useTransform(deviation, [0, 0.35, 0.7], [1, 0.3, 0]);
-  const scale = useTransform(deviation, [0, 0.35, 0.7], [1, 0.93, 0.88]);
-  const focusStrength = useTransform(deviation, (d) => 1 - clamp01(d / 0.3));
-  const pointerEvents = useTransform(opacity, (o) => (o < 0.05 ? "none" : "auto"));
+  const opacity = useTransform(deviation, [0, 0.35, 0.7], [1, 0.4, 0.05]);
+  const scale = useTransform(deviation, [0, 0.35, 0.7], [1, 0.96, 0.92]);
+  // Monotonic across this item's own visible sweep (unlike deviation-based
+  // opacity, which snaps toward "active" and then sits flat) — see the
+  // matching comment on desktop's StagePanel for why multi-beat scenes
+  // need this rather than a value that stops changing once "close enough".
+  const progress = useTransform(smooth, (v) => clamp01((v - 0.15) / 0.55));
+  const pointerEvents = useTransform(opacity, (o) => (o < 0.08 ? "none" : "auto"));
+
+  const Scene = step.Scene;
 
   return (
-    <li ref={itemRef} className="py-12 first:pt-0 last:pb-0 sm:py-16">
-      <motion.div style={{ opacity, scale, pointerEvents }} className="origin-center">
-        {index === 1 && (
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-            Important
-          </p>
-        )}
-        <span className="block font-display text-xs font-semibold tracking-[0.2em] text-text-muted">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-        <h3 className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight text-text-primary sm:text-3xl">
+    <div ref={itemRef} className="flex flex-col items-center text-center">
+      <motion.div style={{ opacity, scale, pointerEvents }} className="w-full">
+        <p className="font-display text-xs font-semibold tracking-[0.25em] text-text-muted">
+          {String(index + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
+        </p>
+        <div className="relative mx-auto mt-4 h-[240px] w-full max-w-[380px]">
+          <Scene progress={progress} />
+        </div>
+        <h3 className="mt-5 font-display text-2xl font-bold leading-tight tracking-tight text-text-primary">
           {step.heading}
         </h3>
-
-        <motion.div style={{ opacity: focusStrength }} className="mt-3">
-          <p className="max-w-md text-base text-text-secondary">{step.supporting}</p>
-          {step.secondary && (
-            <p className="mt-2 max-w-md text-sm text-text-muted">{step.secondary}</p>
-          )}
-
-          {index === 0 && <WordStagger words={SOURCE_WORDS} focusStrength={focusStrength} />}
-          {index === 1 && <SourceRoute focusStrength={focusStrength} />}
-          {index === 2 && <QuotationLines rows={QUOTE_LINES} focusStrength={focusStrength} />}
-          {index === 3 && (
-            <ConfirmProgression stages={CONFIRM_STAGES} focusStrength={focusStrength} />
-          )}
-          {index === 4 && (
-            <>
-              <DeliveredWords words={DELIVERED_WORDS} focusStrength={focusStrength} />
-              <motion.div style={{ opacity: focusStrength }} className="mt-6">
-                <Button href="/build-my-pc" size="lg">
-                  Request a PC Quote
-                </Button>
-              </motion.div>
-            </>
-          )}
-        </motion.div>
+        <p className="mx-auto mt-3 max-w-sm text-base text-text-secondary">{step.body}</p>
+        {step.secondary && <p className="mt-1.5 text-sm text-text-muted">{step.secondary}</p>}
+        {index === STEPS.length - 1 && (
+          <div className="mt-5">
+            <Button href="/build-my-pc" size="lg">
+              Get a Quote
+            </Button>
+          </div>
+        )}
       </motion.div>
-    </li>
+    </div>
   );
 }
 
@@ -535,40 +276,37 @@ function MobileFocusItem({ step, index }: { step: ProcessStep; index: number }) 
 /* Reduced motion — fully static, order-preserving, nothing hidden     */
 /* ------------------------------------------------------------------ */
 
-function StaticProcess() {
+function StaticStory() {
   return (
     <Container className="py-16 sm:py-20">
-      <ol className="flex flex-col gap-14">
-        {STEPS.map((step, i) => (
-          <li key={step.heading} className="flex flex-col gap-3">
-            <span className="font-display text-sm font-bold tracking-[0.1em] text-text-primary">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <h3 className="font-display text-2xl font-bold leading-tight tracking-tight text-text-primary sm:text-3xl">
-              {step.heading}
-            </h3>
-            <p className="max-w-md text-base text-text-secondary">{step.supporting}</p>
-            {step.secondary && <p className="max-w-md text-sm text-text-muted">{step.secondary}</p>}
-            {i === 1 && (
-              <div className="mt-2 flex max-w-xs items-center gap-3">
+      <ol className="flex flex-col gap-12">
+        {STEPS.map((step, i) => {
+          const Icon = step.StaticIcon;
+          return (
+            <li key={step.heading} className="flex flex-col items-start gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border-strong bg-surface">
+                  <Icon size={26} />
+                </div>
                 <span className="font-display text-sm font-bold tracking-[0.1em] text-text-primary">
-                  U.S.A.
-                </span>
-                <span aria-hidden="true" className="h-px flex-1 bg-accent/60" />
-                <span className="font-display text-sm font-bold tracking-[0.1em] text-text-primary">
-                  QATAR
+                  {String(i + 1).padStart(2, "0")}
                 </span>
               </div>
-            )}
-            {i === STEPS.length - 1 && (
-              <div className="mt-2">
-                <Button href="/build-my-pc" size="lg">
-                  Request a PC Quote
-                </Button>
-              </div>
-            )}
-          </li>
-        ))}
+              <h3 className="font-display text-2xl font-bold leading-tight tracking-tight text-text-primary sm:text-3xl">
+                {step.heading}
+              </h3>
+              <p className="max-w-md text-base text-text-secondary">{step.body}</p>
+              {step.secondary && <p className="max-w-md text-sm text-text-muted">{step.secondary}</p>}
+              {i === STEPS.length - 1 && (
+                <div className="mt-2">
+                  <Button href="/build-my-pc" size="lg">
+                    Get a Quote
+                  </Button>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </Container>
   );
