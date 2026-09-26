@@ -1,99 +1,73 @@
 /**
- * Single source of truth for the How It Works story: copy, scene order and
- * how much scroll each scene gets. Both the DOM text stack and the 3D
- * director read from here, so text and visuals can never drift apart.
+ * Single source of truth for the How It Works story: copy, chapter order
+ * and pacing. The DOM caption, the progress bar and the 3D director all
+ * read from here.
  *
- * To retime the story, change SCENE_WEIGHTS (relative scroll length per
- * scene) or STORY_SCROLL_VH (total scroll length). Each scene's internal
- * beats live in its own file under ./three/scenes as a BEATS constant.
+ * Pacing model: scroll *selects* a chapter; each chapter then plays at a
+ * designed speed (its `duration`), so gestures and camera moves always run
+ * at the same, readable pace no matter how fast someone scrolls. To retime a
+ * chapter, change its `duration`; to retime beats inside it, edit the BEATS
+ * table in that chapter's scene file (values are 0..1 of the chapter).
  */
 
-export interface StoryStep {
-  id: "parts" | "quote" | "confirm" | "ship" | "build" | "deliver";
+export interface Chapter {
+  id: "parts" | "quote" | "confirm" | "source" | "build";
   headline: string;
   body: string;
+  /** Seconds the chapter's choreography takes at normal speed. */
+  duration: number;
 }
 
-export const STEPS: readonly StoryStep[] = [
+export const CHAPTERS: readonly Chapter[] = [
   {
     id: "parts",
     headline: "Pick Your Parts",
-    body: "Tell us your budget, games, design preference, and performance goals. We help you choose the right parts for your needs.",
+    body: "Tell us your budget, games, performance goals, and design preferences. We help you choose the right parts for your needs.",
+    duration: 9,
   },
   {
     id: "quote",
     headline: "Review Your Quotation",
-    body: "We prepare a detailed quotation with the selected parts, pricing, and estimated shipping timeframe.",
+    body: "You receive a detailed quotation with your selected parts, pricing, and estimated shipping timeframe.",
+    duration: 7.5,
   },
   {
     id: "confirm",
     headline: "Confirm Your Order",
-    body: "Once you approve the quotation, your order is confirmed with the required deposit.",
+    body: "A deposit confirms your order. You receive payment confirmation and your order is officially placed.",
+    duration: 9.5,
   },
   {
-    id: "ship",
+    id: "source",
     headline: "Sourced From The U.S.",
-    body: "Based on your request, the required parts are sourced directly from the U.S. and shipped to Qatar.",
+    body: "Once your order is confirmed, the requested parts are sourced directly from the U.S. and shipped to Qatar.",
+    duration: 10,
   },
   {
     id: "build",
-    headline: "Built And Set Up By M1",
-    body: "Once the parts arrive, M1 assembles your PC, installs Windows 11 Pro, required drivers, and updates so it is ready to use.",
-  },
-  {
-    id: "deliver",
-    headline: "Delivered To You",
-    body: "Once ready, you can arrange pickup or delivery, and we hand over a fully prepared PC ready to use.",
+    headline: "Built. Set Up. Delivered.",
+    body: "M1 assembles your PC, installs Windows and drivers, completes setup, and gets it ready for pickup or delivery.",
+    duration: 14,
   },
 ];
 
-/** Relative scroll length per scene (shipping and build get the most room). */
-export const SCENE_WEIGHTS = [1.25, 1.05, 1.15, 1.6, 1.55, 1.3] as const;
-
-/** Total scroll distance of the pinned experience, in viewport heights. */
-export const STORY_SCROLL_VH = 900;
-export const STORY_SCROLL_VH_MOBILE = 760;
-
-const total = SCENE_WEIGHTS.reduce((a, b) => a + b, 0);
-
-/** [start, end] of each scene in global progress (0..1). */
-export const SCENE_RANGES: readonly (readonly [number, number])[] = SCENE_WEIGHTS.map((_, i) => {
-  const start = SCENE_WEIGHTS.slice(0, i).reduce((a, b) => a + b, 0) / total;
-  return [start, start + SCENE_WEIGHTS[i] / total] as const;
-});
-
-export function sceneLocal(p: number, index: number): number {
-  const [a, b] = SCENE_RANGES[index];
-  return Math.min(1, Math.max(0, (p - a) / (b - a)));
-}
-
-export function sceneIndexAt(p: number): number {
-  for (let i = SCENE_RANGES.length - 1; i >= 0; i--) {
-    if (p >= SCENE_RANGES[i][0]) return i;
-  }
-  return 0;
-}
-
-/** Converts a scene-local time to global progress. */
-export function globalAt(index: number, local: number): number {
-  const [a, b] = SCENE_RANGES[index];
-  return a + (b - a) * local;
-}
-
-/** Width (in global progress) of the text cross-over at each scene boundary. */
-const TEXT_TRANSITION = 0.03;
+export const CHAPTER_COUNT = CHAPTERS.length;
 
 /**
- * Continuous "which step is in focus" value for the text stack: holds flat
- * on each integer while a scene plays, and eases to the next integer across
- * a short window centred on the scene boundary.
+ * Scroll distance (viewport heights) that selects each chapter, plus a short
+ * pinned runway after the last one so the ending and CTA can settle.
  */
-export function focusAt(p: number): number {
-  let f = 0;
-  for (let i = 1; i < SCENE_RANGES.length; i++) {
-    const b = SCENE_RANGES[i][0];
-    const x = Math.min(1, Math.max(0, (p - (b - TEXT_TRANSITION / 2)) / TEXT_TRANSITION));
-    f += x * x * (3 - 2 * x);
-  }
-  return f;
+export const BAND_VH = 100;
+export const RUNWAY_VH = 45;
+
+/**
+ * Story position `s` runs from 0 to CHAPTER_COUNT. Chapter i occupies
+ * (i, i + 1]: it rests on its final frame at s = i + 1.
+ */
+export function chapterAt(s: number): number {
+  return Math.min(CHAPTER_COUNT - 1, Math.max(0, Math.ceil(s) - 1));
+}
+
+export function chapterLocal(s: number, index: number): number {
+  return Math.min(1, Math.max(0, s - index));
 }

@@ -157,7 +157,7 @@ export const PART_MODELS: Record<PartId, () => React.ReactElement> = {
   cpu: CpuModel,
   gpu: () => <GpuModel />,
   ram: () => <RamModel />,
-  ssd: SsdModel,
+  storage: SsdModel,
   board: BoardModel,
   case: CaseModel,
 };

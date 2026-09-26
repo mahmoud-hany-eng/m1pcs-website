@@ -19,9 +19,9 @@ export interface CharacterApi {
   /** Converts a point in the character's local space into its parent's space. */
   toParent(local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3;
   /** Arm angles that point a (straight) arm at a point in parent space. */
-  aim(side: "l" | "r", parentPoint: THREE.Vector3): { x: number; z: number };
+  aim(side: "l" | "r", parentPoint: THREE.Vector3, out: { x: number; z: number }): { x: number; z: number };
   /** Head yaw/pitch that look at a point in parent space. */
-  look(parentPoint: THREE.Vector3): { yaw: number; pitch: number };
+  look(parentPoint: THREE.Vector3, out: { yaw: number; pitch: number }): { yaw: number; pitch: number };
   /** Current hand position in parent space (valid after `step`). */
   hand(side: "l" | "r", out: THREE.Vector3): THREE.Vector3;
 }
@@ -40,9 +40,9 @@ const SHIN = 0.31;
 function springParams(key: PoseKey): [number, number] {
   if (key.includes("Hip") || key.includes("Knee")) return [520, 42];
   if (key === "bob" || key === "squash") return [260, 20];
-  if (key.startsWith("head")) return [85, 11];
+  if (key.startsWith("head")) return [85, 12.5];
   if (key === "smile" || key === "mouthOpen" || key === "brow") return [140, 20];
-  if (key.includes("Arm") || key.includes("Elbow")) return [105, 11.5];
+  if (key.includes("Arm") || key.includes("Elbow")) return [110, 13.5];
   return [90, 13];
 }
 
@@ -111,6 +111,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
     }, []);
 
     const target = useMemo(() => makePose(), []);
+    const values = useMemo(() => makePose(), []);
     // Each character blinks on its own rhythm so they never look synced.
     const blinkOffset = isRep ? 0 : 1.7;
 
@@ -134,7 +135,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           out.set(local.x * c + local.z * s, local.y, -local.x * s + local.z * c);
           return out.add(root.current.position);
         },
-        aim(side, point) {
+        aim(side, point, out) {
           // Parent space -> character space (ignores spine lean: close enough for gestures).
           const r = root.current;
           const c = Math.cos(-r.rotation.y);
@@ -146,9 +147,11 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           const sx = side === "l" ? SHOULDER.x : -SHOULDER.x;
           const sy = HIP_Y + SPINE_Y + SHOULDER.y;
           tmp.set(lx - sx, point.y - sy, lz).normalize();
-          return { x: Math.atan2(-tmp.z, -tmp.y), z: Math.asin(Math.max(-1, Math.min(1, tmp.x))) };
+          out.x = Math.atan2(-tmp.z, -tmp.y);
+          out.z = Math.asin(Math.max(-1, Math.min(1, tmp.x)));
+          return out;
         },
-        look(point) {
+        look(point, out) {
           const r = root.current;
           const c = Math.cos(-r.rotation.y);
           const s = Math.sin(-r.rotation.y);
@@ -157,9 +160,9 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           const lx = px * c + pz * s;
           const lz = -px * s + pz * c;
           const dy = point.y - (HIP_Y + SPINE_Y + HEAD_Y);
-          const yaw = Math.atan2(lx, lz);
-          const pitch = Math.atan2(-dy, Math.hypot(lx, lz));
-          return { yaw: Math.max(-1.2, Math.min(1.2, yaw)), pitch: Math.max(-0.6, Math.min(0.6, pitch)) };
+          out.yaw = Math.max(-1.2, Math.min(1.2, Math.atan2(lx, lz)));
+          out.pitch = Math.max(-0.6, Math.min(0.6, Math.atan2(-dy, Math.hypot(lx, lz))));
+          return out;
         },
         hand(side, out) {
           (side === "l" ? lHand : rHand).current.getWorldPosition(out);
@@ -168,7 +171,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
         },
         step(dt, time) {
           const d = Math.min(dt, 1 / 30);
-          const v = {} as Record<PoseKey, number>;
+          const v = values;
           for (const k of POSE_KEYS) {
             const [kk, cc] = springParams(k);
             v[k] = springs[k].step(target[k], d, kk, cc);
@@ -217,7 +220,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           root.current.updateMatrixWorld(true);
         },
       }),
-      [springs, target, blinkOffset],
+      [springs, target, values, blinkOffset],
     );
 
     useImperativeHandle(ref, () => api, [api]);

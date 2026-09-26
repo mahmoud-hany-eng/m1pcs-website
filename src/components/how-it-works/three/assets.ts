@@ -2,9 +2,9 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 /**
- * Shared, lazily-created geometries / materials / canvas textures. Every
- * prop in the story is built from these primitives, so the whole experience
- * ships with zero model or image files and a handful of GPU buffers.
+ * Shared, lazily-created geometries / materials / procedural textures. Every
+ * prop in the story is built from these primitives (no model files); all
+ * text lives in the DOM overlay, never in textures.
  */
 
 export const COLORS = {
@@ -116,23 +116,6 @@ export const geo = {
   cone: () => cached("cone", () => new THREE.ConeGeometry(1, 1, 20)),
 };
 
-// ---------------------------------------------------------------- fonts
-
-let fontCache: { display: string; sans: string } | null = null;
-
-/** Resolves the next/font family names so canvas text matches the site. */
-export function fonts() {
-  if (fontCache) return fontCache;
-  const root = getComputedStyle(document.documentElement);
-  const display = root.getPropertyValue("--font-space-grotesk").trim();
-  const sans = root.getPropertyValue("--font-inter").trim();
-  fontCache = {
-    display: `${display ? display + ", " : ""}ui-sans-serif, system-ui, sans-serif`,
-    sans: `${sans ? sans + ", " : ""}ui-sans-serif, system-ui, sans-serif`,
-  };
-  return fontCache;
-}
-
 // ---------------------------------------------------------------- canvas textures
 
 const textureCache = new Map<string, THREE.CanvasTexture>();
@@ -155,67 +138,6 @@ export function canvasTexture(
   tex.anisotropy = 4;
   textureCache.set(key, tex);
   return tex;
-}
-
-export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-export function drawCheck(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string, width: number) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(cx - size * 0.5, cy + size * 0.02);
-  ctx.lineTo(cx - size * 0.14, cy + size * 0.36);
-  ctx.lineTo(cx + size * 0.52, cy - size * 0.34);
-  ctx.stroke();
-  ctx.restore();
-}
-
-export type LabelStyle = "dark" | "gold" | "red" | "white";
-
-const LABEL_STYLES: Record<LabelStyle, { bg: string; fg: string; border: string }> = {
-  dark: { bg: "rgba(21,21,23,0.92)", fg: COLORS.white, border: "rgba(255,255,255,0.14)" },
-  gold: { bg: COLORS.gold, fg: "#111111", border: COLORS.gold },
-  red: { bg: COLORS.red, fg: "#ffffff", border: COLORS.red },
-  white: { bg: COLORS.white, fg: "#111111", border: COLORS.white },
-};
-
-/** Pill label (optionally with a leading check mark). Returns texture + aspect. */
-export function labelTexture(text: string, style: LabelStyle = "dark", check = false) {
-  const f = fonts();
-  const h = 96;
-  const probe = document.createElement("canvas").getContext("2d")!;
-  probe.font = `700 44px ${f.display}`;
-  const textW = probe.measureText(text).width;
-  const pad = 40;
-  const checkW = check ? 56 : 0;
-  const w = Math.ceil(textW + pad * 2 + checkW);
-  const tex = canvasTexture(`label|${text}|${style}|${check}`, w, h, (ctx) => {
-    const s = LABEL_STYLES[style];
-    roundRect(ctx, 3, 3, w - 6, h - 6, (h - 6) / 2);
-    ctx.fillStyle = s.bg;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = s.border;
-    ctx.stroke();
-    if (check) drawCheck(ctx, pad + 18, h / 2, 34, s.fg, 7);
-    ctx.font = `700 44px ${f.display}`;
-    ctx.fillStyle = s.fg;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
-    ctx.fillText(text, pad + checkW, h / 2 + 2);
-  });
-  return { texture: tex, aspect: w / h };
 }
 
 /** Soft radial glow sprite texture. */

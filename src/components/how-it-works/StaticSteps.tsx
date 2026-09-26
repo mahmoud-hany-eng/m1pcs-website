@@ -1,6 +1,6 @@
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
-import { STEPS } from "./story";
+import { CHAPTERS } from "./story";
 
 /**
  * Motion-free version of the story for visitors who prefer reduced motion
@@ -16,7 +16,7 @@ export function StaticSteps() {
             How It Works
           </h1>
           <ol className="mt-14 flex w-full flex-col gap-12">
-            {STEPS.map((step, i) => (
+            {CHAPTERS.map((step, i) => (
               <li key={step.id} className="flex flex-col items-center gap-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full border border-accent/60 font-display text-sm font-bold text-accent">
                   {String(i + 1).padStart(2, "0")}
