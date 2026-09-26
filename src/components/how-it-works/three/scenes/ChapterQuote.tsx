@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { easeOutBack, lerp, seg, smooth, window4 } from "../anim";
-import { aimArm, converse, lookAt, place, resetPose, talk } from "../choreo";
+import { aimArm, consultIdle, lookAt, talk } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
 import { QUOTE_ANCHOR, SPOTS } from "../layout";
 import { HAPPY, LEAN_IN, OK_L, THINK_L, add, blend, nod, talkHands } from "../poses";
@@ -35,7 +35,7 @@ export function ChapterQuote() {
     const B = QUOTE_BEATS;
     const s2 = f.local[1];
     const s3 = f.local[2];
-    const t = f.time;
+    const t = f.clock;
     const card = world.anchors.get("quote");
 
     // ---------------- the quotation card
@@ -51,19 +51,13 @@ export function ChapterQuote() {
     card.cssVar("r7", smooth(seg(s2, B.total, B.total + 0.04)));
     card.cssVar("approved", easeOutBack(seg(s2, B.approve, B.approve + 0.04), 2));
 
-    // ---------------- characters
+    // ---------------- characters (gestures are windows that are zero at the chapter edges)
     if (f.active !== 1) return;
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
-    resetPose(rep);
-    resetPose(cust);
-    rep.setVisible(true);
-    cust.setVisible(true);
-    place(rep, SPOTS.rep);
-    place(cust, SPOTS.customer);
-    lookAt(rep, CUSTOMER_HEAD);
-    lookAt(cust, CARD_POINT);
+    consultIdle(rep, cust, SPOTS.rep, SPOTS.customer);
+    lookAt(cust, CARD_POINT, window4(s2, 0.02, 0.1, 0.9, 0.98));
 
     // Rep presents the quotation, walking through it line by line.
     const present = window4(s2, ...B.present);
@@ -72,13 +66,12 @@ export function ChapterQuote() {
     talk(rep, t, present * 0.8);
     blend(rep.target, HAPPY, present * 0.6);
 
-    // Customer leans in and reads down the rows as they appear.
+    // Customer leans in and reads down the rows as they appear (the gaze glides row to row).
     let row = 0;
-    for (let i = 0; i < 6; i++) if (s2 >= rowArrival(i) - 0.02) row = i;
-    if (s2 >= B.shipping - 0.02) row = 6;
-    if (s2 >= B.total - 0.02) row = 7;
+    for (let i = 0; i < 6; i++) row += smooth(seg(s2, rowArrival(i) - 0.03, rowArrival(i) + 0.01));
+    row += smooth(seg(s2, B.shipping - 0.03, B.shipping + 0.01)) + smooth(seg(s2, B.total - 0.03, B.total + 0.01));
     const lean = window4(s2, ...B.leanIn);
-    reading.set(QUOTE_ANCHOR.x, QUOTE_ANCHOR.y + 0.32 - row * 0.09, QUOTE_ANCHOR.z);
+    reading.set(QUOTE_ANCHOR.x, QUOTE_ANCHOR.y + 0.32 - Math.max(0, row - 1) * 0.09, QUOTE_ANCHOR.z);
     lookAt(cust, reading, lean);
     blend(cust.target, LEAN_IN, lean);
     blend(cust.target, THINK_L, window4(s2, ...B.think));
@@ -98,7 +91,10 @@ export function ChapterQuote() {
     blend(rep.target, HAPPY, ok);
     add(rep.target, nod(t), ok * 0.6);
 
-    converse(cust, "l", rep, "r", t, smooth(seg(s2, B.settle[0], B.settle[1])));
+    // Settled: warm smiles that ease back to the shared idle by the chapter's end.
+    const settle = window4(s2, B.settle[0], B.settle[0] + 0.015, 0.985, 1.0);
+    blend(rep.target, HAPPY, settle);
+    blend(cust.target, HAPPY, settle);
   });
 
   return null;

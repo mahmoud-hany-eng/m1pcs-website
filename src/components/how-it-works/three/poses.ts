@@ -2,9 +2,9 @@ import { lerp } from "./anim";
 
 /**
  * A character pose is a flat bag of joint angles (radians) plus a few face
- * parameters. Scenes compute a target pose every frame; the rig springs each
- * joint towards it, which gives soft follow-through without ever breaking
- * scroll reversibility.
+ * parameters. Scenes compute the pose every frame from the scroll position
+ * and the rig shows it exactly (no springs), so a pose is always a pure
+ * function of scroll.
  *
  * Every gesture below writes into its own reusable object (no per-frame
  * allocations — garbage collection pauses show up as stutter).
@@ -135,16 +135,21 @@ export const THINK_R: Partial<Pose> = { rArmX: -0.55, rArmZ: 0.3, rElbow: -2.25,
 /** Holding a phone up in front of the chest, looking at it. */
 export const PHONE_L: Partial<Pose> = { lArmX: -0.62, lArmZ: -0.22, lElbow: -1.75, headPitch: 0.34, lean: 0.05, brow: -0.1 };
 
+/** Right fist pumped up beside the head — "done!". */
+export const CHEER_R: Partial<Pose> = { rArmX: -0.4, rArmZ: -1.0, rElbow: -0.1, rElbowZ: -2.05, smile: 1, mouthOpen: 0.3, brow: 0.55 };
+
 /** Forearm up, open hand — "OK, looks good". */
 export const OK_L: Partial<Pose> = { lArmX: -1.05, lArmZ: 0.45, lElbow: -1.55, smile: 1, brow: 0.5 };
 
-// ---------------------------------------------------------------- time-varying gestures
+// ---------------------------------------------------------------- repeating gestures
+// `phase` is story seconds derived from the scroll position (FrameState.clock),
+// so these cycle only while the visitor scrolls, in either direction.
 
 const waveL: Partial<Pose> = { lArmX: -0.25, lArmZ: 1.3, lElbow: -0.05, lElbowZ: 0, smile: 0.9, brow: 0.4 };
 const waveR: Partial<Pose> = { rArmX: -0.25, rArmZ: -1.3, rElbow: -0.05, rElbowZ: 0, smile: 0.9, brow: 0.4 };
 /** One-arm wave in the frontal plane. */
-export function wave(side: Side, time: number): Partial<Pose> {
-  const swing = Math.sin(time * 9) * 0.38;
+export function wave(side: Side, phase: number): Partial<Pose> {
+  const swing = Math.sin(phase * 9) * 0.38;
   if (side === "l") {
     waveL.lElbowZ = 1.75 + swing;
     return waveL;
@@ -156,8 +161,8 @@ export function wave(side: Side, time: number): Partial<Pose> {
 const talkL: Partial<Pose> = { lArmX: 0, lArmZ: 0.42, lElbow: -0.8, lElbowZ: 0.2 };
 const talkR: Partial<Pose> = { rArmX: 0, rArmZ: -0.42, rElbow: -0.8, rElbowZ: -0.2 };
 /** Open-hand gestures while explaining something. */
-export function talkHands(side: Side, time: number): Partial<Pose> {
-  const a = Math.sin(time * 3.1) * 0.2 + Math.sin(time * 1.7) * 0.08;
+export function talkHands(side: Side, phase: number): Partial<Pose> {
+  const a = Math.sin(phase * 3.1) * 0.2 + Math.sin(phase * 1.7) * 0.08;
   if (side === "l") {
     talkL.lArmX = -0.92 + a;
     talkL.lElbow = -0.8 - a * 0.6;
@@ -177,16 +182,16 @@ export function handshake(pump: number): Partial<Pose> {
 
 const typingPose: Partial<Pose> = { lArmX: 0, lArmZ: -0.12, lElbow: -1.05, rArmX: 0, rArmZ: 0.12, rElbow: -1.05, lean: 0.12, headPitch: 0.2, smile: 0.3, brow: -0.2 };
 /** Fast alternating hand taps — typing on a keyboard. */
-export function typing(time: number): Partial<Pose> {
-  typingPose.lArmX = -0.72 + Math.sin(time * 18) * 0.06;
-  typingPose.rArmX = -0.72 + Math.sin(time * 18 + 2) * 0.06;
+export function typing(phase: number): Partial<Pose> {
+  typingPose.lArmX = -0.72 + Math.sin(phase * 18) * 0.06;
+  typingPose.rArmX = -0.72 + Math.sin(phase * 18 + 2) * 0.06;
   return typingPose;
 }
 
 const clapPose: Partial<Pose> = { lArmX: -1.05, lArmZ: 0, lElbow: -0.85, rArmX: -1.05, rArmZ: 0, rElbow: -0.85, smile: 1, mouthOpen: 0.35, brow: 0.4 };
 /** Clapping in front of the chest. */
-export function clap(time: number): Partial<Pose> {
-  const c = (Math.sin(time * 14) + 1) / 2;
+export function clap(phase: number): Partial<Pose> {
+  const c = (Math.sin(phase * 14) + 1) / 2;
   clapPose.lArmZ = -0.12 + c * 0.3;
   clapPose.rArmZ = 0.12 - c * 0.3;
   return clapPose;
@@ -211,15 +216,15 @@ export function walk(phase: number, carrying = false): Partial<Pose> {
 
 const nodPose: Partial<Pose> = { headPitch: 0 };
 /** Small forward nods layered on the head. */
-export function nod(time: number): Partial<Pose> {
-  nodPose.headPitch = Math.max(0, Math.sin(time * 8.5)) * 0.26;
+export function nod(phase: number): Partial<Pose> {
+  nodPose.headPitch = Math.max(0, Math.sin(phase * 8.5)) * 0.26;
   return nodPose;
 }
 
 const hopPose: Partial<Pose> = { bob: 0, squash: 0 };
 /** A happy little hop. */
-export function hop(time: number): Partial<Pose> {
-  const h = Math.abs(Math.sin(time * 6.5));
+export function hop(phase: number): Partial<Pose> {
+  const h = Math.abs(Math.sin(phase * 6.5));
   hopPose.bob = h * 0.1;
   hopPose.squash = (1 - h) * 0.035;
   return hopPose;

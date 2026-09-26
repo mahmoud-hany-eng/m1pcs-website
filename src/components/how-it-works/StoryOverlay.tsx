@@ -12,6 +12,7 @@ import {
   IconCpu,
   IconGamepad,
   IconGpu,
+  IconHome,
   IconPalette,
   IconPhone,
   IconPin,
@@ -279,10 +280,24 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
           </div>
         </div>
       </Anchored>
-      <Anchored id="handoff">
+
+      {/* 6 — delivery */}
+      <Anchored id="van">
+        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+          <IconTruck className="h-3.5 w-3.5 text-accent" />
+          On the way to you
+        </span>
+      </Anchored>
+      <Anchored id="home">
+        <span className={`${PILL} border-accent/60 bg-[#141416]/95 text-white`}>
+          <IconHome className="h-3.5 w-3.5 text-accent" />
+          Your home
+        </span>
+      </Anchored>
+      <Anchored id="delivered">
         <span className={`${PILL} border-accent bg-accent text-black`}>
           <IconCheck className="h-3.5 w-3.5" />
-          Ready for pickup or delivery
+          Delivered · ready to use
         </span>
       </Anchored>
     </div>

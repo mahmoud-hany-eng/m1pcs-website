@@ -4,11 +4,13 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { COLORS, canvasTexture, geo, glow, std } from "../assets";
 import { bell, easeInOutCubic, easeOutBack, easeOutCubic, lerp, seg, smooth, window4 } from "../anim";
-import { aimArm, converse, lookAt, place, resetPose, talk } from "../choreo";
+import { aimArm, consultIdle, lookAt, pointAlong, talk } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
 import { PART_IDS, PART_SLOTS, PROJECTOR, QUOTE_ANCHOR, SPOTS, type PartId } from "../layout";
 import { PART_MODELS } from "../parts";
 import { HAPPY, THINK_L, add, blend, nod, talkHands, wave } from "../poses";
+
+const SLOT_LIST = PART_IDS.map((id) => PART_SLOTS[id]);
 
 /** Chapter 1 beats (0..1 of the chapter). */
 export const PARTS_BEATS = {
@@ -46,12 +48,18 @@ const CHIP_GRID = [
 const CHIP_CLUSTER = new THREE.Vector3(1.28, 2.4, 0.05);
 const CHIP_SLOT_TALL = { x: 0.5, y: 0.08 };
 const CUSTOMER_MOUTH = new THREE.Vector3(SPOTS.customer.x - 0.1, 1.5, SPOTS.customer.z + 0.1);
-const REP_HEAD = new THREE.Vector3(SPOTS.rep.x, 1.55, SPOTS.rep.z);
-const CUSTOMER_HEAD = new THREE.Vector3(SPOTS.customer.x, 1.55, SPOTS.customer.z);
 const PROJECTOR_TOP = new THREE.Vector3(PROJECTOR.x, PROJECTOR.y + 0.08, PROJECTOR.z);
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
+const aim = new THREE.Vector3();
+
+/** Continuous "which item" index: rises by one through each [at - lead, at + lag] window. */
+function stepIndex(t: number, ats: readonly number[], lead: number, lag: number) {
+  let k = -1;
+  for (const at of ats) k += smooth(seg(t, at - lead, at + lag));
+  return k;
+}
 
 function beamTexture() {
   return canvasTexture("projector-beam", 64, 256, (ctx, w, h) => {
@@ -85,7 +93,7 @@ export function ChapterParts() {
     const s1 = f.local[0];
     const s2 = f.local[1];
     const s3 = f.local[2];
-    const t = f.time;
+    const t = f.clock;
     const A = world.anchors;
     const compact = f.layout === "tall";
     // Phones: the customer stands at the screen edge, so their needs gather in a slot above the scene.
@@ -141,8 +149,8 @@ export function ChapterParts() {
     custTag.opacity = tags;
 
     // ---------------- parts
-    const newest = B.appear.reduce((acc, at, i) => (s1 >= at ? i : acc), -1);
-    const choosing = s1 >= B.choose[0] - 0.01 ? B.choose.reduce((acc, at, i) => (s1 >= at - 0.01 ? i : acc), 0) : -1;
+    const toCpu = smooth(seg(s1, 0.77, 0.8));
+    const cmp = window4(s1, ...B.compare);
     PART_IDS.forEach((id, i) => {
       const g = parts.current[i];
       const model = models.current[i];
@@ -156,8 +164,7 @@ export function ChapterParts() {
       const chosen = smooth(seg(s1, chosenAt, chosenAt + 0.015)) * (1 - smooth(seg(flight, 0, 0.25)));
 
       const slot = PART_SLOTS[id];
-      const cmp = window4(s1, ...B.compare);
-      const looked = id === "gpu" ? cmp * (s1 < 0.785 ? 1 : 0.25) : id === "cpu" ? cmp * (s1 >= 0.785 ? 1 : 0.25) : 0;
+      const looked = id === "gpu" ? cmp * (1 - 0.75 * toCpu) : id === "cpu" ? cmp * (0.25 + 0.75 * toCpu) : 0;
       tmp.copy(slot);
       tmp.y += Math.sin(t * 1.4 + i) * 0.014 + looked * 0.1 + bell(s1, chosenAt, chosenAt + 0.04) * 0.1;
 
@@ -179,12 +186,19 @@ export function ChapterParts() {
       g.visible = emerge > 0 && merged < 1;
 
       // Crisp DOM label above the part. On small screens only the part being
-      // presented / chosen is labelled, so labels never collide.
+      // presented / chosen is labelled (cross-fading), so labels never collide.
       const label = A.get(`part-${id}`);
       label.pos.set(slot.x, slot.y + (compact ? 0.26 : i % 2 === 0 ? 0.26 : 0.46), slot.z);
       label.align = "above";
       const labelOn = smooth(seg(s1, at + 0.03, at + 0.07)) * (1 - smooth(seg(s2, 0.0, 0.06)));
-      const focus = compact ? (choosing >= 0 ? (i === choosing ? 1 : 0) : i === newest && s1 < B.compare[0] ? 1 : 0) : 1;
+      let focus = 1;
+      if (compact) {
+        const nextAt = i < 5 ? B.appear[i + 1] : B.compare[0];
+        const presented = window4(s1, at + 0.03, at + 0.06, nextAt + 0.01, nextAt + 0.035);
+        const nextChoose = i < 5 ? B.choose[i + 1] : 2;
+        const picked = window4(s1, chosenAt - 0.012, chosenAt + 0.004, nextChoose - 0.012, nextChoose + 0.004);
+        focus = Math.max(presented, picked);
+      }
       label.opacity = labelOn * focus * (f.s < 1.4 ? 1 : 0);
       label.flag("selected", chosen > 0.5);
 
@@ -201,23 +215,16 @@ export function ChapterParts() {
         spark.visible = sp > 0 && sp < 1;
         spark.position.copy(slot);
         spark.scale.setScalar(0.08 + easeOutCubic(sp) * 0.22);
-        (spark.material as THREE.MeshBasicMaterial).opacity = (1 - sp) * 0.5;
+        (spark.material as THREE.MeshBasicMaterial).opacity = Math.sin(Math.PI * sp) * 0.55;
       }
     });
 
-    // ---------------- characters
+    // ---------------- characters (every gesture is a window that is zero at the chapter edges)
     if (f.active !== 0) return;
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
-    resetPose(rep);
-    resetPose(cust);
-    rep.setVisible(true);
-    cust.setVisible(true);
-    place(rep, SPOTS.rep);
-    place(cust, SPOTS.customer);
-    lookAt(rep, CUSTOMER_HEAD);
-    lookAt(cust, REP_HEAD);
+    consultIdle(rep, cust, SPOTS.rep, SPOTS.customer);
 
     // Greeting.
     blend(rep.target, wave("r", t), window4(s1, ...B.repWave));
@@ -237,47 +244,50 @@ export function ChapterParts() {
     lookAt(rep, PROJECTOR_TOP, merging);
     lookAt(cust, PROJECTOR_TOP, merging);
 
-    // Rep presents each part as it rises; the customer follows it and nods.
-    if (newest >= 0) {
-      const present = window4(s1, B.appear[0] - 0.02, B.appear[0] + 0.01, B.appear[5] + 0.06, B.appear[5] + 0.1);
-      const slot = PART_SLOTS[PART_IDS[newest]];
-      aimArm(rep, "r", slot, present, -0.14);
-      lookAt(rep, slot, present);
-      lookAt(cust, slot, present);
+    // Rep presents each part as it rises (the aim glides from slot to slot); the customer follows and nods.
+    const present = window4(s1, B.appear[0] - 0.02, B.appear[0] + 0.01, B.appear[5] + 0.06, B.appear[5] + 0.1);
+    if (present > 0) {
+      pointAlong(SLOT_LIST, Math.max(0, stepIndex(s1, B.appear, 0.01, 0.02)), aim);
+      aimArm(rep, "r", aim, present, -0.14);
+      lookAt(rep, aim, present);
+      lookAt(cust, aim, present);
       talk(rep, t, present * 0.7);
       blend(rep.target, HAPPY, present * 0.7);
       rep.target.lean = lerp(rep.target.lean, 0.08, present);
-      add(cust.target, nod(t), bell(s1 - B.appear[newest], 0.025, 0.07));
       blend(cust.target, HAPPY, present * 0.6);
     }
+    let nods = 0;
+    for (const at of B.appear) nods += bell(s1, at + 0.025, at + 0.07);
+    add(cust.target, nod(t), nods);
 
     // The customer compares; the rep explains the options.
-    const cmp = window4(s1, ...B.compare);
     blend(cust.target, THINK_L, cmp);
-    lookAt(cust, s1 < 0.785 ? PART_SLOTS.gpu : PART_SLOTS.cpu, cmp);
-    lookAt(rep, CUSTOMER_HEAD, cmp);
+    lookAt(cust, aim.lerpVectors(PART_SLOTS.gpu, PART_SLOTS.cpu, toCpu), cmp);
+    lookAt(rep, tmp.set(SPOTS.customer.x, 1.55, SPOTS.customer.z), cmp);
     blend(rep.target, talkHands("r", t), cmp * 0.9);
     talk(rep, t, cmp);
 
-    // The customer chooses each part in turn.
+    // The customer chooses each part in turn (pointing glides from part to part).
     const choose = window4(s1, B.choose[0] - 0.015, B.choose[0], B.choose[5] + 0.01, B.choose[5] + 0.03);
-    if (choosing >= 0) {
-      const slot = PART_SLOTS[PART_IDS[choosing]];
-      aimArm(cust, "l", slot, choose, -0.1);
-      lookAt(cust, slot, choose);
-      lookAt(rep, slot, choose * 0.7);
+    if (choose > 0) {
+      pointAlong(SLOT_LIST, Math.max(0, stepIndex(s1, B.choose, 0.012, 0.004)), aim);
+      aimArm(cust, "l", aim, choose, -0.1);
+      lookAt(cust, aim, choose);
+      lookAt(rep, aim, choose * 0.7);
       blend(cust.target, HAPPY, choose);
       add(rep.target, nod(t), choose * 0.8);
     }
 
-    // Settled: a relaxed back-and-forth.
-    converse(cust, "l", rep, "r", t, smooth(seg(s1, B.settle[0], B.settle[1])));
+    // Settled: a warm moment that eases back to the shared idle by the chapter's end.
+    const settle = window4(s1, B.settle[0], B.settle[0] + 0.015, 0.985, 1.0);
+    blend(rep.target, HAPPY, settle);
+    blend(cust.target, HAPPY, settle);
   });
 
   return (
     <group>
       {/* holographic projector puck + beam */}
-      <group ref={projector} position={PROJECTOR}>
+      <group ref={projector} name="projector" position={PROJECTOR}>
         <mesh geometry={geo.cylinder(0.17, 0.19, 40)} material={std("#141417", { roughness: 0.3, metalness: 0.6 })} position={[0, 0.018, 0]} scale={[1, 0.036, 1]} />
         <mesh geometry={geo.torus(0.15, 0.013)} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.037, 0]}>
           <meshBasicMaterial ref={projectorRing} color="#4a3a08" toneMapped={false} />
@@ -288,7 +298,7 @@ export function ChapterParts() {
         </mesh>
       </group>
 
-      <group ref={root}>
+      <group ref={root} name="partsRoot">
         {PART_IDS.map((id, i) => {
           const Model = PART_MODELS[id];
           return (

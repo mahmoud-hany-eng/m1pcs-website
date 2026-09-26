@@ -58,27 +58,44 @@ export const ORDER_ANCHOR = new THREE.Vector3(0, 2.2, 0);
 /** Point in front of a character's chest where carried objects sit. */
 export const HOLD_POINT = new THREE.Vector3(0, 1.0, 0.47);
 
-/** Walks a polyline at parameter t (0..1, by length). Returns position + heading. */
+const TURN_RADIUS = 0.3;
+const angleTo = (a: number, b: number, t: number) => {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+};
+
+/**
+ * Walks a polyline at parameter t (0..1, by length). Returns position +
+ * heading. The heading turns smoothly through each corner (over
+ * TURN_RADIUS either side of it), so a walker never snaps round.
+ */
 export function alongPath(path: readonly THREE.Vector2[], t: number, out: { x: number; z: number; yaw: number; dist: number }) {
   let total = 0;
-  const lens: number[] = [];
+  for (let i = 0; i < path.length - 1; i++) total += path[i].distanceTo(path[i + 1]);
+  const d = Math.max(0, Math.min(1, t)) * total;
+  out.dist = d;
+  let acc = 0;
+  let yaw = Math.atan2(path[1].x - path[0].x, path[1].y - path[0].y);
+  let placed = false;
   for (let i = 0; i < path.length - 1; i++) {
     const l = path[i].distanceTo(path[i + 1]);
-    lens.push(l);
-    total += l;
-  }
-  let d = Math.max(0, Math.min(1, t)) * total;
-  out.dist = d;
-  for (let i = 0; i < lens.length; i++) {
-    if (d <= lens[i] || i === lens.length - 1) {
-      const k = lens[i] === 0 ? 0 : Math.min(1, d / lens[i]);
+    if (!placed && (d <= acc + l || i === path.length - 2)) {
+      const k = l === 0 ? 0 : Math.min(1, (d - acc) / l);
       out.x = path[i].x + (path[i + 1].x - path[i].x) * k;
       out.z = path[i].y + (path[i + 1].y - path[i].y) * k;
-      out.yaw = Math.atan2(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y);
-      return out;
+      placed = true;
     }
-    d -= lens[i];
+    acc += l;
+    if (i < path.length - 2) {
+      const next = Math.atan2(path[i + 2].x - path[i + 1].x, path[i + 2].y - path[i + 1].y);
+      const r = Math.min(TURN_RADIUS, l / 2, path[i + 1].distanceTo(path[i + 2]) / 2);
+      const w = Math.min(1, Math.max(0, (d - (acc - r)) / (2 * r || 1)));
+      yaw = angleTo(yaw, next, w * w * (3 - 2 * w));
+    }
   }
+  out.yaw = yaw;
   return out;
 }
 

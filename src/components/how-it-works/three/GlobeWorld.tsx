@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { COLORS, geo, glow, glowTexture, std } from "./assets";
-import { bell, easeInOutCubic, easeOutBack, lerp, seg, smooth } from "./anim";
+import { bell, easeInOutCubic, easeOutBack, lerp, seg, smooth, window4 } from "./anim";
 import { useScene, useWorld, type FrameState } from "./director";
 import { maskAt } from "./globe-data";
 import { GLOBE_CENTER, GLOBE_RADIUS as R, V_MID, V_QATAR, V_USA, geoVector, routePoint, slerpVectors, viewQuaternion } from "./globe-math";
@@ -146,6 +146,8 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
   const usaRing = useRef<THREE.Mesh>(null!);
   const qatarRing = useRef<THREE.Mesh>(null!);
   const qatarRingMat = useRef<THREE.MeshBasicMaterial>(null!);
+  const arrivalRing = useRef<THREE.Mesh>(null!);
+  const arrivalRingMat = useRef<THREE.MeshBasicMaterial>(null!);
   const warehouse = useRef<THREE.Group>(null!);
 
   const atmosphere = useMemo(
@@ -300,14 +302,20 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
     const qPop = easeOutBack(seg(s4, B.qatarPin[0], B.qatarPin[1])) * diving;
     qatarPin.current.scale.setScalar(Math.max(0.0001, qPop * (1 + 0.3 * bell(s4, B.arrival[0], B.arrival[1]))));
 
-    const pulse = (f.time * 0.8) % 1;
+    // Ripples are phased by the scroll clock and fade to nothing before they restart.
+    const pulse = (f.clock * 0.8) % 1;
+    const ripple = Math.sin(Math.PI * pulse);
     usaRing.current.scale.setScalar(0.6 + pulse * 2.2 * usaPop);
-    (usaRing.current.material as THREE.MeshBasicMaterial).opacity = (1 - pulse) * 0.7 * usaHi * fade * (s4 < 0.62 ? 1 : 0);
+    const usaRingOpacity = ripple * 0.7 * usaHi * fade * (1 - smooth(seg(s4, 0.58, 0.62)));
+    (usaRing.current.material as THREE.MeshBasicMaterial).opacity = usaRingOpacity;
+    usaRing.current.visible = usaRingOpacity > 0.005;
     const arrive = seg(s4, B.arrival[0], B.arrival[1]);
-    const arriving = arrive > 0 && arrive < 1;
-    const qPulse = arriving ? arrive : pulse;
-    qatarRing.current.scale.setScalar(0.6 + qPulse * (arriving ? 5 : 2.2));
-    qatarRingMat.current.opacity = (1 - qPulse) * 0.85 * fade * Math.min(1, qPop);
+    qatarRing.current.scale.setScalar(0.6 + pulse * 2.2);
+    qatarRingMat.current.opacity = ripple * 0.85 * fade * Math.min(1, qPop);
+    qatarRing.current.visible = qatarRingMat.current.opacity > 0.005;
+    arrivalRing.current.scale.setScalar(0.6 + arrive * 5);
+    arrivalRingMat.current.opacity = Math.sin(Math.PI * arrive) * 0.9 * fade;
+    arrivalRing.current.visible = arrivalRingMat.current.opacity > 0.005;
 
     // ---------------- U.S. supplier stock, packed into one parcel
     const wh = easeOutBack(seg(s4, B.warehouse[0], B.warehouse[1]));
@@ -335,9 +343,11 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
       tmpN.copy(plane.current.position).normalize();
       const altitude = PLANE_ALTITUDE + (1 - planeIn) * 3 + leave * 2.5;
       plane.current.position.addScaledVector(tmpN, altitude);
-      routePoint(Math.min(1, along + 0.02), tmpV);
-      tmpV2.copy(tmpV).normalize();
-      tmpV.addScaledVector(tmpV2, altitude);
+      // Heading from the route tangent (never degenerate, even at the very end of the route).
+      const a0 = Math.min(along, 0.98);
+      routePoint(a0 + 0.02, tmpV);
+      routePoint(a0, tmpV2);
+      tmpV.sub(tmpV2).add(plane.current.position);
       plane.current.up.copy(tmpN).applyQuaternion(tmpQ);
       plane.current.lookAt(tmpV.applyMatrix4(globe.current.matrixWorld));
       plane.current.rotateZ(Math.sin(u * Math.PI) * -0.18);
@@ -363,7 +373,7 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
       parcel.current.position.copy(tmpV);
       parcel.current.quaternion.setFromUnitVectors(UP, tmpN.copy(tmpV).normalize());
       parcel.current.scale.setScalar(Math.max(0.0001, pop) * (1 - smooth(seg(s5, 0, 0.08))));
-      parcelGlow.current.material.opacity = (u > 0 && u < 1 ? 0.85 : 0.4) * fade;
+      parcelGlow.current.material.opacity = lerp(0.4, 0.85, window4(u, 0, 0.08, 0.92, 1)) * fade;
     }
 
     // ---------------- crisp labels
@@ -380,8 +390,8 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
   });
 
   return (
-    <group ref={globe} position={GLOBE_CENTER}>
-      <group ref={visuals} visible={false}>
+    <group ref={globe} name="globe" position={GLOBE_CENTER}>
+      <group ref={visuals} name="globeVisuals" visible={false}>
         <mesh geometry={geo.sphere()} scale={R}>
           <meshStandardMaterial ref={oceanMat} color="#0c0c0f" roughness={0.85} metalness={0.1} emissive="#08080a" transparent opacity={0} />
         </mesh>
@@ -425,6 +435,9 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
           <mesh ref={qatarRing} geometry={geo.ring(0.5, 0.62)} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
             <meshBasicMaterial ref={qatarRingMat} color={COLORS.red} transparent opacity={0} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
+          <mesh ref={arrivalRing} geometry={geo.ring(0.5, 0.62)} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]} visible={false}>
+            <meshBasicMaterial ref={arrivalRingMat} color={COLORS.gold} transparent opacity={0} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
           <group ref={qatarPin} scale={0.0001}>
             <mesh geometry={geo.cone()} material={std(COLORS.red, { roughness: 0.4 })} position={[0, 0.55, 0]} scale={[0.22, 1.1, 0.22]} rotation={[Math.PI, 0, 0]} />
             <mesh geometry={geo.sphere()} material={std(COLORS.red, { roughness: 0.35 })} position={[0, 1.25, 0]} scale={0.34} />
@@ -433,12 +446,12 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
         </group>
 
         {/* cargo plane */}
-        <group ref={plane} visible={false}>
+        <group ref={plane} name="plane" visible={false}>
           <CargoPlane />
         </group>
 
         {/* the shipment */}
-        <group ref={parcel} visible={false}>
+        <group ref={parcel} name="shipment" visible={false}>
           <mesh geometry={geo.roundBox(0.7, 0.55, 0.55, 0.06)} material={std(COLORS.cardboard, { roughness: 0.75 })} />
           <mesh geometry={geo.box()} material={std(COLORS.red, { roughness: 0.5 })} scale={[0.72, 0.57, 0.13]} />
           <mesh geometry={geo.box()} material={std(COLORS.gold, { roughness: 0.4 })} position={[0, 0.28, 0]} scale={[0.18, 0.01, 0.18]} />
@@ -450,7 +463,7 @@ export function GlobeWorld({ children }: { children: ReactNode }) {
 
       {/* The studio lives on Qatar's surface. */}
       <group position={studioAnchor.position} quaternion={studioAnchor.quaternion}>
-        <group ref={studioScale}>{children}</group>
+        <group ref={studioScale} name="studio">{children}</group>
       </group>
     </group>
   );

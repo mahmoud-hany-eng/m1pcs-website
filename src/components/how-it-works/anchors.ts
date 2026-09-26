@@ -77,10 +77,11 @@ export class Anchor {
 
   /** Set a CSS custom property (0..1 values drive fills and reveals in CSS). */
   cssVar(name: string, value: number) {
-    const prev = this.vars.get(name);
-    if (prev !== undefined && Math.abs(prev - value) < 0.002) return;
-    this.vars.set(name, value);
-    this.el?.style.setProperty(`--${name}`, value.toFixed(3));
+    // Quantise, then compare: the shown value depends only on the current one (never on history).
+    const q = Math.round(value * 1000) / 1000;
+    if (this.vars.get(name) === q) return;
+    this.vars.set(name, q);
+    this.el?.style.setProperty(`--${name}`, q.toFixed(3));
   }
 
   /** Replace the text of a descendant marked with data-slot="name". */
@@ -98,7 +99,7 @@ export class Anchor {
     this.el.style.visibility = "hidden";
   }
 
-  place(rawX: number, rawY: number, scale: number) {
+  place(rawX: number, rawY: number, scale: number, settled: boolean) {
     const el = this.el;
     if (!el) return;
     if (this.align !== this.lastAlign) {
@@ -108,7 +109,7 @@ export class Anchor {
     // Snap to whole pixels when (nearly) still so text lands on exact pixels
     // and stays razor-sharp; keep sub-pixel precision while moving so motion
     // stays smooth.
-    const moving = !(Math.abs(rawX - this.x) < 0.6 && Math.abs(rawY - this.y) < 0.6);
+    const moving = !settled && !(Math.abs(rawX - this.x) < 0.6 && Math.abs(rawY - this.y) < 0.6);
     this.x = rawX;
     this.y = rawY;
     const x = moving ? rawX.toFixed(2) : Math.round(rawX);
@@ -164,6 +165,15 @@ export class AnchorStore {
     return a;
   }
 
+  size() {
+    return this.anchors.size;
+  }
+
+  /** Test-only iteration (stable insertion order). */
+  debugEach(fn: (id: string, a: Anchor) => void) {
+    this.anchors.forEach((a, id) => fn(id, a));
+  }
+
   bind(id: string, el: HTMLElement | null) {
     const a = this.get(id);
     if (a.el) {
@@ -192,7 +202,7 @@ export class AnchorStore {
    * in from the edges — so no card or label is ever cut off or covers the
    * caption, on any screen.
    */
-  project(camera: THREE.Camera, width: number, height: number, safe: SafeArea) {
+  project(camera: THREE.Camera, width: number, height: number, safe: SafeArea, settled = true) {
     const left = safe.edge;
     const right = width - safe.edge;
     const top = safe.top;
@@ -219,7 +229,7 @@ export class AnchorStore {
         x = clamp(x, left + w / 2, right - w / 2);
         y = clamp(y, top + above, bottom - (h - above));
       }
-      a.place(x, y, scale);
+      a.place(x, y, scale, settled);
     });
   }
 }

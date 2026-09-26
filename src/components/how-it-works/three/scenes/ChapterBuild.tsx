@@ -1,41 +1,36 @@
 "use client";
 
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import { useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 import { COLORS, geo, glow, std } from "../assets";
 import { bell, easeInOutCubic, easeOutBack, easeOutCubic, lerp, seg, smooth, window4 } from "../anim";
-import { aimArm, lookAt, place, resetPose, talk, walkPath } from "../choreo";
+import { aimArm, lookAt, place, resetPose, walkPath } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
-import { SPOTS, TABLE_TOP_Y, type Spot } from "../layout";
+import { SPOTS, TABLE_TOP_Y } from "../layout";
 import { BoardModel, CpuModel, Fan, GpuModel, SsdModel } from "../parts";
-import { DELIGHTED, HAPPY, HOLD, REACH, add, blend, hop, nod, typing, wave } from "../poses";
-import { Confetti, type ConfettiApi } from "../ui3d";
+import { CHEER_R, HAPPY, add, blend, nod, typing } from "../poses";
+import type { CharacterApi } from "../Character";
 
-/** Chapter 5 beats (0..1 of the chapter). */
+/** Chapter 5 beats (0..1 of the chapter). The dive back from the globe fills 0..0.16. */
 export const BUILD_BEATS = {
-  parcelOpen: [0.14, 0.19],
+  parcelOpen: [0.16, 0.2],
   steps: {
-    board: [0.19, 0.25],
-    cpu: [0.24, 0.29],
-    cooler: [0.28, 0.33],
-    ram: [0.32, 0.37],
-    gpu: [0.36, 0.43],
-    ssd: [0.42, 0.46],
+    board: [0.2, 0.26],
+    cpu: [0.25, 0.3],
+    cooler: [0.29, 0.34],
+    ram: [0.33, 0.38],
+    gpu: [0.37, 0.44],
+    ssd: [0.43, 0.47],
   },
-  parcelAway: [0.46, 0.5],
-  panel: [0.46, 0.5],
-  power: [0.5, 0.54],
-  toSetup: [0.52, 0.57],
-  setup: [0.57, 0.62, 0.67, 0.72],
-  ready: [0.72, 0.75],
-  lift: [0.745, 0.785],
-  customerIn: [0.7, 0.82],
-  carry: [0.785, 0.86],
-  handoff: [0.86, 0.915],
-  final: [0.915, 0.97],
-  handoffLabel: [0.9, 0.95],
-  burst: 0.905,
+  parcelAway: [0.47, 0.51],
+  panel: [0.47, 0.51],
+  power: [0.51, 0.55],
+  toSetup: [0.55, 0.61],
+  setup: [0.61, 0.67, 0.73, 0.79],
+  ready: [0.79, 0.83],
+  cheer: [0.83, 0.86, 0.92, 0.95],
+  setupOut: [0.9, 0.97],
 } as const;
 
 type BuildStep = keyof typeof BUILD_BEATS.steps;
@@ -49,28 +44,18 @@ const STEP_NAMES: Record<BuildStep, string> = {
   ssd: "Storage",
 };
 
-const CASE_POS = new THREE.Vector3(-0.22, TABLE_TOP_Y, 0.02);
-const CASE_YAW = -0.25;
+export const CASE_POS = new THREE.Vector3(-0.22, TABLE_TOP_Y, 0.02);
+export const CASE_YAW = -0.25;
 const PARCEL_POS = new THREE.Vector3(1.02, TABLE_TOP_Y, 0.22);
 const MONITOR_POS = new THREE.Vector3(-1.02, TABLE_TOP_Y, -0.3);
 const MONITOR_YAW = 0.28;
 const KEYBOARD_POS = new THREE.Vector3(-1.0, TABLE_TOP_Y + 0.012, 0.14);
-const MONITOR_SCREEN = new THREE.Vector3(MONITOR_POS.x, TABLE_TOP_Y + 0.42, MONITOR_POS.z);
+export const MONITOR_SCREEN = new THREE.Vector3(MONITOR_POS.x, TABLE_TOP_Y + 0.42, MONITOR_POS.z);
 /** Build status sits on the bench's front edge, right under the case. */
 const STATUS_POINT = new THREE.Vector3(CASE_POS.x, TABLE_TOP_Y - 0.45, 0.75);
-
-const REP_HANDOFF: Spot = { x: -0.42, z: 1.02, yaw: 1.35 };
-const REP_FINAL: Spot = { x: -0.55, z: 1.08, yaw: 0.42 };
-const CUSTOMER_HANDOFF: Spot = { x: 0.42, z: 1.02, yaw: -1.35 };
-const TO_SETUP = [new THREE.Vector2(SPOTS.repBench.x, SPOTS.repBench.z), new THREE.Vector2(-1.72, -0.86), new THREE.Vector2(SPOTS.repSetup.x, SPOTS.repSetup.z)];
-const TO_FRONT = [new THREE.Vector2(SPOTS.repSetup.x, SPOTS.repSetup.z), new THREE.Vector2(-1.62, 1.0), new THREE.Vector2(REP_HANDOFF.x, REP_HANDOFF.z)];
-const CUSTOMER_PATH = [new THREE.Vector2(SPOTS.customerEnter.x, SPOTS.customerEnter.z), new THREE.Vector2(CUSTOMER_HANDOFF.x, CUSTOMER_HANDOFF.z)];
 const CAMERA_SIDE = new THREE.Vector3(0, 1.7, 7);
-const HOLD_HIGH = new THREE.Vector3(0, 1.32, 0.5);
-const HOLD_LOW = new THREE.Vector3(0, 1.02, 0.47);
-const PC_HALF_HEIGHT = 0.35;
-/** Offset from the customer for the "Ready for pickup or delivery" label: above their far shoulder, away from the rep. */
-const HANDOFF_LABEL = new THREE.Vector3(0.62, 2.12, 0.1);
+
+const TO_SETUP = [new THREE.Vector2(SPOTS.repBench.x, SPOTS.repBench.z), new THREE.Vector2(-1.72, -0.86), new THREE.Vector2(SPOTS.repSetup.x, SPOTS.repSetup.z)];
 
 /** Where each component ends up, in case-local space (origin = case floor centre). */
 const MOUNTS: Record<BuildStep, THREE.Vector3> = {
@@ -88,9 +73,19 @@ const PARCEL_MOUTH = PARCEL_POS.clone().add(new THREE.Vector3(0, 0.42, 0)).apply
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
-const hold = new THREE.Vector3();
-const hold2 = new THREE.Vector3();
-const holdLocal = new THREE.Vector3();
+
+/**
+ * The state chapter 5 ends in and chapter 6 starts from: the rep at the
+ * monitor, admiring the finished setup.
+ */
+export function setupIdle(rep: CharacterApi) {
+  resetPose(rep);
+  rep.setVisible(true);
+  place(rep, SPOTS.repSetup);
+  lookAt(rep, MONITOR_SCREEN, 0.6);
+  rep.target.smile = 0.8;
+  rep.target.brow = 0.2;
+}
 
 export function ChapterBuild() {
   const world = useWorld();
@@ -104,8 +99,7 @@ export function ChapterBuild() {
   const flapR = useRef<THREE.Group>(null!);
   const screen = useRef<THREE.MeshBasicMaterial>(null!);
   const wallpaper = useRef<THREE.Group>(null!);
-  const confetti = useRef<ConfettiApi>(null);
-  const fanSpeed = useRef(0);
+  const fanAngle = useRef(0);
 
   const rgbRed = useMemo(() => new THREE.MeshBasicMaterial({ color: "#2a2a2e", toneMapped: false }), []);
   const rgbGold = useMemo(() => new THREE.MeshBasicMaterial({ color: "#2a2a2e", toneMapped: false }), []);
@@ -122,10 +116,18 @@ export function ChapterBuild() {
     [],
   );
 
+  // The finished PC is handed to the delivery chapter.
+  useLayoutEffect(() => {
+    world.props.set("pc", pc.current);
+    return () => {
+      world.props.delete("pc");
+    };
+  }, [world]);
+
   useScene(50, (f: FrameState) => {
     const B = BUILD_BEATS;
     const s5 = f.local[4];
-    const t = f.time;
+    const t = f.clock;
     const A = world.anchors;
 
     const here = f.s > 4;
@@ -142,14 +144,19 @@ export function ChapterBuild() {
     parcel.current.position.set(PARCEL_POS.x + away * 0.3, PARCEL_POS.y, PARCEL_POS.z);
 
     // ---------------- components fly out of the parcel and slot into the case
-    let current: BuildStep | null = null;
     let done = 0;
-    BUILD_ORDER.forEach((id, i) => {
+    let stepProgress = 0;
+    let current: BuildStep | null = null;
+    for (let i = 0; i < BUILD_ORDER.length; i++) {
+      const id = BUILD_ORDER[i];
       const g = parts.current[id];
-      if (!g) return;
+      if (!g) continue;
       const [a, b] = B.steps[id];
       const k = seg(s5, a, b);
-      if (k > 0 && k < 1) current = id;
+      if (k > 0 && k < 1) {
+        current = id;
+        stepProgress = k;
+      }
       if (k >= 1) done++;
       const rise = easeOutCubic(seg(k, 0, 0.3));
       const glide = easeInOutCubic(seg(k, 0.3, 0.72));
@@ -164,88 +171,80 @@ export function ChapterBuild() {
       g.position.copy(tmp);
       g.visible = k > 0;
       g.rotation.y = (1 - glide) * 1.2;
-      g.scale.setScalar(Math.max(0.0001, lerp(0.5, 1, easeOutCubic(seg(k, 0, 0.4)))));
+      g.scale.setScalar(Math.max(0.0001, easeOutCubic(seg(k, 0, 0.4))));
       const click = clicks.current[i];
       if (click) {
         const ck = seg(s5, b - 0.005, b + 0.035);
         click.visible = ck > 0 && ck < 1;
         click.scale.setScalar(0.04 + ck * 0.22);
-        (click.material as THREE.MeshBasicMaterial).opacity = (1 - ck) * 0.9;
+        (click.material as THREE.MeshBasicMaterial).opacity = Math.sin(Math.PI * ck) * 0.9;
       }
-    });
+    }
 
-    // ---------------- glass panel, then power: RGB + fans
+    // ---------------- glass panel, then power: RGB + fans (fan angle follows the scroll)
     const p = easeInOutCubic(seg(s5, B.panel[0], B.panel[1]));
-    panel.current.visible = s5 > B.panel[0] - 0.01;
+    const panelIn = f.s >= 5 ? 1 : smooth(seg(s5, B.panel[0] - 0.01, B.panel[0] + 0.012));
+    panel.current.visible = panelIn > 0.001;
+    panel.current.scale.setScalar(Math.max(0.001, panelIn));
     panel.current.position.set((1 - p) * 0.55, (1 - p) * 0.1, (1 - p) * 0.45);
     panel.current.rotation.y = (1 - p) * -0.7;
-    const power = smooth(seg(s5, B.power[0], B.power[1]));
+    const power = f.s >= 5 ? 1 : smooth(seg(s5, B.power[0], B.power[1]));
     const pulse = 0.85 + 0.15 * Math.sin(t * 3);
     rgbRed.color.copy(c.off).lerp(c.red, power * pulse);
     rgbGold.color.copy(c.off).lerp(c.gold, power * (0.9 + 0.1 * Math.sin(t * 2.3)));
-    fanSpeed.current = power * 16;
+    fanAngle.current = power * (t - 30) * 14;
 
-    // ---------------- crisp build status above the case
+    // ---------------- crisp build status under the case
     const status = A.get("build");
     status.pos.copy(STATUS_POINT);
     status.align = "center";
     status.opacity = window4(s5, B.steps.board[0] - 0.02, B.steps.board[0] + 0.01, B.power[1], B.power[1] + 0.03) * (f.active === 4 ? 1 : 0);
-    const cur = current as BuildStep | null;
-    if (cur) {
+    if (current) {
       status.text("stage", "Installing");
-      status.text("part", STEP_NAMES[cur]);
+      status.text("part", STEP_NAMES[current]);
     } else if (s5 >= B.power[0]) {
       status.text("stage", "Powering on");
       status.text("part", "RGB and cooling online");
     } else if (s5 >= B.panel[0]) {
       status.text("stage", "Finishing");
       status.text("part", "Closing the glass panel");
+    } else {
+      status.text("stage", "Installing");
+      status.text("part", STEP_NAMES.board);
     }
-    const stepProgress = cur ? seg(s5, B.steps[cur][0], B.steps[cur][1]) : 0;
     status.cssVar("p", Math.min(1, (done + stepProgress) / BUILD_ORDER.length));
 
-    // ---------------- monitor + crisp setup checklist
-    const [w0, w1, w2, w3] = B.setup;
-    const prog = [seg(s5, w0, w1), seg(s5, w1, w2), seg(s5, w2, w3)];
-    const ready = smooth(seg(s5, B.ready[0], B.ready[0] + 0.02));
-    const booted = smooth(seg(s5, w0 - 0.03, w0));
+    // ---------------- monitor + crisp setup checklist (the card is what's on the monitor)
+    const [w0, , , w3] = B.setup;
+    const ready = f.s >= 5 ? 1 : smooth(seg(s5, B.ready[0], B.ready[0] + 0.02));
+    const booted = f.s >= 5 ? 1 : smooth(seg(s5, w0 - 0.03, w0));
     screen.current.color.copy(c.screenOff).lerp(c.screenSetup, booted * (0.85 + 0.15 * Math.sin(t * 2))).lerp(c.screenReady, ready);
-    // Ready: the new PC boots to the M1 wallpaper.
     wallpaper.current.visible = ready > 0.01;
-    wallpaper.current.scale.setScalar(Math.max(0.001, lerp(0.85, 1, ready)));
-    // The setup checklist is what's on the monitor while M1 installs everything.
+    wallpaper.current.scale.setScalar(Math.max(0.001, ready));
     const setup = A.get("setup");
     setup.pos.set(MONITOR_SCREEN.x + (f.layout === "tall" ? 0.12 : 0), MONITOR_SCREEN.y + 0.02, MONITOR_SCREEN.z + 0.05);
     setup.align = "center";
     const setupIn = easeOutBack(seg(s5, w0 - 0.03, w0 + 0.02), 1.4);
-    setup.opacity = Math.min(1, setupIn) * (1 - smooth(seg(s5, B.lift[0], B.lift[1]))) * (f.active === 4 ? 1 : 0);
+    setup.opacity = Math.min(1, setupIn) * (1 - smooth(seg(s5, B.setupOut[0], B.setupOut[1]))) * (f.active === 4 ? 1 : 0);
     setup.scale = Math.max(0.001, lerp(0.88, 1, Math.min(1, setupIn)));
-    prog.forEach((v, i) => {
+    for (let i = 0; i < 3; i++) {
+      const v = seg(s5, B.setup[i], B.setup[i + 1]);
       setup.cssVar(`s${i}`, v);
       setup.cssVar(`c${i}`, smooth(seg(v, 0.96, 1)));
-    });
+    }
     setup.cssVar("ready", easeOutBack(seg(s5, B.ready[0], B.ready[0] + 0.03), 2));
 
-    // ---------------- final label
-    const handoff = A.get("handoff");
-    const hl = easeOutBack(seg(s5, B.handoffLabel[0], B.handoffLabel[1]), 1.8);
-    handoff.opacity = Math.min(1, hl) * (f.active === 4 ? 1 : 0);
-    handoff.scale = Math.max(0.001, lerp(0.85, 1, Math.min(1, hl)));
-    handoff.align = "above";
-
-    // A short gold burst as the PC changes hands (finished well before the final rest).
-    confetti.current?.set((s5 - B.burst) * 18, s5 > B.burst && s5 < 1);
-
-    // ---------------- characters
+    // ---------------- characters (the customer is at home this chapter)
     if (f.active !== 4) return;
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
+    cust.setVisible(false);
     resetPose(rep);
-    resetPose(cust);
     rep.setVisible(true);
     place(rep, SPOTS.repBench);
     lookAt(rep, tmp.copy(CASE_POS).setY(1.3));
+    rep.target.smile = 0.6;
 
     // Opening the parcel.
     const opening = window4(s5, B.parcelOpen[0] - 0.03, B.parcelOpen[0], B.parcelOpen[1], B.parcelOpen[1] + 0.02);
@@ -257,105 +256,55 @@ export function ChapterBuild() {
     rep.target.lean = lerp(rep.target.lean, 0.2, opening);
 
     // Guiding each component into the case.
-    BUILD_ORDER.forEach((id) => {
+    for (const id of BUILD_ORDER) {
       const [a, b] = B.steps[id];
       const w = window4(s5, a - 0.01, a + 0.02, b - 0.01, b + 0.015);
       const g = parts.current[id];
-      if (w <= 0 || !g) return;
+      if (w <= 0 || !g) continue;
       tmp.copy(g.position).applyMatrix4(caseMatrix);
       aimArm(rep, "l", tmp, w, -0.35);
       aimArm(rep, "r", tmp, w * 0.9, -0.45);
       lookAt(rep, tmp, w);
       rep.target.lean = lerp(rep.target.lean, 0.24, w);
       rep.target.brow = lerp(rep.target.brow, -0.2, w);
-    });
+    }
     add(rep.target, nod(t), window4(s5, B.power[0], B.power[0] + 0.01, B.power[1], B.power[1] + 0.01));
     blend(rep.target, HAPPY, window4(s5, B.power[0], B.power[0] + 0.01, B.toSetup[1], B.toSetup[1] + 0.02));
 
-    // Set up Windows, drivers and updates at the monitor.
+    // Walk to the monitor: from here on the pose converges on setupIdle (chapter 6's start).
     const toSetup = seg(s5, B.toSetup[0], B.toSetup[1]);
     if (toSetup > 0) walkPath(rep, TO_SETUP, toSetup, SPOTS.repBench.yaw, SPOTS.repSetup.yaw);
+    const atMonitor = smooth(seg(s5, B.toSetup[1] - 0.02, B.toSetup[1]));
+    if (atMonitor > 0) {
+      rep.target.headYaw = lerp(rep.target.headYaw, 0, atMonitor);
+      rep.target.headPitch = lerp(rep.target.headPitch, 0, atMonitor);
+      lookAt(rep, MONITOR_SCREEN, 0.6 * atMonitor);
+      rep.target.smile = lerp(rep.target.smile, 0.8, atMonitor);
+      rep.target.brow = lerp(rep.target.brow, 0.2, atMonitor);
+    }
+
+    // Windows, drivers and updates.
     const setupW = window4(s5, w0 - 0.01, w0 + 0.01, w3, w3 + 0.01);
     blend(rep.target, typing(t), setupW);
     lookAt(rep, MONITOR_SCREEN, setupW);
     for (let i = 1; i <= 3; i++) add(rep.target, nod(t), bell(s5, B.setup[i] - 0.005, B.setup[i] + 0.02));
-    blend(rep.target, HAPPY, window4(s5, B.ready[0], B.ready[0] + 0.01, B.ready[1], B.ready[1] + 0.01));
 
-    // Customer arrives for the hand-over.
-    const inT = seg(s5, B.customerIn[0], B.customerIn[1]);
-    cust.setVisible(inT > 0);
-    walkPath(cust, CUSTOMER_PATH, inT, SPOTS.customerEnter.yaw, CUSTOMER_HANDOFF.yaw);
-    blend(cust.target, HAPPY, 1);
-    lookAt(cust, tmp.set(REP_HANDOFF.x, 1.55, REP_HANDOFF.z), smooth(seg(s5, B.customerIn[1] - 0.04, B.customerIn[1])));
-    blend(cust.target, wave("l", t), window4(s5, B.customerIn[1] - 0.03, B.customerIn[1], B.carry[1] - 0.02, B.carry[1]));
-
-    // Rep lifts the finished PC and carries it round to the customer.
-    const lifting = smooth(seg(s5, B.lift[0], B.lift[0] + 0.015));
-    const carryT = seg(s5, B.carry[0], B.carry[1]);
-    if (carryT > 0) walkPath(rep, TO_FRONT, carryT, SPOTS.repSetup.yaw, REP_HANDOFF.yaw, true);
-    const giving = smooth(seg(s5, B.handoff[0], B.handoff[0] + 0.02)) * (1 - smooth(seg(s5, B.handoff[1] - 0.02, B.handoff[1])));
-    const released = smooth(seg(s5, B.handoff[1] - 0.02, B.handoff[1]));
-    blend(rep.target, HOLD, lifting * (1 - released));
-    blend(rep.target, REACH, giving);
-    lookAt(rep, tmp.set(CUSTOMER_HANDOFF.x, 1.55, CUSTOMER_HANDOFF.z), smooth(seg(s5, B.carry[1] - 0.03, B.carry[1])));
-    talk(rep, t, window4(s5, B.handoff[0], B.handoff[0] + 0.01, B.handoff[1], B.handoff[1] + 0.01) * 0.7);
-
-    const receiving = smooth(seg(s5, B.handoff[0] + 0.01, B.handoff[0] + 0.035));
-    blend(cust.target, REACH, receiving * (1 - released));
-    blend(cust.target, HOLD, released);
-    blend(cust.target, DELIGHTED, receiving);
-
-    // Final shot: both turn to camera; the customer is thrilled with the new PC.
-    const fin = smooth(seg(s5, B.final[0], B.final[1]));
-    if (fin > 0) {
-      rep.place(lerp(REP_HANDOFF.x, REP_FINAL.x, fin), lerp(REP_HANDOFF.z, REP_FINAL.z, fin), lerp(REP_HANDOFF.yaw, REP_FINAL.yaw, fin));
-      const cf = SPOTS.customerFinal;
-      cust.place(lerp(CUSTOMER_HANDOFF.x, cf.x, fin), lerp(CUSTOMER_HANDOFF.z, cf.z, fin), lerp(CUSTOMER_HANDOFF.yaw, cf.yaw, fin));
-      lookAt(rep, CAMERA_SIDE, fin * 0.85);
-      lookAt(cust, CAMERA_SIDE, fin * 0.85);
-      blend(rep.target, wave("r", t), window4(s5, B.final[0], B.final[0] + 0.02, 0.985, 1.0));
-      add(cust.target, hop(t), window4(s5, B.final[0], B.final[0] + 0.01, B.final[1] - 0.01, B.final[1]));
-      blend(rep.target, HAPPY, fin);
-      blend(cust.target, DELIGHTED, fin);
-    }
+    // Ready: a proud little fist pump to camera, then back to admiring the setup.
+    const cheer = window4(s5, ...B.cheer);
+    blend(rep.target, CHEER_R, cheer);
+    lookAt(rep, CAMERA_SIDE, cheer * 0.8);
   }, (f: FrameState) => {
-    // PC placement after characters have moved, so it sits in their hands.
-    const s5 = f.local[4];
-    const B = BUILD_BEATS;
-    const rep = world.rep.current;
-    const cust = world.customer.current;
-    if (!pc.current.visible || !rep || !cust) return;
-
-    const lift = easeInOutCubic(seg(s5, B.lift[0], B.lift[1]));
-    const give = easeInOutCubic(seg(s5, B.handoff[0] + 0.01, B.handoff[1] - 0.01));
-    if (f.active !== 4 || lift <= 0) {
-      pc.current.position.copy(CASE_POS);
-      pc.current.rotation.set(0, CASE_YAW, 0);
-    } else {
-      // High while over the table, lowered once clear of it.
-      const clear = smooth(seg(s5, B.carry[0] + 0.02, B.carry[0] + 0.045));
-      holdLocal.lerpVectors(HOLD_HIGH, HOLD_LOW, clear);
-      rep.toParent(holdLocal, hold);
-      hold.y -= PC_HALF_HEIGHT;
-      cust.toParent(HOLD_LOW, hold2);
-      hold2.y -= PC_HALF_HEIGHT;
-      if (give <= 0) pc.current.position.lerpVectors(CASE_POS, hold, lift);
-      else pc.current.position.lerpVectors(hold, hold2, give);
-      pc.current.position.y += Math.sin(Math.PI * lift) * 0.12 * (1 - Math.min(1, give * 4)) + Math.sin(Math.PI * give) * 0.08;
-      const finalTurn = smooth(seg(s5, B.final[0], B.final[1]));
-      pc.current.rotation.set(0, lerp(lerp(CASE_YAW, 0.18, lift), 0, finalTurn), 0);
-    }
-
-    // The closing label floats beside the new owner (clear of the logo behind them).
-    const handoff = world.anchors.get("handoff");
-    handoff.pos.copy(cust.root.position).add(HANDOFF_LABEL);
+    // On the bench until chapter 6 takes the PC.
+    if (f.s >= 5) return;
+    pc.current.position.copy(CASE_POS);
+    pc.current.rotation.set(0, CASE_YAW, 0);
   });
 
   return (
     <group>
-      <group ref={bench} visible={false}>
+      <group ref={bench} name="bench" visible={false}>
         {/* shipped parcel */}
-        <group ref={parcel} position={PARCEL_POS}>
+        <group ref={parcel} name="parcel" position={PARCEL_POS}>
           <mesh geometry={geo.roundBox(0.5, 0.38, 0.42, 0.03)} material={std(COLORS.cardboard, { roughness: 0.85 })} position={[0, 0.19, 0]} />
           <mesh geometry={geo.box()} material={std(COLORS.red, { roughness: 0.5 })} position={[0, 0.19, 0]} scale={[0.51, 0.385, 0.1]} />
           <mesh geometry={geo.box()} material={std("#f2efe8", { roughness: 0.7 })} position={[0.13, 0.2, 0.212]} scale={[0.15, 0.1, 0.005]} />
@@ -393,10 +342,8 @@ export function ChapterBuild() {
         </group>
       </group>
 
-      <Confetti ref={confetti} position={[0, 1.5, 1.05]} count={34} spread={1.0} power={2.0} palette="gold" />
-
       {/* The PC. Case-local origin = floor centre; the open side faces +Z. */}
-      <group ref={pc} visible={false} position={CASE_POS} rotation={[0, CASE_YAW, 0]}>
+      <group ref={pc} name="pc" visible={false} position={CASE_POS} rotation={[0, CASE_YAW, 0]}>
         <mesh geometry={geo.box()} material={std("#111114", { roughness: 0.5, metalness: 0.3 })} position={[0, 0.35, -0.165]} scale={[0.66, 0.7, 0.02]} castShadow />
         <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.705, 0]} />
         <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.0125, 0]} />
@@ -406,13 +353,13 @@ export function ChapterBuild() {
         <mesh geometry={geo.box()} material={rgbRed} position={[0, 0.162, 0.16]} scale={[0.6, 0.008, 0.006]} />
         <mesh geometry={geo.box()} material={rgbGold} position={[0.315, 0.4, 0.17]} scale={[0.008, 0.56, 0.008]} />
         <group position={[0.31, 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <Fan radius={0.08} speed={fanSpeed} ring={rgbRed} />
+          <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
         </group>
         <group position={[0.31, 0.53, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <Fan radius={0.08} speed={fanSpeed} ring={rgbRed} />
+          <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
         </group>
         <group position={[-0.31, 0.53, -0.02]} rotation={[0, Math.PI / 2, 0]}>
-          <Fan radius={0.07} speed={fanSpeed} ring={rgbGold} />
+          <Fan radius={0.07} angle={fanAngle} ring={rgbGold} />
         </group>
 
         {/* components (each flies in during the build) */}
@@ -440,7 +387,7 @@ export function ChapterBuild() {
         </group>
         <group ref={(el) => { parts.current.gpu = el; }} visible={false}>
           <group rotation={[-Math.PI / 2, 0, 0]} scale={0.9}>
-            <GpuModel fanSpeed={fanSpeed} rgb={rgbGold} />
+            <GpuModel fanAngle={fanAngle} rgb={rgbGold} />
           </group>
         </group>
         <group ref={(el) => { parts.current.ssd = el; }} visible={false}>
@@ -463,7 +410,7 @@ export function ChapterBuild() {
         ))}
 
         {/* tempered-glass side panel */}
-        <group ref={panel} visible={false}>
+        <group ref={panel} name="panel" visible={false}>
           <mesh geometry={geo.plane()} material={glass} position={[0, 0.36, 0.188]} scale={[0.64, 0.68, 1]} />
           <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.02, 0.188]} scale={[0.66, 0.02, 0.012]} />
           <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.7, 0.188]} scale={[0.66, 0.02, 0.012]} />

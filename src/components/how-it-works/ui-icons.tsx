@@ -171,3 +171,22 @@ export function IconPlane({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconReceipt({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.3V3z" />
+      <path d="M9 8h6M9 11.5h6M9 15h3.5" />
+    </svg>
+  );
+}
+
+export function IconHome({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 11L12 4l8.5 7" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <path d="M10 20v-5.5h4V20" />
+    </svg>
+  );
+}

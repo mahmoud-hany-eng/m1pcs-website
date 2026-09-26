@@ -20,19 +20,23 @@ const M = {
   goldMetal: () => std(COLORS.gold, { roughness: 0.3, metalness: 0.85 }),
 };
 
-/** Spinning fan in the XY plane facing +Z. `speed` is read every frame (rad/s). */
+/**
+ * Fan in the XY plane facing +Z. `angle` is a scroll-derived blade angle
+ * (radians) written by the scene each frame — fans turn only while the
+ * visitor scrolls, never on their own.
+ */
 export function Fan({
   radius,
-  speed,
+  angle,
   ring,
 }: {
   radius: number;
-  speed?: React.RefObject<number>;
+  angle?: React.RefObject<number>;
   ring?: THREE.Material;
 }) {
   const blades = useRef<THREE.Group>(null!);
-  useFrame((_, dt) => {
-    blades.current.rotation.z -= (speed?.current ?? 2.2) * Math.min(dt, 0.05);
+  useFrame(() => {
+    blades.current.rotation.z = -(angle?.current ?? 0);
   });
   const bladeMat = std("#26262b", { roughness: 0.5 });
   return (
@@ -70,7 +74,7 @@ export function CpuModel() {
   );
 }
 
-export function GpuModel({ fanSpeed, rgb }: { fanSpeed?: React.RefObject<number>; rgb?: THREE.Material }) {
+export function GpuModel({ fanAngle, rgb }: { fanAngle?: React.RefObject<number>; rgb?: THREE.Material }) {
   return (
     <group>
       <mesh geometry={geo.roundBox(0.62, 0.21, 0.12, 0.03)} material={M.shroud()} />
@@ -78,10 +82,10 @@ export function GpuModel({ fanSpeed, rgb }: { fanSpeed?: React.RefObject<number>
       <mesh geometry={geo.box()} material={rgb ?? glow(COLORS.red)} position={[0, 0.098, 0.05]} scale={[0.5, 0.012, 0.02]} />
       <mesh geometry={geo.box()} material={M.goldMetal()} position={[-0.06, -0.112, -0.02]} scale={[0.3, 0.02, 0.02]} />
       <group position={[-0.15, -0.005, 0.062]}>
-        <Fan radius={0.085} speed={fanSpeed} />
+        <Fan radius={0.085} angle={fanAngle} />
       </group>
       <group position={[0.15, -0.005, 0.062]}>
-        <Fan radius={0.085} speed={fanSpeed} />
+        <Fan radius={0.085} angle={fanAngle} />
       </group>
     </group>
   );

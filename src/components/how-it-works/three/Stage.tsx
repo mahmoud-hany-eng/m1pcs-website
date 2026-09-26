@@ -51,9 +51,9 @@ function LogoSign({ intensity }: { intensity: React.RefObject<number> }) {
   }, [sign, halo]);
   const aspect = sign.image.width / sign.image.height;
 
-  useFrame((state) => {
-    const breathe = 0.62 + Math.sin(state.clock.elapsedTime * 1.3) * 0.05;
-    haloMat.current.opacity = breathe * (intensity.current ?? 1);
+  // Halo strength is set by the story position (see StoryCanvas), never by time.
+  useFrame(() => {
+    haloMat.current.opacity = 0.62 * (intensity.current ?? 1);
   });
 
   return (

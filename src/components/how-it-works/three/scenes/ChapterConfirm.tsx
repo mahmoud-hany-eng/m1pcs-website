@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { COLORS, geo, glow, glowTexture, std } from "../assets";
 import { bell, easeInOutCubic, easeOutBack, lerp, seg, smooth, window4 } from "../anim";
-import { aimArm, angleLerp, converse, lookAt, place, resetPose, talk, walkPath } from "../choreo";
+import { aimArm, angleLerp, consultIdle, frontIdle, lookAt, talk, walkPath } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
 import { ORDER_ANCHOR, SPOTS, TABLE_TOP_Y } from "../layout";
 import { DELIGHTED, HAPPY, PHONE_L, add, blend, nod, wave } from "../poses";
@@ -33,7 +33,8 @@ const TERMINAL = new THREE.Vector3(-0.98, TABLE_TOP_Y, 0.28);
 const TERMINAL_TOP = new THREE.Vector3(TERMINAL.x, TERMINAL.y + 0.08, TERMINAL.z);
 const HANDSHAKE = new THREE.Vector3(0, 1.02, 1.08);
 const CAMERA_SIDE = new THREE.Vector3(0, 1.7, 7);
-const REP_HEAD = new THREE.Vector3(SPOTS.rep.x, 1.55, SPOTS.rep.z);
+/** Where the customer holds the phone (in front of their chest) — what the rep glances at. */
+const PHONE_POINT = new THREE.Vector3(SPOTS.customer.x - 0.27, 1.2, SPOTS.customer.z + 0.22);
 const REP_PATH = [new THREE.Vector2(SPOTS.rep.x, SPOTS.rep.z), new THREE.Vector2(-1.55, 1.0), new THREE.Vector2(SPOTS.repShake.x, SPOTS.repShake.z)];
 const CUSTOMER_PATH = [new THREE.Vector2(SPOTS.customer.x, SPOTS.customer.z), new THREE.Vector2(1.55, 1.0), new THREE.Vector2(SPOTS.customerShake.x, SPOTS.customerShake.z)];
 
@@ -61,10 +62,11 @@ export function ChapterConfirm() {
     const B = CONFIRM_BEATS;
     const s3 = f.local[2];
     const s4 = f.local[3];
-    const t = f.time;
+    const t = f.clock;
     const A = world.anchors;
 
-    root.current.visible = f.s > 2 && f.s < 3.35;
+    // The M1 terminal stays on the desk through the consultation (no pop at the chapter start).
+    root.current.visible = f.s < 3.35;
 
     // ---------------- DOM: payment card, received chip, order confirmation
     const pay = A.get("pay");
@@ -99,56 +101,29 @@ export function ChapterConfirm() {
     const ok = smooth(seg(s3, B.received - 0.01, B.received + 0.02));
     terminalScreen.current.color.copy(screenOff).lerp(screenGold, busy * (0.65 + 0.35 * Math.sin(t * 14))).lerp(screenOk, ok * 0.85);
 
-    // ---------------- payment pulse: phone -> terminal
-    const travel = seg(s3, B.transfer[0], B.transfer[1]);
-    pulse.current.visible = travel > 0 && travel < 1;
-    if (pulse.current.visible) {
-      const k = easeInOutCubic(travel);
-      pulse.current.position.lerpVectors(phonePos, TERMINAL_TOP, k);
-      pulse.current.position.y += Math.sin(Math.PI * k) * 0.45;
-      trail.current.forEach((m, i) => {
-        if (!m) return;
-        const kk = Math.max(0, k - (i + 1) * 0.045);
-        m.position.lerpVectors(phonePos, TERMINAL_TOP, kk).sub(pulse.current.position);
-        m.position.y += Math.sin(Math.PI * kk) * 0.45;
-        m.scale.setScalar(0.028 * (1 - i / 6));
-      });
-    }
-
     // ---------------- restrained celebration: gold/white flecks
     confetti.current?.set((s3 - B.burst) * 13, s3 > B.burst && s4 < 0.08);
 
-    // ---------------- characters
+    // ---------------- characters (gestures are windows that are zero at the chapter edges)
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
 
     if (f.active === 3) {
       // The camera cranes up to follow the order: both look up and wave it off.
-      resetPose(rep);
-      resetPose(cust);
-      place(rep, SPOTS.repFront);
-      place(cust, SPOTS.customerFront);
+      frontIdle(rep, cust, SPOTS.repFront, SPOTS.customerFront);
       const up = window4(s4, 0.0, 0.03, 0.12, 0.16);
       lookUp.set(0, 7, 3);
       lookAt(rep, lookUp, up);
       lookAt(cust, lookUp, up);
       blend(rep.target, wave("r", t), up);
       blend(cust.target, wave("l", t + 0.3), up);
-      blend(rep.target, HAPPY, 1);
-      blend(cust.target, HAPPY, 1);
       return;
     }
     if (f.active !== 2) return;
 
-    resetPose(rep);
-    resetPose(cust);
-    rep.setVisible(true);
-    cust.setVisible(true);
-    place(rep, SPOTS.rep);
-    place(cust, SPOTS.customer);
-    lookAt(rep, phonePos);
-    lookAt(cust, REP_HEAD);
+    consultIdle(rep, cust, SPOTS.rep, SPOTS.customer);
+    lookAt(rep, PHONE_POINT, window4(s3, 0.02, 0.08, B.transfer[0], B.transfer[0] + 0.03));
 
     // Customer pays the deposit on their phone.
     const phoneUp = window4(s3, ...B.phone);
@@ -190,10 +165,10 @@ export function ChapterConfirm() {
     lookAt(rep, tmp, shake);
     tmp.set(SPOTS.repShake.x, 1.55, SPOTS.repShake.z);
     lookAt(cust, tmp, shake);
-    blend(rep.target, HAPPY, shake);
-    blend(cust.target, HAPPY, shake);
+    blend(rep.target, HAPPY, smooth(seg(s3, B.walk[0], B.shake[0] + 0.025)));
+    blend(cust.target, HAPPY, smooth(seg(s3, B.walk[0], B.shake[0] + 0.025)));
 
-    // Turn to the camera, pleased.
+    // Turn to the camera: ends exactly in the shared front state that chapter 4 starts from.
     const turn = smooth(seg(s3, B.turn[0], B.turn[1]));
     if (turn > 0) {
       rep.place(lerp(SPOTS.repShake.x, SPOTS.repFront.x, turn), lerp(SPOTS.repShake.z, SPOTS.repFront.z, turn), angleLerp(SPOTS.repShake.yaw, SPOTS.repFront.yaw, turn));
@@ -202,22 +177,23 @@ export function ChapterConfirm() {
         lerp(SPOTS.customerShake.z, SPOTS.customerFront.z, turn),
         angleLerp(SPOTS.customerShake.yaw, SPOTS.customerFront.yaw, turn),
       );
-      lookAt(rep, CAMERA_SIDE, turn * 0.8);
-      lookAt(cust, CAMERA_SIDE, turn * 0.8);
-      blend(rep.target, HAPPY, turn);
-      blend(cust.target, HAPPY, turn);
+      for (const c of [rep, cust]) {
+        c.target.headYaw = lerp(c.target.headYaw, 0, turn);
+        c.target.headPitch = lerp(c.target.headPitch, 0, turn);
+        lookAt(c, CAMERA_SIDE, 0.8 * turn);
+      }
     }
-    converse(rep, "r", cust, "l", t, smooth(seg(s3, B.settle[0], B.settle[1])) * 0.45);
   }, (f: FrameState) => {
     // Phone + pay card follow the customer's hand (after the rig has moved).
     const cust = world.customer.current;
     if (!cust || f.active !== 2) {
       phone.current.visible = false;
+      pulse.current.visible = false;
       return;
     }
     const s3 = f.local[2];
     const up = window4(s3, ...CONFIRM_BEATS.phone);
-    phone.current.visible = up > 0.05;
+    phone.current.visible = up > 0.001;
     cust.hand("l", hand);
     phonePos.copy(hand);
     phonePos.y += 0.07;
@@ -227,12 +203,29 @@ export function ChapterConfirm() {
     phoneScreen.current.color.copy(s3 >= CONFIRM_BEATS.paid ? screenGold : screenOff).lerp(screenGold, bell(s3, CONFIRM_BEATS.press[0], CONFIRM_BEATS.press[1] + 0.02));
     const pay = world.anchors.get("pay");
     pay.pos.set(phonePos.x, phonePos.y + 0.18, phonePos.z);
+
+    // Payment pulse: phone -> terminal (placed here, where the hand position is current).
+    const travel = seg(s3, CONFIRM_BEATS.transfer[0], CONFIRM_BEATS.transfer[1]);
+    pulse.current.visible = travel > 0 && travel < 1;
+    if (pulse.current.visible) {
+      const k = easeInOutCubic(travel);
+      pulse.current.scale.setScalar(Math.max(0.001, smooth(seg(travel, 0, 0.12)) * (1 - smooth(seg(travel, 0.88, 1)))));
+      pulse.current.position.lerpVectors(phonePos, TERMINAL_TOP, k);
+      pulse.current.position.y += Math.sin(Math.PI * k) * 0.45;
+      trail.current.forEach((m, i) => {
+        if (!m) return;
+        const kk = Math.max(0, k - (i + 1) * 0.045);
+        m.position.lerpVectors(phonePos, TERMINAL_TOP, kk).sub(pulse.current.position);
+        m.position.y += Math.sin(Math.PI * kk) * 0.45;
+        m.scale.setScalar(0.028 * (1 - i / 6));
+      });
+    }
   });
 
   return (
-    <group ref={root} visible={false}>
+    <group ref={root} name="confirm" visible={false}>
       {/* customer's phone */}
-      <group ref={phone} visible={false}>
+      <group ref={phone} name="phone" visible={false}>
         <mesh geometry={geo.roundBox(0.09, 0.17, 0.014, 0.012)} material={std("#0d0d0f", { roughness: 0.3, metalness: 0.6 })} />
         <mesh geometry={geo.plane()} position={[0, 0, 0.0075]} scale={[0.078, 0.152, 1]}>
           <meshBasicMaterial ref={phoneScreen} color="#1b1b1f" toneMapped={false} />
@@ -240,7 +233,7 @@ export function ChapterConfirm() {
       </group>
 
       {/* payment pulse */}
-      <group ref={pulse} visible={false}>
+      <group ref={pulse} name="pulse" visible={false}>
         <mesh geometry={geo.sphere("lo")} material={glow(COLORS.gold)} scale={0.045} />
         <sprite scale={[0.5, 0.5, 1]}>
           <spriteMaterial map={glowTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />

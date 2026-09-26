@@ -38,9 +38,9 @@ export function lookAt(char: CharacterApi, point: THREE.Vector3, weight = 1) {
 }
 
 /** Mouth movement while speaking. */
-export function talk(char: CharacterApi, time: number, amount: number) {
+export function talk(char: CharacterApi, clock: number, amount: number) {
   if (amount <= 0) return;
-  const m = 0.3 + 0.3 * Math.sin(time * 13) * Math.sin(time * 3.7 + 1);
+  const m = 0.3 + 0.3 * Math.sin(clock * 13) * Math.sin(clock * 3.7 + 1);
   char.target.mouthOpen = Math.max(char.target.mouthOpen, amount * Math.max(0, m));
 }
 
@@ -55,25 +55,25 @@ const headB = new THREE.Vector3();
  * A living conversation for resting moments: the two take turns speaking
  * (mouth + open-hand gesture) while the listener nods now and then.
  */
-export function converse(a: CharacterApi, aSide: Side, b: CharacterApi, bSide: Side, time: number, weight: number) {
+export function converse(a: CharacterApi, aSide: Side, b: CharacterApi, bSide: Side, clock: number, weight: number) {
   if (weight <= 0) return;
   headA.set(a.root.position.x, 1.55, a.root.position.z);
   headB.set(b.root.position.x, 1.55, b.root.position.z);
   lookAt(a, headB, weight);
   lookAt(b, headA, weight);
-  const phase = (time % 7) / 7;
+  const phase = (clock % 7) / 7;
   const aTalks = phase < 0.5;
   const speaker = aTalks ? a : b;
   const listener = aTalks ? b : a;
   const k = weight * smooth(seg(phase % 0.5, 0.02, 0.1)) * (1 - smooth(seg(phase % 0.5, 0.4, 0.48)));
-  talk(speaker, time, k * 0.8);
-  const hands = talkHands(aTalks ? aSide : bSide, time);
+  talk(speaker, clock, k * 0.8);
+  const hands = talkHands(aTalks ? aSide : bSide, clock);
   const t = speaker.target;
   for (const key in hands) {
     const kk = key as keyof typeof t;
     t[kk] = lerp(t[kk], hands[kk] as number, k * 0.6);
   }
-  add(listener.target, nod(time), k * 0.55);
+  add(listener.target, nod(clock), k * 0.55);
   speaker.target.smile = Math.max(speaker.target.smile, 0.6 * weight);
   listener.target.smile = Math.max(listener.target.smile, 0.75 * weight);
 }
@@ -113,4 +113,53 @@ export function walkPath(char: CharacterApi, path: readonly THREE.Vector2[], t: 
   char.place(pathOut.x, pathOut.z, yaw);
   const amount = t > 0 && t < 1 ? smooth(seg(t, 0, 0.1)) * (1 - smooth(seg(t, 0.9, 1))) : 0;
   add(char.target, walk((pathOut.dist / STRIDE) * Math.PI * 2, carrying), amount);
+}
+
+const repHead = new THREE.Vector3();
+const customerHead = new THREE.Vector3();
+const CAMERA_SIDE = new THREE.Vector3(0, 1.7, 7);
+
+/**
+ * The neutral state every consultation chapter starts and ends in (both at
+ * the table, looking at each other, relaxed smiles). Chapters layer their
+ * gestures on top with windows that are zero at their edges, so the story
+ * is continuous across chapter boundaries in both scroll directions.
+ */
+export function consultIdle(rep: CharacterApi, customer: CharacterApi, repSpot: Spot, customerSpot: Spot) {
+  resetPose(rep);
+  resetPose(customer);
+  rep.setVisible(true);
+  customer.setVisible(true);
+  place(rep, repSpot);
+  place(customer, customerSpot);
+  repHead.set(repSpot.x, 1.55, repSpot.z);
+  customerHead.set(customerSpot.x, 1.55, customerSpot.z);
+  lookAt(rep, customerHead);
+  lookAt(customer, repHead);
+  rep.target.smile = 0.6;
+  customer.target.smile = 0.6;
+}
+
+/** The shared end-of-chapter-3 / start-of-chapter-4 state: side by side at the front, facing the camera, happy. */
+export function frontIdle(rep: CharacterApi, customer: CharacterApi, repSpot: Spot, customerSpot: Spot) {
+  resetPose(rep);
+  resetPose(customer);
+  rep.setVisible(true);
+  customer.setVisible(true);
+  place(rep, repSpot);
+  place(customer, customerSpot);
+  lookAt(rep, CAMERA_SIDE, 0.8);
+  lookAt(customer, CAMERA_SIDE, 0.8);
+  rep.target.smile = 1;
+  rep.target.brow = 0.45;
+  customer.target.smile = 1;
+  customer.target.brow = 0.45;
+}
+
+/** Lerps between the points of a list by a continuous index (for aims that move item to item). */
+export function pointAlong(points: readonly THREE.Vector3[], index: number, out: THREE.Vector3) {
+  const i = Math.max(0, Math.min(points.length - 1, index));
+  const a = Math.floor(i);
+  const b = Math.min(points.length - 1, a + 1);
+  return out.lerpVectors(points[a], points[b], smooth(i - a));
 }
