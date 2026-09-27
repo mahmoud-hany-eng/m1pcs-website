@@ -9,40 +9,54 @@ import { aimArm, lookAt, place, resetPose, walkPath } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
 import { SPOTS, TABLE_TOP_Y } from "../layout";
 import { BoardModel, CpuModel, Fan, GpuModel, SsdModel } from "../parts";
+import { Batch } from "../batch";
 import { CHEER_R, HAPPY, add, blend, nod, typing } from "../poses";
 import type { CharacterApi } from "../Character";
+import { CH } from "../../story";
 
-/** Chapter 5 beats (0..1 of the chapter). The dive back from the globe fills 0..0.16. */
+/**
+ * Chapter 6 beats (0..1 of the chapter). The dive back from the globe fills
+ * 0..0.16; each component then gets its own step, the powered-on PC a
+ * moment to be admired, and the setup (Windows 11 Pro, drivers, updates)
+ * three clear stages.
+ */
 export const BUILD_BEATS = {
-  parcelOpen: [0.16, 0.2],
+  parcelOpen: [0.16, 0.21],
   steps: {
-    board: [0.2, 0.26],
-    cpu: [0.25, 0.3],
-    cooler: [0.29, 0.34],
-    ram: [0.33, 0.38],
-    gpu: [0.37, 0.44],
-    ssd: [0.43, 0.47],
+    board: [0.21, 0.27],
+    cpu: [0.27, 0.32],
+    cooler: [0.32, 0.37],
+    ram: [0.37, 0.42],
+    gpu: [0.42, 0.49],
+    ssd: [0.49, 0.54],
   },
-  parcelAway: [0.47, 0.51],
-  panel: [0.47, 0.51],
-  power: [0.51, 0.55],
-  toSetup: [0.55, 0.61],
-  setup: [0.61, 0.67, 0.73, 0.79],
-  ready: [0.79, 0.83],
-  cheer: [0.83, 0.86, 0.92, 0.95],
-  setupOut: [0.9, 0.97],
+  parcelAway: [0.54, 0.58],
+  panel: [0.54, 0.58],
+  power: [0.58, 0.62],
+  toSetup: [0.66, 0.71],
+  setup: [0.72, 0.77, 0.82, 0.87],
+  ready: [0.87, 0.9],
+  cheer: [0.9, 0.925, 0.955, 0.975],
+  setupOut: [0.93, 0.99],
 } as const;
 
 type BuildStep = keyof typeof BUILD_BEATS.steps;
 const BUILD_ORDER: BuildStep[] = ["board", "cpu", "cooler", "ram", "gpu", "ssd"];
 const STEP_NAMES: Record<BuildStep, string> = {
   board: "Motherboard",
-  cpu: "Processor",
-  cooler: "CPU cooler",
-  ram: "Memory",
-  gpu: "Graphics card",
+  cpu: "CPU",
+  cooler: "Cooling",
+  ram: "RAM",
+  gpu: "GPU",
   ssd: "Storage",
 };
+
+/**
+ * Story position where the studio is re-arranged from the consultation to the build (bench,
+ * PC case, rep waiting at the bench, customer gone home): mid-flight, while the studio is on the
+ * far side of the globe on every screen shape — so nothing appears or moves where it can be seen.
+ */
+export const STUDIO_RESET = CH.ship + 0.25;
 
 export const CASE_POS = new THREE.Vector3(-0.22, TABLE_TOP_Y, 0.02);
 export const CASE_YAW = -0.25;
@@ -126,11 +140,11 @@ export function ChapterBuild() {
 
   useScene(50, (f: FrameState) => {
     const B = BUILD_BEATS;
-    const s5 = f.local[4];
+    const s5 = f.local[CH.build];
     const t = f.clock;
     const A = world.anchors;
 
-    const here = f.s > 4;
+    const here = f.s >= STUDIO_RESET;
     bench.current.visible = here;
     pc.current.visible = here;
 
@@ -183,12 +197,12 @@ export function ChapterBuild() {
 
     // ---------------- glass panel, then power: RGB + fans (fan angle follows the scroll)
     const p = easeInOutCubic(seg(s5, B.panel[0], B.panel[1]));
-    const panelIn = f.s >= 5 ? 1 : smooth(seg(s5, B.panel[0] - 0.01, B.panel[0] + 0.012));
+    const panelIn = f.s >= CH.deliver ? 1 : smooth(seg(s5, B.panel[0] - 0.01, B.panel[0] + 0.012));
     panel.current.visible = panelIn > 0.001;
     panel.current.scale.setScalar(Math.max(0.001, panelIn));
     panel.current.position.set((1 - p) * 0.55, (1 - p) * 0.1, (1 - p) * 0.45);
     panel.current.rotation.y = (1 - p) * -0.7;
-    const power = f.s >= 5 ? 1 : smooth(seg(s5, B.power[0], B.power[1]));
+    const power = f.s >= CH.deliver ? 1 : smooth(seg(s5, B.power[0], B.power[1]));
     const pulse = 0.85 + 0.15 * Math.sin(t * 3);
     rgbRed.color.copy(c.off).lerp(c.red, power * pulse);
     rgbGold.color.copy(c.off).lerp(c.gold, power * (0.9 + 0.1 * Math.sin(t * 2.3)));
@@ -198,13 +212,13 @@ export function ChapterBuild() {
     const status = A.get("build");
     status.pos.copy(STATUS_POINT);
     status.align = "center";
-    status.opacity = window4(s5, B.steps.board[0] - 0.02, B.steps.board[0] + 0.01, B.power[1], B.power[1] + 0.03) * (f.active === 4 ? 1 : 0);
+    status.opacity = window4(s5, B.steps.board[0] - 0.02, B.steps.board[0] + 0.01, B.power[1] + 0.02, B.power[1] + 0.05) * (f.active === CH.build ? 1 : 0);
     if (current) {
       status.text("stage", "Installing");
       status.text("part", STEP_NAMES[current]);
     } else if (s5 >= B.power[0]) {
-      status.text("stage", "Powering on");
-      status.text("part", "RGB and cooling online");
+      status.text("stage", "Powered on");
+      status.text("part", "Built by M1");
     } else if (s5 >= B.panel[0]) {
       status.text("stage", "Finishing");
       status.text("part", "Closing the glass panel");
@@ -216,26 +230,27 @@ export function ChapterBuild() {
 
     // ---------------- monitor + crisp setup checklist (the card is what's on the monitor)
     const [w0, , , w3] = B.setup;
-    const ready = f.s >= 5 ? 1 : smooth(seg(s5, B.ready[0], B.ready[0] + 0.02));
-    const booted = f.s >= 5 ? 1 : smooth(seg(s5, w0 - 0.03, w0));
+    const ready = f.s >= CH.deliver ? 1 : smooth(seg(s5, B.ready[0], B.ready[0] + 0.02));
+    const booted = f.s >= CH.deliver ? 1 : smooth(seg(s5, w0 - 0.03, w0));
     screen.current.color.copy(c.screenOff).lerp(c.screenSetup, booted * (0.85 + 0.15 * Math.sin(t * 2))).lerp(c.screenReady, ready);
-    wallpaper.current.visible = ready > 0.01;
+    wallpaper.current.visible = ready > 0.0005;
     wallpaper.current.scale.setScalar(Math.max(0.001, ready));
     const setup = A.get("setup");
     setup.pos.set(MONITOR_SCREEN.x + (f.layout === "tall" ? 0.12 : 0), MONITOR_SCREEN.y + 0.02, MONITOR_SCREEN.z + 0.05);
     setup.align = "center";
-    const setupIn = easeOutBack(seg(s5, w0 - 0.03, w0 + 0.02), 1.4);
-    setup.opacity = Math.min(1, setupIn) * (1 - smooth(seg(s5, B.setupOut[0], B.setupOut[1]))) * (f.active === 4 ? 1 : 0);
-    setup.scale = Math.max(0.001, lerp(0.88, 1, Math.min(1, setupIn)));
+    const setupIn = smooth(seg(s5, w0 - 0.03, w0 + 0.01));
+    setup.opacity = setupIn * (1 - smooth(seg(s5, B.setupOut[0], B.setupOut[1]))) * (f.active === CH.build ? 1 : 0);
+    setup.offsetY = (1 - setupIn) * 10;
     for (let i = 0; i < 3; i++) {
       const v = seg(s5, B.setup[i], B.setup[i + 1]);
       setup.cssVar(`s${i}`, v);
       setup.cssVar(`c${i}`, smooth(seg(v, 0.96, 1)));
     }
-    setup.cssVar("ready", easeOutBack(seg(s5, B.ready[0], B.ready[0] + 0.03), 2));
+    setup.cssVar("ready", smooth(seg(s5, B.ready[0], B.ready[0] + 0.025)));
 
-    // ---------------- characters (the customer is at home this chapter)
-    if (f.active !== 4) return;
+    // ---------------- characters (the customer is at home this chapter). From STUDIO_RESET on the
+    // rep already waits at the bench in this chapter's opening pose (s5 is 0 during the flight).
+    if (f.active !== CH.build && !(f.active === CH.ship && f.s >= STUDIO_RESET)) return;
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
@@ -294,8 +309,8 @@ export function ChapterBuild() {
     blend(rep.target, CHEER_R, cheer);
     lookAt(rep, CAMERA_SIDE, cheer * 0.8);
   }, (f: FrameState) => {
-    // On the bench until chapter 6 takes the PC.
-    if (f.s >= 5) return;
+    // On the bench until the delivery chapter takes the PC.
+    if (f.s >= CH.deliver) return;
     pc.current.position.copy(CASE_POS);
     pc.current.rotation.set(0, CASE_YAW, 0);
   });
@@ -344,77 +359,82 @@ export function ChapterBuild() {
 
       {/* The PC. Case-local origin = floor centre; the open side faces +Z. */}
       <group ref={pc} name="pc" visible={false} position={CASE_POS} rotation={[0, CASE_YAW, 0]}>
-        <mesh geometry={geo.box()} material={std("#111114", { roughness: 0.5, metalness: 0.3 })} position={[0, 0.35, -0.165]} scale={[0.66, 0.7, 0.02]} castShadow />
-        <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.705, 0]} />
-        <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.0125, 0]} />
-        <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0.33, 0.36, 0]} scale={[0.02, 0.7, 0.37]} castShadow />
-        <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[-0.33, 0.36, 0]} scale={[0.02, 0.7, 0.37]} castShadow />
-        <mesh geometry={geo.box()} material={std(COLORS.charcoal, { roughness: 0.5 })} position={[0, 0.09, 0]} scale={[0.62, 0.14, 0.32]} />
-        <mesh geometry={geo.box()} material={rgbRed} position={[0, 0.162, 0.16]} scale={[0.6, 0.008, 0.006]} />
-        <mesh geometry={geo.box()} material={rgbGold} position={[0.315, 0.4, 0.17]} scale={[0.008, 0.56, 0.008]} />
-        <group position={[0.31, 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
-        </group>
-        <group position={[0.31, 0.53, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
-        </group>
-        <group position={[-0.31, 0.53, -0.02]} rotation={[0, Math.PI / 2, 0]}>
-          <Fan radius={0.07} angle={fanAngle} ring={rgbGold} />
-        </group>
-
-        {/* components (each flies in during the build) */}
-        <group ref={(el) => { parts.current.board = el; }} visible={false}>
-          <BoardModel />
-        </group>
-        <group ref={(el) => { parts.current.cpu = el; }} visible={false}>
-          <group scale={0.3}>
-            <CpuModel />
+        {/* The case shell is static (one draw per material); every component that flies in stays separate. */}
+        <Batch>
+          <mesh geometry={geo.box()} material={std("#111114", { roughness: 0.5, metalness: 0.3 })} position={[0, 0.35, -0.165]} scale={[0.66, 0.7, 0.02]} castShadow />
+          <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.705, 0]} />
+          <mesh geometry={geo.roundBox(0.68, 0.025, 0.37, 0.01)} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0, 0.0125, 0]} />
+          <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[0.33, 0.36, 0]} scale={[0.02, 0.7, 0.37]} castShadow />
+          <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4, metalness: 0.4 })} position={[-0.33, 0.36, 0]} scale={[0.02, 0.7, 0.37]} castShadow />
+          <mesh geometry={geo.box()} material={std(COLORS.charcoal, { roughness: 0.5 })} position={[0, 0.09, 0]} scale={[0.62, 0.14, 0.32]} />
+          <mesh geometry={geo.box()} material={rgbRed} position={[0, 0.162, 0.16]} scale={[0.6, 0.008, 0.006]} />
+          <mesh geometry={geo.box()} material={rgbGold} position={[0.315, 0.4, 0.17]} scale={[0.008, 0.56, 0.008]} />
+          <group position={[0.31, 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+            <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
           </group>
-        </group>
-        <group ref={(el) => { parts.current.cooler = el; }} visible={false}>
-          <mesh geometry={geo.cylinder(1, 1, 32)} material={std(COLORS.charcoal, { roughness: 0.35, metalness: 0.5 })} rotation={[Math.PI / 2, 0, 0]} scale={[0.058, 0.035, 0.058]} />
-          <mesh geometry={geo.torus(0.05, 0.007)} material={rgbGold} position={[0, 0, 0.019]} />
-          <mesh geometry={geo.circle(24)} material={glow(COLORS.red, 0.9)} position={[0, 0, 0.018]} scale={0.022} />
-          <mesh geometry={geo.capsule(0.012, 0.16)} material={std("#26262b")} position={[0.06, 0.08, -0.01]} rotation={[0, 0, -0.9]} />
-        </group>
-        <group ref={(el) => { parts.current.ram = el; }} visible={false}>
-          {[0, 0.036].map((x) => (
-            <group key={x} position={[x, 0, 0]}>
-              <mesh geometry={geo.box()} material={std("#131316", { roughness: 0.4, metalness: 0.3 })} scale={[0.02, 0.26, 0.05]} />
-              <mesh geometry={geo.box()} material={rgbRed} position={[0, 0, 0.028]} scale={[0.022, 0.24, 0.008]} />
+          <group position={[0.31, 0.53, 0]} rotation={[0, -Math.PI / 2, 0]}>
+            <Fan radius={0.08} angle={fanAngle} ring={rgbRed} />
+          </group>
+          <group position={[-0.31, 0.53, -0.02]} rotation={[0, Math.PI / 2, 0]}>
+            <Fan radius={0.07} angle={fanAngle} ring={rgbGold} />
+          </group>
+
+          {/* components (each flies in during the build) */}
+          <group ref={(el) => { parts.current.board = el; }} visible={false} userData={{ dynamic: true }}>
+            <BoardModel />
+          </group>
+          <group ref={(el) => { parts.current.cpu = el; }} visible={false} userData={{ dynamic: true }}>
+            <group scale={0.3}>
+              <CpuModel />
             </group>
+          </group>
+          <group ref={(el) => { parts.current.cooler = el; }} visible={false} userData={{ dynamic: true }}>
+            <mesh geometry={geo.cylinder(1, 1, 32)} material={std(COLORS.charcoal, { roughness: 0.35, metalness: 0.5 })} rotation={[Math.PI / 2, 0, 0]} scale={[0.058, 0.035, 0.058]} />
+            <mesh geometry={geo.torus(0.05, 0.007)} material={rgbGold} position={[0, 0, 0.019]} />
+            <mesh geometry={geo.circle(24)} material={glow(COLORS.red, 0.9)} position={[0, 0, 0.018]} scale={0.022} />
+            <mesh geometry={geo.capsule(0.012, 0.16)} material={std("#26262b")} position={[0.06, 0.08, -0.01]} rotation={[0, 0, -0.9]} />
+          </group>
+          <group ref={(el) => { parts.current.ram = el; }} visible={false} userData={{ dynamic: true }}>
+            <Batch>
+              {[0, 0.036].map((x) => (
+                <group key={x} position={[x, 0, 0]}>
+                  <mesh geometry={geo.box()} material={std("#131316", { roughness: 0.4, metalness: 0.3 })} scale={[0.02, 0.26, 0.05]} />
+                  <mesh geometry={geo.box()} material={rgbRed} position={[0, 0, 0.028]} scale={[0.022, 0.24, 0.008]} />
+                </group>
+              ))}
+            </Batch>
+          </group>
+          <group ref={(el) => { parts.current.gpu = el; }} visible={false} userData={{ dynamic: true }}>
+            <group rotation={[-Math.PI / 2, 0, 0]} scale={0.9}>
+              <GpuModel fanAngle={fanAngle} rgb={rgbGold} />
+            </group>
+          </group>
+          <group ref={(el) => { parts.current.ssd = el; }} visible={false} userData={{ dynamic: true }}>
+            <group scale={0.6}>
+              <SsdModel />
+            </group>
+          </group>
+          {BUILD_ORDER.map((id, i) => (
+            <mesh
+              key={id}
+              geometry={geo.ring(0.8, 1)}
+              position={[MOUNTS[id].x, MOUNTS[id].y, MOUNTS[id].z + 0.06]}
+              visible={false}
+              ref={(el) => {
+                clicks.current[i] = el;
+              }}
+            >
+              <meshBasicMaterial color={COLORS.gold} transparent opacity={0} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
           ))}
-        </group>
-        <group ref={(el) => { parts.current.gpu = el; }} visible={false}>
-          <group rotation={[-Math.PI / 2, 0, 0]} scale={0.9}>
-            <GpuModel fanAngle={fanAngle} rgb={rgbGold} />
-          </group>
-        </group>
-        <group ref={(el) => { parts.current.ssd = el; }} visible={false}>
-          <group scale={0.6}>
-            <SsdModel />
-          </group>
-        </group>
-        {BUILD_ORDER.map((id, i) => (
-          <mesh
-            key={id}
-            geometry={geo.ring(0.8, 1)}
-            position={[MOUNTS[id].x, MOUNTS[id].y, MOUNTS[id].z + 0.06]}
-            visible={false}
-            ref={(el) => {
-              clicks.current[i] = el;
-            }}
-          >
-            <meshBasicMaterial color={COLORS.gold} transparent opacity={0} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-        ))}
 
-        {/* tempered-glass side panel */}
-        <group ref={panel} name="panel" visible={false}>
-          <mesh geometry={geo.plane()} material={glass} position={[0, 0.36, 0.188]} scale={[0.64, 0.68, 1]} />
-          <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.02, 0.188]} scale={[0.66, 0.02, 0.012]} />
-          <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.7, 0.188]} scale={[0.66, 0.02, 0.012]} />
-        </group>
+          {/* tempered-glass side panel */}
+          <group ref={panel} name="panel" visible={false} userData={{ dynamic: true }}>
+            <mesh geometry={geo.plane()} material={glass} position={[0, 0.36, 0.188]} scale={[0.64, 0.68, 1]} />
+            <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.02, 0.188]} scale={[0.66, 0.02, 0.012]} />
+            <mesh geometry={geo.box()} material={std("#18181b", { roughness: 0.4 })} position={[0, 0.7, 0.188]} scale={[0.66, 0.02, 0.012]} />
+          </group>
+        </Batch>
       </group>
     </group>
   );

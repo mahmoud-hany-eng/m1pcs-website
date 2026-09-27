@@ -2,21 +2,22 @@ import type { ComponentType } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { CHAPTERS, type Chapter } from "./story";
-import { IconCheck, IconCpu, IconHome, IconPlane, IconReceipt, IconWrench } from "./ui-icons";
+import { IconBox, IconCheck, IconCpu, IconHome, IconPlane, IconReceipt, IconWrench } from "./ui-icons";
 
 const ICONS: Record<Chapter["id"], ComponentType<{ className?: string }>> = {
   parts: IconCpu,
   quote: IconReceipt,
   confirm: IconCheck,
-  source: IconPlane,
+  source: IconBox,
+  ship: IconPlane,
   build: IconWrench,
   deliver: IconHome,
 };
 
 /**
  * Motion-free version of the story for visitors who prefer reduced motion
- * or whose device can't run WebGL: the same six steps and copy, as a clear
- * vertical process.
+ * or whose device can't run WebGL: the same seven steps and copy, as a
+ * clear vertical process.
  */
 export function StaticSteps() {
   return (

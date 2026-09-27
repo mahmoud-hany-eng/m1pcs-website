@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import type { StageLayout, StageMetrics } from "../stage-layout";
+import { CH } from "../story";
 import { GLOBE_CENTER } from "./globe-math";
+import { flightU, planeHeight } from "./GlobeWorld";
+import { carX } from "./scenes/ChapterDeliver";
+import { HOME } from "./home";
 
 /**
  * Story-driven camera. Each shot describes *what must be in frame*: a
@@ -70,50 +74,85 @@ function shot(
   };
 }
 
+const TOP: [number, number, number] = [0, 0, 0];
+
+/** Chase shots ride with the plane: its height above the ground point under it, at chapter-5 progress t. */
+const chase = (t: number, pitch: number, frame: [number, number], tall: TallOverride = { fit: 1 }) =>
+  shot(CH.ship, t, [0, planeHeight(flightU(t)) - 0.1, 0], 0.42, pitch, frame, tall);
+/** Tracking shots follow the car along the street, at chapter-7 progress t. */
+const track = (t: number, yaw: number, pitch: number, frame: [number, number], tall: TallOverride = {}) =>
+  shot(CH.deliver, t, [carX(t) - 0.3, 0.95, 0.25], yaw, pitch, frame, tall);
+
 export const SHOTS: Shot[] = [
   // 1 — Pick Your Parts: establishing shot, then in on the conversation and the parts.
-  shot(0, 0.0, [0.05, 1.12, 0.12], 0.22, 0.27, [6.2, 3.3], { fit: 0.86 }),
-  shot(0, 0.14, [0, 1.14, 0.1], 0.1, 0.27, [5.3, 2.95], { fit: 0.86 }),
-  shot(0, 0.33, [0.38, 1.3, 0.12], -0.12, 0.24, [4.7, 2.85], { target: [0.12, 1.26, 0.12], frame: [4.9, 2.85] }),
-  shot(0, 0.5, [0.08, 1.2, 0.1], -0.04, 0.27, [4.9, 2.8]),
-  shot(0, 0.74, [0, 1.23, 0.1], 0.05, 0.27, [4.8, 2.7]),
-  shot(0, 1.0, [0, 1.3, 0.06], 0.02, 0.24, [5.1, 3.0]),
+  shot(CH.parts, 0.0, [0.05, 1.12, 0.12], 0.22, 0.27, [6.2, 3.3], { fit: 0.86 }),
+  shot(CH.parts, 0.12, [0, 1.14, 0.1], 0.1, 0.27, [5.3, 2.95], { fit: 0.86 }),
+  shot(CH.parts, 0.3, [0.38, 1.3, 0.12], -0.12, 0.24, [4.7, 2.85], { target: [0.12, 1.26, 0.12], frame: [4.9, 2.85] }),
+  shot(CH.parts, 0.46, [0.08, 1.2, 0.1], -0.04, 0.27, [4.9, 2.8]),
+  shot(CH.parts, 0.74, [0, 1.23, 0.1], 0.05, 0.27, [4.8, 2.7]),
+  shot(CH.parts, 1.0, [0, 1.3, 0.06], 0.02, 0.24, [5.1, 3.0]),
   // 2 — Review Your Quotation: rise to make room for the quotation, lean in while it is read.
-  shot(1, 0.14, [0, 1.42, 0], 0.04, 0.22, [5.2, 3.25]),
-  shot(1, 0.6, [0.12, 1.42, 0.05], -0.1, 0.19, [4.9, 3.1], { target: [0.05, 1.42, 0.05] }),
-  shot(1, 1.0, [0, 1.42, 0.05], 0, 0.21, [5.2, 3.2]),
-  // 3 — Confirm Your Order: phone, transfer, terminal, confirmation, handshake.
-  shot(2, 0.12, [0.62, 1.3, 0.28], -0.24, 0.22, [3.6, 2.4], { target: [0.75, 1.3, 0.28] }),
-  shot(2, 0.3, [0.05, 1.28, 0.2], -0.03, 0.24, [4.8, 2.7]),
-  shot(2, 0.44, [-0.7, 1.22, 0.25], 0.06, 0.26, [3.4, 2.3], { target: [-0.85, 1.22, 0.25] }),
-  shot(2, 0.58, [0, 1.46, 0.2], 0, 0.24, [5.0, 3.15]),
-  shot(2, 0.84, [0, 1.3, 0.85], 0, 0.18, [3.7, 2.8]),
-  shot(2, 1.0, [0, 1.36, 0.8], 0.04, 0.2, [4.1, 3.0]),
-  // 4 — Sourced From The U.S.: crane up and out until the studio is a pin on the globe.
-  shot(3, 0.03, [0, 1.3, 0.8], 0.04, 0.2, [4.2, 2.9]),
-  shot(3, 0.13, [0, 0.9, 0.4], 0, 0.7, [7.5, 5.2], WHOLE),
-  shot(3, 0.3, GLOBE, 0, 1.5, [23, 23], WHOLE),
-  shot(3, 0.42, GLOBE, 0, 1.5, [21.5, 21.5], WHOLE),
-  shot(3, 0.62, GLOBE, 0, 1.5, [23.5, 23.5], WHOLE),
-  shot(3, 1.0, GLOBE, 0, 1.5, [23.5, 23.5], WHOLE),
-  // 5 — Built & Set Up: dive back into Qatar, assemble, set up Windows at the monitor.
-  shot(4, 0.14, [0.1, 1.15, 0], -0.05, 0.34, [5.4, 3.0]),
-  shot(4, 0.3, [0.05, 1.36, 0.05], -0.12, 0.25, [3.5, 2.25], { target: [0.3, 1.3, 0.05] }),
-  shot(4, 0.47, [0.02, 1.36, 0.05], -0.08, 0.24, [3.7, 2.35], { target: [0.2, 1.3, 0.05] }),
-  shot(4, 0.62, [-0.95, 1.3, 0], 0.3, 0.22, [3.6, 2.4]),
-  shot(4, 0.8, [-0.9, 1.3, 0], 0.26, 0.22, [3.7, 2.45]),
-  shot(4, 1.0, [-0.55, 1.28, 0.25], 0.12, 0.24, [4.6, 2.85]),
-  // 6 — Delivered to Your Door: pick up, load the van, drive to the customer's home, hand over.
-  shot(5, 0.08, [-0.25, 1.22, 0.5], 0.02, 0.26, [4.4, 2.75]),
-  shot(5, 0.2, [1.3, 1.1, 1.7], -0.28, 0.32, [6.0, 3.4], WHOLE),
-  shot(5, 0.32, [3.1, 0.95, 2.3], -0.2, 0.34, [6.4, 3.6], { target: [3.3, 0.95, 2.3], frame: [5.0, 3.8], fit: 1 }),
-  shot(5, 0.47, [7.4, 0.9, 2.0], -0.06, 0.42, [10.5, 5.6], { target: [7.9, 0.9, 2.2], frame: [6.4, 4.6], fit: 1 }),
-  shot(5, 0.54, [10.4, 1.0, 1.8], 0.02, 0.38, [8.8, 4.8], { target: [10.9, 1.0, 2.0], frame: [6.2, 4.4], fit: 1 }),
-  shot(5, 0.6, [11.9, 1.1, 1.5], 0.05, 0.3, [7.4, 4.0], WHOLE),
-  shot(5, 0.72, [12.6, 1.15, 1.6], -0.05, 0.26, [5.6, 3.2], { fit: 0.9 }),
-  shot(5, 0.84, [12.1, 1.3, 1.0], -0.22, 0.22, [5.0, 3.1], { fit: 0.9 }),
-  shot(5, 0.92, [12.0, 1.25, 1.0], -0.26, 0.2, [4.3, 2.8], { fit: 0.9 }),
-  shot(5, 1.0, [12.0, 1.45, 0.75], -0.2, 0.2, [5.6, 3.6], { fit: 0.95 }),
+  shot(CH.quote, 0.14, [0, 1.42, 0], 0.04, 0.22, [5.2, 3.25]),
+  shot(CH.quote, 0.6, [0.12, 1.42, 0.05], -0.1, 0.19, [4.9, 3.1], { target: [0.05, 1.42, 0.05] }),
+  shot(CH.quote, 1.0, [0, 1.42, 0.05], 0, 0.21, [5.2, 3.2]),
+  // 3 — Confirm Your Order: phone, transfer, terminal + receipt, the slide across the table, confirmation, handshake.
+  shot(CH.confirm, 0.1, [0.62, 1.3, 0.28], -0.24, 0.22, [3.6, 2.4], { target: [0.75, 1.3, 0.28] }),
+  shot(CH.confirm, 0.3, [0.05, 1.28, 0.2], -0.03, 0.24, [4.8, 2.7]),
+  shot(CH.confirm, 0.45, [-0.62, 1.18, 0.28], 0.1, 0.3, [3.3, 2.25], { target: [-0.78, 1.18, 0.28] }),
+  shot(CH.confirm, 0.56, [0.05, 1.12, 0.3], 0, 0.36, [4.7, 2.6]),
+  shot(CH.confirm, 0.64, [0.45, 1.3, 0.22], -0.12, 0.26, [4.4, 2.8], { target: [0.62, 1.3, 0.22] }),
+  shot(CH.confirm, 0.74, [0, 1.46, 0.2], 0, 0.24, [5.0, 3.15]),
+  shot(CH.confirm, 0.9, [0, 1.3, 0.85], 0, 0.18, [3.7, 2.8]),
+  shot(CH.confirm, 1.0, [0, 1.36, 0.8], 0.04, 0.2, [4.1, 3.0]),
+  // 4 — Sourced From The U.S.: the order on the tablet, crane up to the globe, suppliers, the hub.
+  shot(CH.source, 0.02, [0, 1.36, 0.8], 0.04, 0.2, [4.1, 3.0]),
+  shot(CH.source, 0.1, [-0.2, 1.25, 1.0], 0.1, 0.2, [3.3, 2.35], { target: [-0.3, 1.25, 1.0] }),
+  shot(CH.source, 0.17, [0, 1.3, 0.8], 0.04, 0.24, [4.2, 2.9]),
+  shot(CH.source, 0.25, [0, 0.9, 0.4], 0, 0.7, [7.5, 5.2], WHOLE),
+  shot(CH.source, 0.36, GLOBE, 0, 1.5, [23, 23], WHOLE),
+  shot(CH.source, 0.48, TOP, 0, 1.42, [14, 10], WHOLE),
+  shot(CH.source, 0.62, TOP, 0, 1.36, [13, 9.5], WHOLE),
+  shot(CH.source, 0.84, TOP, 0, 1.28, [8.5, 6.2], WHOLE),
+  shot(CH.source, 1.0, TOP, 0, 1.28, [8.5, 6.2], WHOLE),
+  // 5 — Shipped to Qatar: the plane collects the parcel, then a chase across the arc; pull up over Qatar.
+  shot(CH.ship, 0.04, TOP, 0, 1.28, [8.5, 6.2], WHOLE),
+  shot(CH.ship, 0.12, [0, 0.35, 0], 0, 1.0, [7.0, 5.0], WHOLE),
+  chase(0.22, 0.62, [6.4, 4.2]),
+  chase(0.36, 0.5, [6.0, 4.0]),
+  chase(0.5, 0.48, [6.0, 4.0]),
+  chase(0.64, 0.5, [6.0, 4.0]),
+  chase(0.76, 0.62, [6.6, 4.4]),
+  shot(CH.ship, 0.88, TOP, 0, 1.3, [13, 9.5], WHOLE),
+  shot(CH.ship, 1.0, TOP, 0, 1.42, [15, 11], WHOLE),
+  // 6 — Built & Set Up: dive back into Qatar, assemble, power on, set up Windows at the monitor.
+  shot(CH.build, 0.14, [0.1, 1.15, 0], -0.05, 0.34, [5.4, 3.0]),
+  shot(CH.build, 0.3, [0.05, 1.36, 0.05], -0.12, 0.25, [3.5, 2.25], { target: [0.3, 1.3, 0.05] }),
+  shot(CH.build, 0.5, [0.02, 1.36, 0.05], -0.08, 0.24, [3.7, 2.35], { target: [0.2, 1.3, 0.05] }),
+  shot(CH.build, 0.63, [-0.1, 1.3, 0.1], -0.02, 0.24, [4.2, 2.6]),
+  shot(CH.build, 0.73, [-0.95, 1.3, 0], 0.3, 0.22, [3.6, 2.4]),
+  shot(CH.build, 0.88, [-0.9, 1.3, 0], 0.26, 0.22, [3.7, 2.45]),
+  shot(CH.build, 1.0, [-0.55, 1.28, 0.25], 0.12, 0.24, [4.6, 2.85]),
+  // 7 — Delivered to Your Home: to the car, into the boot, in, the drive, out, the boot, the front door.
+  shot(CH.deliver, 0.03, [-0.55, 1.28, 0.25], 0.12, 0.24, [4.6, 2.85]),
+  shot(CH.deliver, 0.09, [-0.35, 1.15, 0.55], 0.05, 0.26, [4.4, 2.8]),
+  shot(CH.deliver, 0.14, [-3.2, 1.05, 0.75], 0.45, 0.27, [6.0, 3.4], { fit: 1 }),
+  shot(CH.deliver, 0.2, [-7.2, 0.95, -0.1], 0.62, 0.3, [4.6, 2.9], { fit: 1 }),
+  shot(CH.deliver, 0.27, [-8.9, 1.0, 0.65], 0.42, 0.24, [5.4, 3.1], { fit: 1 }),
+  shot(CH.deliver, 0.335, [-10.1, 0.95, 0.95], 0.5, 0.2, [4.4, 2.8], { fit: 1 }),
+  shot(CH.deliver, 0.39, [-10.7, 0.95, 0.4], 0.28, 0.24, [6.2, 3.4], { fit: 1 }),
+  track(0.43, -0.3, 0.22, [7.0, 3.8], { fit: 1 }),
+  track(0.47, -0.3, 0.22, [7.0, 3.8], { fit: 1 }),
+  track(0.51, -0.3, 0.22, [7.0, 3.8], { fit: 1 }),
+  track(0.55, -0.27, 0.22, [7.0, 3.8], { fit: 1 }),
+  track(0.58, -0.2, 0.22, [7.0, 3.8], { fit: 1 }),
+  shot(CH.deliver, 0.615, [HOME.x - 1.8, 1.05, 0.4], 0.35, 0.24, [6.2, 3.5], { fit: 1 }),
+  shot(CH.deliver, 0.67, [HOME.x - 2.1, 0.95, 0.95], 0.5, 0.2, [4.4, 2.8], { fit: 1 }),
+  shot(CH.deliver, 0.74, [HOME.x - 0.5, 1.0, 0.7], 0.35, 0.24, [5.4, 3.1], { fit: 1 }),
+  shot(CH.deliver, 0.79, [HOME.x + 0.8, 0.95, -0.15], 0.62, 0.3, [4.6, 2.9], { fit: 1 }),
+  shot(CH.deliver, 0.86, [HOME.x + 2.0, 1.3, -1.5], 0.2, 0.24, [5.4, 3.2], { fit: 0.95 }),
+  shot(CH.deliver, 0.91, [HOME.x + 2.25, 1.25, -2.28], -0.05, 0.16, [4.0, 2.7], { fit: 0.9 }),
+  shot(CH.deliver, 0.965, [HOME.x + 2.2, 1.38, -2.1], -0.1, 0.2, [5.0, 3.2], { fit: 0.95 }),
+  shot(CH.deliver, 1.0, [HOME.x + 2.2, 1.38, -2.1], -0.1, 0.2, [5.0, 3.2], { fit: 0.95 }),
 ];
 
 // ---------------------------------------------------------------- monotone cubic spline
@@ -183,6 +222,8 @@ export interface CameraSample {
   target: THREE.Vector3;
   position: THREE.Vector3;
   dist: number;
+  /** World-space width of the framed subject (for light/shadow sizing). */
+  frameW: number;
 }
 
 /** Screen point (CSS px) the camera target is projected to: the centre of the free area. */
@@ -207,6 +248,7 @@ export function sampleCamera(s: number, m: StageMetrics, out: CameraSample): Cam
   const dH = fh / 2 / (TAN_HALF * regionH);
   const dW = fw / 2 / (TAN_HALF * aspect * regionW);
   out.dist = Math.max(dH, dW);
+  out.frameW = fw;
   out.position.set(
     out.target.x + out.dist * Math.cos(pitch) * Math.sin(yaw),
     out.target.y + out.dist * Math.sin(pitch),

@@ -43,8 +43,9 @@ export function stageMetrics(width: number, height: number): StageMetrics {
     layout: "wide",
     width,
     height,
-    top: 56,
-    bottom: clamp(height * 0.25, 190, 250),
+    top: height < 560 ? 40 : 56,
+    // Short screens (landscape phones) give the caption less room so the scene keeps its share.
+    bottom: height < 560 ? clamp(height * 0.36, 120, 190) : clamp(height * 0.25, 190, 250),
     side: width * 0.1,
   };
 }

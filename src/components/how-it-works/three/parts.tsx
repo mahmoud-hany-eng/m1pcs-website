@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { COLORS, geo, glow, std } from "./assets";
+import { Batch } from "./batch";
 import type { PartId } from "./layout";
 
 /**
@@ -43,21 +44,23 @@ export function Fan({
     <group>
       <mesh geometry={geo.torus(radius, radius * 0.09)} material={ring ?? std(COLORS.graphite, { roughness: 0.5 })} />
       <mesh geometry={geo.circle(28)} material={std("#0b0b0d")} position={[0, 0, -0.004]} scale={radius} />
-      <group ref={blades}>
-        {Array.from({ length: 7 }, (_, i) => {
-          const a = (i / 7) * Math.PI * 2;
-          return (
-            <mesh
-              key={i}
-              geometry={geo.box()}
-              material={bladeMat}
-              position={[Math.cos(a) * radius * 0.5, Math.sin(a) * radius * 0.5, 0]}
-              rotation={[0.35, 0, a]}
-              scale={[radius * 0.62, radius * 0.3, 0.008]}
-            />
-          );
-        })}
-        <mesh geometry={geo.cylinder(1, 1, 20)} material={std(COLORS.graphite, { roughness: 0.4 })} rotation={[Math.PI / 2, 0, 0]} scale={[radius * 0.28, 0.02, radius * 0.28]} />
+      <group ref={blades} userData={{ dynamic: true }}>
+        <Batch>
+          {Array.from({ length: 7 }, (_, i) => {
+            const a = (i / 7) * Math.PI * 2;
+            return (
+              <mesh
+                key={i}
+                geometry={geo.box()}
+                material={bladeMat}
+                position={[Math.cos(a) * radius * 0.5, Math.sin(a) * radius * 0.5, 0]}
+                rotation={[0.35, 0, a]}
+                scale={[radius * 0.62, radius * 0.3, 0.008]}
+              />
+            );
+          })}
+          <mesh geometry={geo.cylinder(1, 1, 20)} material={std(COLORS.graphite, { roughness: 0.4 })} rotation={[Math.PI / 2, 0, 0]} scale={[radius * 0.28, 0.02, radius * 0.28]} />
+        </Batch>
       </group>
     </group>
   );
@@ -65,18 +68,18 @@ export function Fan({
 
 export function CpuModel() {
   return (
-    <group>
+    <Batch>
       <mesh geometry={geo.roundBox(0.3, 0.3, 0.03, 0.012)} material={std("#1b3325", { roughness: 0.55 })} />
       <mesh geometry={geo.roundBox(0.2, 0.2, 0.035, 0.014)} material={M.steel()} position={[0, 0, 0.03]} />
       <mesh geometry={geo.box()} material={std("#6d6d75", { roughness: 0.4, metalness: 0.6 })} position={[0, 0, 0.049]} scale={[0.1, 0.05, 0.002]} />
       <mesh geometry={geo.box()} material={M.goldMetal()} position={[-0.125, -0.125, 0.017]} scale={[0.03, 0.03, 0.004]} rotation={[0, 0, Math.PI / 4]} />
-    </group>
+    </Batch>
   );
 }
 
 export function GpuModel({ fanAngle, rgb }: { fanAngle?: React.RefObject<number>; rgb?: THREE.Material }) {
   return (
-    <group>
+    <Batch>
       <mesh geometry={geo.roundBox(0.62, 0.21, 0.12, 0.03)} material={M.shroud()} />
       <mesh geometry={geo.box()} material={M.steel()} position={[0, 0, -0.064]} scale={[0.6, 0.2, 0.008]} />
       <mesh geometry={geo.box()} material={rgb ?? glow(COLORS.red)} position={[0, 0.098, 0.05]} scale={[0.5, 0.012, 0.02]} />
@@ -87,7 +90,7 @@ export function GpuModel({ fanAngle, rgb }: { fanAngle?: React.RefObject<number>
       <group position={[0.15, -0.005, 0.062]}>
         <Fan radius={0.085} angle={fanAngle} />
       </group>
-    </group>
+    </Batch>
   );
 }
 
@@ -100,28 +103,28 @@ export function RamModel({ rgb }: { rgb?: THREE.Material }) {
     </group>
   );
   return (
-    <group>
+    <Batch>
       {stick(0.03, rgb ?? glow(COLORS.gold))}
       {stick(-0.03, rgb ?? glow(COLORS.red))}
-    </group>
+    </Batch>
   );
 }
 
 export function SsdModel() {
   return (
-    <group>
+    <Batch>
       <mesh geometry={geo.box()} material={M.black()} scale={[0.34, 0.085, 0.012]} />
       <mesh geometry={geo.box()} material={std("#2d2d33", { roughness: 0.4, metalness: 0.4 })} position={[-0.06, 0, 0.009]} scale={[0.08, 0.06, 0.008]} />
       <mesh geometry={geo.box()} material={std("#2d2d33", { roughness: 0.4, metalness: 0.4 })} position={[0.05, 0, 0.009]} scale={[0.08, 0.06, 0.008]} />
       <mesh geometry={geo.box()} material={glow(COLORS.gold)} position={[0.12, 0, 0.009]} scale={[0.04, 0.06, 0.004]} />
       <mesh geometry={geo.box()} material={M.goldMetal()} position={[-0.165, 0, 0]} scale={[0.012, 0.07, 0.014]} />
-    </group>
+    </Batch>
   );
 }
 
 export function BoardModel() {
   return (
-    <group>
+    <Batch>
       <mesh geometry={geo.roundBox(0.48, 0.48, 0.02, 0.008)} material={M.pcb()} />
       <mesh geometry={geo.box()} material={M.steel()} position={[0.0, 0.08, 0.016]} scale={[0.1, 0.1, 0.012]} />
       {[0.14, 0.165, 0.19, 0.215].map((x) => (
@@ -135,14 +138,14 @@ export function BoardModel() {
       <mesh geometry={geo.roundBox(0.1, 0.1, 0.03, 0.01)} material={M.shroud()} position={[0.12, -0.16, 0.02]} />
       <mesh geometry={geo.circle(20)} material={glow(COLORS.gold)} position={[0.12, -0.16, 0.036]} scale={0.022} />
       <mesh geometry={geo.box()} material={M.steel()} position={[-0.225, 0.12, 0.025]} scale={[0.03, 0.18, 0.05]} />
-    </group>
+    </Batch>
   );
 }
 
 export function CaseModel() {
   const glass = std("#8fa3b8", { roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.22 });
   return (
-    <group>
+    <Batch>
       <mesh geometry={geo.roundBox(0.3, 0.44, 0.34, 0.025)} material={M.black()} />
       <mesh geometry={geo.plane()} material={glass} position={[0, 0.0, 0.1715]} scale={[0.26, 0.38, 1]} />
       <mesh geometry={geo.box()} material={glow(COLORS.gold)} position={[0.152, 0, 0.12]} scale={[0.004, 0.36, 0.012]} />
@@ -153,7 +156,28 @@ export function CaseModel() {
         <Fan radius={0.06} ring={glow(COLORS.red)} />
       </group>
       <mesh geometry={geo.box()} material={M.shroud()} position={[0, -0.16, 0.02]} scale={[0.26, 0.08, 0.26]} />
-    </group>
+    </Batch>
+  );
+}
+
+/** Tower CPU cooler: aluminium fin stack, copper heat pipes, a fan on the front. */
+export function CoolerModel({ fanAngle }: { fanAngle?: React.RefObject<number> }) {
+  const fins = std("#c3c7ce", { roughness: 0.32, metalness: 0.85 });
+  const copper = std("#c7743f", { roughness: 0.3, metalness: 0.9 });
+  return (
+    <Batch>
+      <mesh geometry={geo.roundBox(0.26, 0.3, 0.12, 0.012)} material={fins} />
+      {Array.from({ length: 7 }, (_, i) => (
+        <mesh key={i} geometry={geo.box()} material={M.black()} position={[0, -0.12 + i * 0.04, 0.061]} scale={[0.25, 0.006, 0.002]} />
+      ))}
+      <mesh geometry={geo.roundBox(0.27, 0.03, 0.13, 0.01)} material={M.black()} position={[0, 0.16, 0]} />
+      {[-0.07, 0, 0.07].map((x) => (
+        <mesh key={x} geometry={geo.capsule(0.012, 0.08)} material={copper} position={[x, -0.19, 0]} />
+      ))}
+      <group position={[0, 0, 0.08]}>
+        <Fan radius={0.11} angle={fanAngle} ring={glow(COLORS.red)} />
+      </group>
+    </Batch>
   );
 }
 
@@ -164,4 +188,5 @@ export const PART_MODELS: Record<PartId, () => React.ReactElement> = {
   storage: SsdModel,
   board: BoardModel,
   case: CaseModel,
+  cooler: () => <CoolerModel />,
 };

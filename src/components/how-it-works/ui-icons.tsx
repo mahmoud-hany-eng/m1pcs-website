@@ -190,3 +190,47 @@ export function IconHome({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconFan({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="1.6" />
+      <path d="M12 10.4c-.6-2.6.4-4.6 2.6-5 1.7-.2 2.4 1.5 1.3 2.8-.9 1.1-2.4 1.7-3.9 2.2" />
+      <path d="M13.4 12.8c2.5.9 3.8 2.8 3 4.9-.7 1.5-2.6 1.3-3-.4-.3-1.4.1-2.9.6-4.4" />
+      <path d="M10.6 12.8c-2 1.8-4.2 2.1-5.6.4-1-1.3.1-2.8 1.8-2.5 1.4.3 2.6 1.2 3.8 2.1" />
+    </svg>
+  );
+}
+
+export function IconCar({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 15.5v-2.8c0-.6.3-1.1.8-1.4l2.2-1.2 1.8-2.6c.4-.6 1-.9 1.7-.9h4.4c.6 0 1.2.3 1.6.8l2.1 2.6 2.1.7c.7.2 1.3.9 1.3 1.7v3.1" />
+      <path d="M3.5 15.5h17" />
+      <circle cx="7.5" cy="16.5" r="1.8" />
+      <circle cx="16.5" cy="16.5" r="1.8" />
+      <path d="M8.5 10.5h8" />
+    </svg>
+  );
+}
+
+/** A mouse with a scrolling wheel, and a chevron underneath: unmistakably "scroll down". */
+export function IconMouse({ className }: IconProps) {
+  return (
+    <svg {...base} viewBox="0 0 24 28" className={className}>
+      <rect x="6.5" y="1.5" width="11" height="17" rx="5.5" />
+      <path className="hiw-wheel" d="M12 5.5v3" strokeWidth={2.2} />
+      <path d="M8.5 22.5l3.5 3 3.5-3" strokeWidth={2.2} />
+    </svg>
+  );
+}
+
+export function IconSwipe({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path className="hiw-swipe" d="M12 15V5m0 0l-3 3m3-3l3 3" />
+      <path d="M8 20h8" opacity={0.5} />
+    </svg>
+  );
+}

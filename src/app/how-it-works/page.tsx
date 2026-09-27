@@ -8,7 +8,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata: Metadata = {
   title: "How It Works",
   description:
-    "How M1's custom PC process works: pick your parts, review your quotation, confirm your order, U.S. sourcing, build and setup by M1, and delivery.",
+    "How M1's custom PC process works: pick your parts, review your quotation, confirm your order with a deposit, U.S. sourcing, shipping to Qatar, build and setup by M1, and delivery to your home.",
   alternates: { canonical: "/how-it-works" },
 };
 

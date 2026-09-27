@@ -11,6 +11,7 @@ import { StoryOverlay } from "./StoryOverlay";
 import { stageMetrics, uiScale, type StageMetrics } from "./stage-layout";
 import { CHAPTERS, CHAPTER_COUNT, TRACK_VH, storyToProgress } from "./story";
 import { Timeline } from "./timeline";
+import { IconMouse, IconSwipe } from "./ui-icons";
 
 const StoryCanvas = dynamic(() => import("./three/StoryCanvas"), { ssr: false });
 
@@ -71,8 +72,10 @@ const smooth = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** Caption crossfade half-width, in chapters (≈ 5 % of a chapter's scroll). */
-const CAPTION_FADE = 0.045;
+/** Caption crossfade half-width, in chapters (≈ 4 % of a chapter's scroll). */
+const CAPTION_FADE = 0.04;
+/** The scroll hint fades out over the first ~2 % of the story. */
+const HINT_FADE = 0.02;
 
 /** How visible chapter i's caption is at story position s (0..1), plus which way it moves. */
 function captionState(s: number, i: number) {
@@ -81,10 +84,19 @@ function captionState(s: number, i: number) {
   return { v: fadeIn * fadeOut, dir: s < i + 0.5 ? 1 : -1 };
 }
 
+/** The hint's one looping cue (the only time-based motion on the page, and only before the story starts). */
+const HINT_CSS = `
+@keyframes hiw-wheel { 0% { transform: translateY(0); opacity: 1 } 70% { transform: translateY(4px); opacity: 0 } 100% { transform: translateY(0); opacity: 0 } }
+@keyframes hiw-swipe { 0% { transform: translateY(3px); opacity: 0 } 30% { opacity: 1 } 100% { transform: translateY(-3px); opacity: 0 } }
+.hiw-wheel { animation: hiw-wheel 1.6s ease-in-out infinite; }
+.hiw-swipe { animation: hiw-swipe 1.5s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .hiw-wheel, .hiw-swipe { animation: none; } }
+`;
+
 function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) {
   const container = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const bar = useRef<HTMLDivElement>(null);
+  const segments = useRef<(HTMLDivElement | null)[]>([]);
   const captions = useRef<(HTMLDivElement | null)[]>([]);
   const hint = useRef<HTMLDivElement>(null);
   const cta = useRef<HTMLDivElement>(null);
@@ -95,6 +107,7 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
   const [metrics, setMetrics] = useState<StageMetrics>(() => stageMetrics(1440, 820));
   const [quality, setQuality] = useState<Quality | null>(null);
   const [ready, setReady] = useState(false);
+  const [touch, setTouch] = useState(false);
   const inView = useInView(container, { margin: "10% 0px 10% 0px" });
 
   // ---- layout: stage metrics + the pixel range of the pinned track (never measured per frame)
@@ -125,6 +138,11 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
     setQuality((q) => q ?? detectQuality(metrics));
   }, [metrics]);
 
+  // The hint speaks the visitor's language: "scroll" with a mouse, "swipe" on touch screens.
+  useEffect(() => {
+    setTouch(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
+
   // ---- the single scroll listener: every scroll asks the timeline for one frame
   useEffect(() => {
     const onScroll = () => timeline.request();
@@ -136,21 +154,21 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
 
   // ---- DOM layer: progress bar, captions, hint and CTA, written straight from the timeline
   useEffect(() => {
-    const last = { bar: -1, hint: -1, cta: -1, caps: captions.current.map(() => -1) };
+    const last = { segs: segments.current.map(() => -1), hint: -1, cta: -1, caps: captions.current.map(() => -1) };
     const setVisible = (el: HTMLElement, v: number) => {
       el.style.opacity = v.toFixed(3);
       el.style.visibility = v < 0.002 ? "hidden" : "visible";
     };
     return timeline.subscribe((t) => {
-      const p = Math.round(t.progress * 10000) / 10000;
-      if (p !== last.bar && bar.current) {
-        last.bar = p;
-        // Translate (never scale) so the compositor keeps one raster of the
-        // gradient: the fill slides in, the gradient inside it stays put.
-        const x = (p - 1) * 100;
-        bar.current.style.transform = `translate3d(${x.toFixed(2)}%, 0, 0)`;
-        (bar.current.firstElementChild as HTMLElement).style.transform = `translate3d(${(-x).toFixed(2)}%, 0, 0)`;
-      }
+      // One segment per chapter, each filling with that chapter's progress.
+      // The fill slides in (translate, never scale), so its edge stays crisp.
+      segments.current.forEach((el, i) => {
+        if (!el) return;
+        const f = Math.round(Math.min(1, Math.max(0, t.s - i)) * 2000) / 2000;
+        if (f === last.segs[i]) return;
+        last.segs[i] = f;
+        el.style.transform = `translate3d(${((f - 1) * 100).toFixed(2)}%, 0, 0)`;
+      });
       captions.current.forEach((el, i) => {
         if (!el) return;
         const { v, dir } = captionState(t.s, i);
@@ -160,12 +178,13 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
         setVisible(el, q);
         el.style.transform = `translate3d(0, ${((1 - q) * 12 * dir).toFixed(2)}px, 0)`;
       });
-      const h = Math.round((1 - smooth(t.progress / 0.012)) * 1000) / 1000;
+      const h = Math.round((1 - smooth(t.progress / HINT_FADE)) * 1000) / 1000;
       if (h !== last.hint && hint.current) {
         last.hint = h;
         setVisible(hint.current, h);
       }
-      const c = Math.round(smooth((t.s - (CHAPTER_COUNT - 0.16)) / 0.08) * 1000) / 1000;
+      // The call to action arrives with the final hold, after the hand-over.
+      const c = Math.round(smooth((t.s - (CHAPTER_COUNT - 0.05)) / 0.03) * 1000) / 1000;
       if (c !== last.cta && cta.current) {
         last.cta = c;
         setVisible(cta.current, c);
@@ -248,12 +267,20 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
           {/* crisp DOM labels pinned to the 3D scene */}
           <StoryOverlay store={anchors} ui={uiScale(metrics)} />
 
-          {/* progress — the same timeline value as the scene */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }}>
-            <div className="mt-5 h-[3px] w-[140px] overflow-hidden rounded-full bg-white/[0.12] sm:mt-6 sm:w-[220px]">
-              <div ref={bar} className="h-full w-full overflow-hidden rounded-full" style={{ transform: "translate3d(-100%, 0, 0)" }}>
-                <div className="h-full w-full bg-gradient-to-r from-accent to-primary" style={{ transform: "translate3d(100%, 0, 0)" }} />
-              </div>
+          {/* progress — one slim segment per step, centred, driven by the same timeline value as the scene */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }} aria-hidden="true">
+            <div className="mt-5 flex items-center gap-1.5 sm:mt-6 sm:gap-2">
+              {CHAPTERS.map((c, i) => (
+                <div key={c.id} className="h-[3px] w-[26px] overflow-hidden rounded-full bg-white/[0.14] sm:w-[38px]">
+                  <div
+                    ref={(el) => {
+                      segments.current[i] = el;
+                    }}
+                    className="h-full w-full bg-accent"
+                    style={{ transform: "translate3d(-100%, 0, 0)" }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -284,15 +311,17 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
             </div>
 
             <div className={`relative flex w-full items-center justify-center ${wide ? "h-[76px] pb-5" : "h-[84px] pb-[max(1rem,env(safe-area-inset-bottom))]"}`}>
-              {/* first-screen affordance; fades away as soon as the visitor starts scrolling */}
+              {/* first-screen affordance: says this is an interactive, scroll-driven story; fades as soon as scrolling starts */}
               <div ref={hint} className="pointer-events-none absolute inset-x-0 flex justify-center" aria-hidden="true">
-                <span className="flex items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] py-2 pl-2 pr-4 text-[13px] font-semibold text-white shadow-[0_10px_40px_-15px_rgba(0,0,0,0.9)]">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-black">
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 animate-bounce" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                <style>{HINT_CSS}</style>
+                <span className="flex items-center gap-3 rounded-full border border-accent/35 bg-[#131315]/95 py-2 pl-2 pr-5 shadow-[0_14px_44px_-14px_rgba(0,0,0,0.95),0_0_0_4px_rgba(249,194,4,0.06)]">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-black">
+                    {touch ? <IconSwipe className="h-6 w-6" /> : <IconMouse className="h-7 w-6" />}
                   </span>
-                  Scroll to explore
+                  <span className="flex flex-col text-left leading-tight">
+                    <span className="font-display text-[14.5px] font-bold text-white">{touch ? "Swipe up to explore" : "Scroll to explore"}</span>
+                    <span className="mt-0.5 text-[12px] text-white/60">The story moves with you</span>
+                  </span>
                 </span>
               </div>
               <div ref={cta} className="absolute inset-x-0 flex items-center justify-center gap-3" style={{ opacity: 0, visibility: "hidden" }}>

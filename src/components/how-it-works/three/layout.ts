@@ -34,18 +34,17 @@ export const SPOTS = {
   customerFinal: { x: 0.5, z: 1.2, yaw: -0.32 },
 } satisfies Record<string, Spot>;
 
-export const PART_IDS = ["cpu", "gpu", "ram", "storage", "board", "case"] as const;
+export const PART_IDS = ["cpu", "gpu", "ram", "storage", "board", "case", "cooler"] as const;
 export type PartId = (typeof PART_IDS)[number];
 
-/** Where each mini part hovers over the consultation table (chapter 1). */
-export const PART_SLOTS: Record<PartId, THREE.Vector3> = {
-  cpu: new THREE.Vector3(-1.05, TABLE_TOP_Y + 0.26, 0.04),
-  gpu: new THREE.Vector3(-0.63, TABLE_TOP_Y + 0.28, 0.2),
-  ram: new THREE.Vector3(-0.21, TABLE_TOP_Y + 0.28, 0.28),
-  storage: new THREE.Vector3(0.21, TABLE_TOP_Y + 0.26, 0.28),
-  board: new THREE.Vector3(0.63, TABLE_TOP_Y + 0.28, 0.2),
-  case: new THREE.Vector3(1.05, TABLE_TOP_Y + 0.3, 0.04),
-};
+/** Where each mini part hovers over the consultation table (chapter 1): a shallow arc along the front. */
+export const PART_SLOTS = Object.fromEntries(
+  PART_IDS.map((id, i) => {
+    const x = -1.14 + i * 0.38;
+    const z = 0.06 + 0.24 * Math.cos((x / 1.14) * (Math.PI / 2));
+    return [id, new THREE.Vector3(x, TABLE_TOP_Y + (i % 2 ? 0.3 : 0.27), z)];
+  }),
+) as Record<PartId, THREE.Vector3>;
 
 /** Holographic projector puck in the middle of the table. */
 export const PROJECTOR = new THREE.Vector3(0, TABLE_TOP_Y, -0.12);

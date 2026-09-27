@@ -6,6 +6,11 @@ import * as THREE from "three";
  * the 3D world. Scenes write positions/opacity/state into anchors each
  * frame; `project` then moves the elements with compositor-only style
  * writes — no React re-renders and no text baked into textures.
+ *
+ * Text is never scaled by a transform (a scaled layer is a resampled
+ * bitmap, i.e. soft text): elements only translate, snap to whole pixels
+ * once the scroll settles, and — when a card could not fit a small screen —
+ * shrink through CSS `zoom`, which lays the text out again at its new size.
  */
 
 export type AnchorAlign = "above" | "center" | "below";
@@ -15,8 +20,6 @@ const ALIGN: Record<AnchorAlign, string> = {
   center: "translate(-50%, -50%)",
   below: "translate(-50%, 0)",
 };
-/** Scale around the pinned point, so entrance animations never drift. */
-const ORIGIN: Record<AnchorAlign, string> = { above: "50% 100%", center: "50% 50%", below: "50% 0%" };
 
 /**
  * The part of the overlay anchored UI may use, in CSS px from its edges:
@@ -36,8 +39,7 @@ export class Anchor {
   /** World-space position the element is pinned to. */
   readonly pos = new THREE.Vector3();
   opacity = 0;
-  scale = 1;
-  /** Extra screen-space offset in CSS px (e.g. lay out a cluster around one point). */
+  /** Extra screen-space offset in CSS px (e.g. lay out a cluster around one point, or an entrance lift). */
   offsetX = 0;
   offsetY = 0;
   /**
@@ -49,15 +51,16 @@ export class Anchor {
   slotY = 0.5;
   slotMix = 0;
   align: AnchorAlign = "above";
-  /** Border-box size of the element, kept current by the store's ResizeObserver. */
+  /** Size of the element at fit 1 (from the store's ResizeObserver). */
   w = 0;
   h = 0;
+  /** Zoom applied so the element fits the safe area (1 almost always). */
+  fit = 1;
 
   private x = NaN;
   private y = NaN;
   private lastTransform = "";
   private lastOpacity = -1;
-  private lastAlign: AnchorAlign | null = null;
   private attrs = new Map<string, string | null>();
   private vars = new Map<string, number>();
   private texts = new Map<string, string>();
@@ -99,13 +102,15 @@ export class Anchor {
     this.el.style.visibility = "hidden";
   }
 
-  place(rawX: number, rawY: number, scale: number, settled: boolean) {
+  setFit(fit: number) {
+    if (fit === this.fit) return;
+    this.fit = fit;
+    this.el?.style.setProperty("--fit", String(fit));
+  }
+
+  place(rawX: number, rawY: number, settled: boolean) {
     const el = this.el;
     if (!el) return;
-    if (this.align !== this.lastAlign) {
-      this.lastAlign = this.align;
-      el.style.transformOrigin = ORIGIN[this.align];
-    }
     // Snap to whole pixels when (nearly) still so text lands on exact pixels
     // and stays razor-sharp; keep sub-pixel precision while moving so motion
     // stays smooth.
@@ -114,8 +119,7 @@ export class Anchor {
     this.y = rawY;
     const x = moving ? rawX.toFixed(2) : Math.round(rawX);
     const y = moving ? rawY.toFixed(2) : Math.round(rawY);
-    const s = Math.abs(scale - 1) < 0.001 ? "" : ` scale(${scale.toFixed(3)})`;
-    const transform = `translate3d(${x}px, ${y}px, 0) ${ALIGN[this.align]}${s}`;
+    const transform = `translate3d(${x}px, ${y}px, 0) ${ALIGN[this.align]}`;
     if (transform !== this.lastTransform) {
       this.lastTransform = transform;
       el.style.transform = transform;
@@ -133,12 +137,12 @@ export class Anchor {
     this.el = el;
     this.lastTransform = "";
     this.lastOpacity = -1;
-    this.lastAlign = null;
     this.x = NaN;
     this.y = NaN;
     if (!el) return;
-    this.w = el.offsetWidth;
-    this.h = el.offsetHeight;
+    el.style.setProperty("--fit", String(this.fit));
+    this.w = el.offsetWidth / this.fit;
+    this.h = el.offsetHeight / this.fit;
     this.attrs.forEach((value, name) => {
       if (value === null) el.removeAttribute(`data-${name}`);
       else el.setAttribute(`data-${name}`, value);
@@ -187,8 +191,9 @@ export class AnchorStore {
         const anchor = this.byElement.get(entry.target);
         const box = entry.borderBoxSize?.[0];
         if (!anchor) continue;
-        anchor.w = box ? box.inlineSize : (entry.target as HTMLElement).offsetWidth;
-        anchor.h = box ? box.blockSize : (entry.target as HTMLElement).offsetHeight;
+        // Measured at the zoom currently applied; keep the size at fit 1.
+        anchor.w = (box ? box.inlineSize : (entry.target as HTMLElement).offsetWidth) / anchor.fit;
+        anchor.h = (box ? box.blockSize : (entry.target as HTMLElement).offsetHeight) / anchor.fit;
       }
     });
     this.byElement.set(el, a);
@@ -198,9 +203,9 @@ export class AnchorStore {
   /**
    * Projects every anchor through the camera into the overlay (which covers
    * the canvas exactly) and writes the resulting transforms. Elements are
-   * kept inside the safe area — shrunk if they could never fit, then nudged
-   * in from the edges — so no card or label is ever cut off or covers the
-   * caption, on any screen.
+   * kept inside the safe area — zoomed down (in 5 % steps) if they could
+   * never fit, then nudged in from the edges — so no card or label is ever
+   * cut off or covers the caption, on any screen.
    */
   project(camera: THREE.Camera, width: number, height: number, safe: SafeArea, settled = true) {
     const left = safe.edge;
@@ -220,16 +225,16 @@ export class AnchorStore {
       }
       x += a.offsetX;
       y += a.offsetY;
-      let scale = a.scale;
       if (a.w > 0 && a.h > 0 && right > left && bottom > top) {
-        scale *= Math.min(1, (right - left) / a.w, (bottom - top) / a.h);
-        const w = a.w * scale;
-        const h = a.h * scale;
+        const fit = Math.max(0.5, Math.floor(Math.min(1, (right - left) / a.w, (bottom - top) / a.h) * 20) / 20);
+        a.setFit(fit);
+        const w = a.w * fit;
+        const h = a.h * fit;
         const above = a.align === "above" ? h : a.align === "center" ? h / 2 : 0;
         x = clamp(x, left + w / 2, right - w / 2);
         y = clamp(y, top + above, bottom - (h - above));
       }
-      a.place(x, y, scale, settled);
+      a.place(x, y, settled);
     });
   }
 }

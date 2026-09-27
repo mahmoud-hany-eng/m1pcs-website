@@ -24,10 +24,11 @@ interface ProbeDeps {
   customer: RefObject<CharacterApi | null>;
   anchors: AnchorStore;
   invalidate: () => void;
+  gl: THREE.WebGLRenderer;
 }
 
 
-export function installProbes({ scene, camera, evaluate, timeline, rep, customer, anchors, invalidate }: ProbeDeps) {
+export function installProbes({ scene, camera, evaluate, timeline, rep, customer, anchors, invalidate, gl }: ProbeDeps) {
   // Stable list of every object (the graph does not change while scrubbing).
   const objects: THREE.Object3D[] = [];
   const paths: string[] = [];
@@ -49,8 +50,14 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
   const wq = new THREE.Quaternion();
   const ws = new THREE.Vector3();
   const shown = (o: THREE.Object3D) => {
-    for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+    for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible && !p.userData.occluded) return false;
     return true;
+  };
+  // Objects culled while the globe hides them (the studio on the far side) are recorded as NaN:
+  // nothing can see them, so neither their changes nor the culling itself is a visible jump.
+  const occluded = (o: THREE.Object3D) => {
+    for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.userData.occluded) return true;
+    return false;
   };
   const collect = () => {
     if (!objects.length) index();
@@ -59,6 +66,10 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
     const out = new Float64Array(objects.length * PER_OBJECT + 2 * (poseKeys + 3) + 12 + anchors.size() * 4);
     let k = 0;
     for (const o of objects) {
+      if (occluded(o)) {
+        for (let j = 0; j < PER_OBJECT; j++) out[k++] = NaN;
+        continue;
+      }
       // Hidden objects have no visual state: record them as zeros.
       if (!shown(o)) {
         for (let j = 0; j < PER_OBJECT; j++) out[k++] = 0;
@@ -81,6 +92,10 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
       out[k++] = drawable && shown(o) ? Math.max(Math.abs(ws.x), Math.abs(ws.y), Math.abs(ws.z)) * fadeK : 0;
     }
     for (const c of [rep.current, customer.current]) {
+      if (c && occluded(c.root)) {
+        for (let j = 0; j < poseKeys + 3; j++) out[k++] = NaN;
+        continue;
+      }
       const on = !!c && c.root.visible;
       for (const key of POSE_KEYS) out[k++] = on ? c.target[key] : 0;
       out[k++] = on ? c.root.position.x : 0;
@@ -154,7 +169,7 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
   w.__hiwState = () => {
     const snap = collect();
     let hash = 0;
-    for (let i = 0; i < snap.length; i++) hash = (hash + snap[i] * ((i % 97) + 1)) % 1e9;
+    for (let i = 0; i < snap.length; i++) if (!Number.isNaN(snap[i])) hash = (hash + snap[i] * ((i % 97) + 1)) % 1e9;
     return { s: timeline.s, progress: timeline.progress, target: timeline.target, settled: timeline.settled, hash, values: Array.from(snap) };
   };
   w.__hiwEval = (s: number) => {
@@ -163,6 +178,52 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
     return Array.from(snap);
   };
   w.__hiwLabel = (i: number) => label(i);
+  // Render cost of the last frame: draw calls, triangles, live GPU resources.
+  w.__hiwRenderInfo = () => ({ ...gl.info.render, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures, programs: gl.info.programs?.length ?? 0 });
+  // Where the draw calls come from: visible drawables inside the view frustum, grouped by named ancestors.
+  w.__hiwDrawBreakdown = (depth = 3) => {
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const groups: Record<string, { calls: number; casters: number }> = {};
+    scene.traverseVisible((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh && !(o as THREE.Sprite).isSprite && !(o as THREE.Points).isPoints && !(o as THREE.Line).isLine) return;
+      if (!o.layers.test(camera.layers)) return;
+      if (m.frustumCulled && m.geometry) {
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        const bs = m.geometry.boundingSphere!.clone().applyMatrix4(m.matrixWorld);
+        if (!frustum.intersectsSphere(bs)) return;
+      }
+      const names: string[] = [];
+      for (let p = o.parent; p && p !== scene; p = p.parent) if (p.name) names.unshift(p.name);
+      const key = names.slice(0, depth).join("/") || "(root)";
+      const g = (groups[key] ??= { calls: 0, casters: 0 });
+      g.calls += Array.isArray(m.material) ? m.material.length : 1;
+      if (m.castShadow) g.casters++;
+    });
+    return Object.entries(groups).sort((a, b) => b[1].calls - a[1].calls);
+  };
+  w.__hiwVisible = (name: string) => {
+    const o = scene.getObjectByName(name);
+    return o ? o.visible : null;
+  };
+  // Bounding box of everything drawn under a named object, in that object's own frame.
+  w.__hiwBounds = (name: string) => {
+    const target = scene.getObjectByName(name);
+    if (!target) return null;
+    scene.updateMatrixWorld(true);
+    const inv = target.matrixWorld.clone().invert();
+    const box = new THREE.Box3();
+    const b = new THREE.Box3();
+    target.traverseVisible((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.geometry) return;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      box.union(b.copy(m.geometry.boundingBox!).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)));
+    });
+    return { min: box.min.toArray(), max: box.max.toArray() };
+  };
   w.__hiwSweep = (a: number, b: number, h: number, tol = 0.004) => {
     index();
     const found: { s: number; what: string; jump: number }[] = [];
@@ -223,6 +284,6 @@ export function installProbes({ scene, camera, evaluate, timeline, rep, customer
   };
 
   return () => {
-    for (const k of ["__hiwState", "__hiwEval", "__hiwLabel", "__hiwSweep"]) delete w[k];
+    for (const k of ["__hiwState", "__hiwEval", "__hiwLabel", "__hiwSweep", "__hiwRenderInfo", "__hiwDrawBreakdown", "__hiwBounds", "__hiwVisible"]) delete w[k];
   };
 }

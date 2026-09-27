@@ -3,19 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { AnchorStore, SafeArea } from "../anchors";
 import { stageMetrics } from "../stage-layout";
-import { CHAPTER_COUNT, chapterAt, chapterLocal, clockAt } from "../story";
+import { CH, CHAPTER_COUNT, chapterAt, chapterLocal, clockAt } from "../story";
 import type { Timeline } from "../timeline";
 import { COLORS } from "./assets";
 import { FOV, focusPoint, sampleCamera, type CameraSample } from "./camera";
 import { Character, type CharacterApi } from "./Character";
 import { WorldContext, type FrameState, type Quality, type SceneEntry, type StoryWorld } from "./director";
 import { GlobeWorld } from "./GlobeWorld";
+import { PORCH_LIGHT } from "./home";
 import { Stage } from "./Stage";
 import { ChapterParts } from "./scenes/ChapterParts";
 import { ChapterQuote } from "./scenes/ChapterQuote";
 import { ChapterConfirm } from "./scenes/ChapterConfirm";
+import { ChapterSource } from "./scenes/ChapterSource";
 import { ChapterBuild } from "./scenes/ChapterBuild";
 import { ChapterDeliver } from "./scenes/ChapterDeliver";
 
@@ -44,6 +47,14 @@ export default function StoryCanvas(props: StoryCanvasProps) {
       onCreated={({ gl, scene }) => {
         gl.setClearColor(COLORS.ink);
         scene.fog = new THREE.Fog(COLORS.ink, 8, 24);
+        // Soft studio reflections for every lit material: generated once from a
+        // procedural room (no HDR download), then shared by the whole world.
+        const pmrem = new THREE.PMREMGenerator(gl);
+        const room = new RoomEnvironment();
+        scene.environment = pmrem.fromScene(room, 0.04).texture;
+        scene.environmentIntensity = 0.55;
+        room.dispose();
+        pmrem.dispose();
         onReady?.();
       }}
     >
@@ -64,7 +75,9 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
   const rep = useRef<CharacterApi>(null);
   const customer = useRef<CharacterApi>(null);
   const keyLight = useRef<THREE.DirectionalLight>(null!);
+  const rimLight = useRef<THREE.DirectionalLight>(null!);
   const logoIntensity = useRef(1);
+  const shadowHalf = useRef(4.5);
 
   const world = useMemo<StoryWorld>(
     () => ({
@@ -89,7 +102,7 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
     () => ({ top: metrics.top, bottom: metrics.bottom + 4, edge: metrics.layout === "tall" ? 10 : 16 }),
     [metrics],
   );
-  const sample = useMemo<CameraSample>(() => ({ target: new THREE.Vector3(), position: new THREE.Vector3(), dist: 7 }), []);
+  const sample = useMemo<CameraSample>(() => ({ target: new THREE.Vector3(), position: new THREE.Vector3(), dist: 7, frameW: 5 }), []);
   const local = useMemo(() => Array.from({ length: CHAPTER_COUNT }, () => 0), []);
   const frame = useMemo<FrameState>(
     () => ({ s: 0, clock: 0, active: 0, local, layout: "wide", width: 0, height: 0, cameraPos: new THREE.Vector3(), quality }),
@@ -128,12 +141,29 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
       fog.near = sample.dist * 0.95;
       fog.far = sample.dist * 3.1;
 
-      // Key light (and its shadow frustum) follows the action.
+      // Key light (and its shadow frustum) follows the action; the frustum
+      // grows with wide shots (the drive) so shadows never cut off.
       const light = keyLight.current;
       light.position.set(sample.target.x + 3.5, sample.target.y + 6.5, sample.target.z + 5);
       light.target.position.copy(sample.target);
       light.target.updateMatrixWorld();
-      logoIntensity.current = 1 + chapterLocal(s, 4) * 0.2;
+      const half = Math.round(Math.min(12, Math.max(4.5, sample.frameW * 0.62)) * 2) / 2;
+      if (half !== shadowHalf.current) {
+        shadowHalf.current = half;
+        const cam = light.shadow.camera;
+        cam.left = -half;
+        cam.right = half;
+        cam.top = half;
+        cam.bottom = -half;
+        cam.far = 20 + half;
+        cam.updateProjectionMatrix();
+      }
+      // A cool rim from behind separates the figures from the dark set.
+      const rim = rimLight.current;
+      rim.position.set(sample.target.x - 2, sample.target.y + 4, sample.target.z - 7);
+      rim.target.position.copy(sample.target);
+      rim.target.updateMatrixWorld();
+      logoIntensity.current = 1 + chapterLocal(s, CH.build) * 0.2;
 
       for (const e of entries.current) e.update(frame);
       rep.current?.apply(frame.clock);
@@ -169,11 +199,11 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
     // Compile-time condition: the probe module is not even emitted in production builds.
     if (process.env.NODE_ENV !== "production") {
       import("./debug").then((m) => {
-        cleanup = m.installProbes({ scene, camera, evaluate, timeline, rep, customer, anchors, invalidate });
+        cleanup = m.installProbes({ scene, camera, evaluate, timeline, rep, customer, anchors, invalidate, gl });
       });
     }
     return () => cleanup();
-  }, [anchors, camera, evaluate, invalidate, scene, timeline]);
+  }, [anchors, camera, evaluate, gl, invalidate, scene, timeline]);
 
   const perf = useRef({ acc: 0, frames: 0, dpr: initialDpr, last: 0, cooldown: 0 });
 
@@ -207,11 +237,11 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
 
   return (
     <WorldContext.Provider value={world}>
-      <hemisphereLight args={["#fff1e3", "#1b100e", 1.15]} />
-      <ambientLight intensity={0.22} />
+      <hemisphereLight args={["#fff1e3", "#1b100e", 0.8]} />
+      <ambientLight intensity={0.12} />
       <directionalLight
         ref={keyLight}
-        intensity={2.3}
+        intensity={2.2}
         color="#fff4e8"
         castShadow={shadows}
         shadow-mapSize={[1024, 1024]}
@@ -220,15 +250,16 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
         shadow-camera-top={4.5}
         shadow-camera-bottom={-4.5}
         shadow-camera-near={0.5}
-        shadow-camera-far={20}
+        shadow-camera-far={24.5}
         shadow-bias={-0.0005}
         shadow-normalBias={0.03}
       />
-      <pointLight position={[-4, 3.2, -2.0]} color={COLORS.red} intensity={30} distance={14} decay={2} />
-      <pointLight position={[4, 2.8, -1.8]} color={COLORS.gold} intensity={20} distance={14} decay={2} />
-      <pointLight position={[0.5, 3.2, 4.5]} color="#ffffff" intensity={10} distance={14} decay={2} />
-      {/* porch light at the customer's home (chapter 6) */}
-      <pointLight position={[12.4, 2.3, 1.4]} color={COLORS.warm} intensity={14} distance={8} decay={2} />
+      <directionalLight ref={rimLight} intensity={1.1} color="#cfe0ff" />
+      <pointLight position={[-4, 3.2, -2.0]} color={COLORS.red} intensity={22} distance={14} decay={2} />
+      <pointLight position={[4, 2.8, -1.8]} color={COLORS.gold} intensity={14} distance={14} decay={2} />
+      <pointLight position={[0.5, 3.2, 4.5]} color="#ffffff" intensity={9} distance={14} decay={2} />
+      {/* porch light at the customer's home (the delivery) */}
+      <pointLight position={PORCH_LIGHT} color={COLORS.warm} intensity={16} distance={9} decay={2} />
 
       <GlobeWorld>
         <Stage receiveShadow={shadows} logoIntensity={logoIntensity} />
@@ -237,6 +268,7 @@ function World({ timeline, anchors, quality, active, initialDpr }: StoryCanvasPr
         <ChapterParts />
         <ChapterQuote />
         <ChapterConfirm />
+        <ChapterSource />
         <ChapterBuild />
         <ChapterDeliver />
       </GlobeWorld>

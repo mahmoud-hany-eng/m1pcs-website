@@ -137,6 +137,8 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
     const target = useMemo(() => makePose(), []);
     // Each character breathes on its own phase so they never look synced.
     const phase = isRep ? 0 : 1.7;
+    // The rep's brows sit just under the cap's brim; the customer's under the fringe.
+    const browY = isRep ? 0.058 : 0.088;
 
     const api = useMemo<CharacterApi>(
       () => ({
@@ -225,20 +227,20 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           // Face.
           const smile = Math.max(0, Math.min(1, v.smile));
           smileArc.current.scale.set(1 + smile * 0.25, 0.25 + smile * 0.85, 1);
-          smileArc.current.position.y = -0.085 + smile * 0.012;
+          smileArc.current.position.y = -0.077 + smile * 0.011;
           const open = Math.max(0, Math.min(1, v.mouthOpen));
           // The mouth grows from nothing as it opens (no pop).
           const shown = Math.min(1, open / 0.06);
           mouth.current.visible = shown > 0.001;
-          mouth.current.scale.set((0.05 + smile * 0.012) * shown, (0.012 + open * 0.045) * shown, 0.02 * shown);
-          brows.current.position.y = 0.105 + v.brow * 0.025;
+          mouth.current.scale.set((0.045 + smile * 0.011) * shown, (0.011 + open * 0.04) * shown, 0.018 * shown);
+          brows.current.position.y = browY + v.brow * (isRep ? 0.012 : 0.02);
           brows.current.children[0].rotation.z = Math.PI / 2 + 0.08 - v.brow * 0.18;
           brows.current.children[1].rotation.z = Math.PI / 2 - 0.08 + v.brow * 0.18;
 
           root.current.updateMatrixWorld(true);
         },
       }),
-      [target, phase],
+      [target, phase, browY, isRep],
     );
 
     useImperativeHandle(ref, () => api, [api]);
@@ -269,11 +271,12 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           <mesh geometry={geo.sphere("lo")} material={sleeve} scale={0.085} />
           <mesh geometry={geo.capsule(0.068, 0.16)} material={sleeve} position={[0, -UPPER_ARM / 2, 0]} />
           <group ref={side === "l" ? lElbow : rElbow} name={`${side}Elbow`} position={[0, -UPPER_ARM, 0]}>
+            <mesh geometry={geo.sphere("lo")} material={forearm} scale={0.061} />
             <mesh geometry={geo.capsule(0.06, 0.17)} material={forearm} position={[0, -FOREARM / 2 + 0.02, 0]} />
             {!isRep && (
               <mesh geometry={geo.torus(0.058, 0.018)} material={std(COLORS.gold, { roughness: 0.5 })} position={[0, -FOREARM + 0.07, 0]} rotation={[Math.PI / 2, 0, 0]} />
             )}
-            <mesh ref={side === "l" ? lHand : rHand} geometry={geo.sphere("lo")} material={skin} position={[0, -FOREARM, 0.005]} scale={[0.068, 0.075, 0.06]} />
+            <mesh ref={side === "l" ? lHand : rHand} geometry={geo.sphere("lo")} material={skin} position={[0, -FOREARM - 0.005, 0.005]} scale={[0.064, 0.08, 0.054]} />
             <mesh geometry={geo.capsule(0.022, 0.035)} material={skin} position={[0.045 * s, -FOREARM + 0.01, 0.045]} rotation={[0.5, 0, -0.5 * s]} />
           </group>
         </group>
@@ -286,6 +289,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
         <group ref={side === "l" ? lLeg : rLeg} name={`${side}Leg`} position={[0.11 * s, 0, 0]}>
           <mesh geometry={geo.capsule(0.088, 0.18)} material={pants} position={[0, -THIGH / 2, 0]} />
           <group ref={side === "l" ? lKnee : rKnee} name={`${side}Knee`} position={[0, -THIGH, 0]}>
+            <mesh geometry={geo.sphere("lo")} material={pants} scale={0.083} />
             <mesh geometry={geo.capsule(0.078, 0.2)} material={pants} position={[0, -SHIN / 2 + 0.01, 0]} />
             <mesh geometry={geo.roundBox(0.15, 0.1, 0.27, 0.045)} material={shoes} position={[0, -SHIN + 0.01, 0.055]} />
             <mesh geometry={geo.roundBox(0.16, 0.035, 0.285, 0.015)} material={std("#1a1a1d", { roughness: 0.8 })} position={[0, -SHIN - 0.04, 0.058]} />
@@ -328,40 +332,43 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
               {arm("r")}
               <mesh geometry={geo.capsule(0.07, 0.06)} material={skin} position={[0, 0.63, 0]} />
               <group ref={head} name="head" position={[0, HEAD_Y, 0]} rotation-order="YXZ">
-                <mesh geometry={geo.sphere()} material={skin} scale={[0.25, 0.24, 0.235]} />
+                <mesh geometry={geo.sphere()} material={skin} scale={[0.228, 0.22, 0.214]} />
                 {/* ears */}
-                <mesh geometry={geo.sphere("lo")} material={skin} position={[0.245, -0.01, 0]} scale={[0.04, 0.06, 0.035]} />
-                <mesh geometry={geo.sphere("lo")} material={skin} position={[-0.245, -0.01, 0]} scale={[0.04, 0.06, 0.035]} />
+                <mesh geometry={geo.sphere("lo")} material={skin} position={[0.222, -0.01, 0]} scale={[0.037, 0.055, 0.032]} />
+                <mesh geometry={geo.sphere("lo")} material={skin} position={[-0.222, -0.01, 0]} scale={[0.037, 0.055, 0.032]} />
                 {isRep ? (
                   <>
-                    {/* M1 cap */}
-                    <mesh geometry={geo.hemisphere()} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.045, -0.005]} scale={[0.262, 0.22, 0.252]} />
-                    <mesh geometry={geo.roundBox(0.3, 0.02, 0.17, 0.008)} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.075, 0.25]} rotation={[-0.06, 0, 0]} />
-                    <mesh geometry={geo.circle()} material={glow(COLORS.gold)} position={[0, 0.16, 0.2]} rotation={[-0.6, 0, 0]} scale={0.045} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.2, -0.03, -0.07]} scale={[0.07, 0.1, 0.12]} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[-0.2, -0.03, -0.07]} scale={[0.07, 0.1, 0.12]} />
+                    {/* M1 cap: crown, brim, button */}
+                    <mesh geometry={geo.hemisphere()} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.04, -0.005]} scale={[0.238, 0.2, 0.229]} />
+                    <mesh geometry={geo.roundBox(0.27, 0.018, 0.155, 0.008)} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.068, 0.228]} rotation={[-0.06, 0, 0]} />
+                    <mesh geometry={geo.sphere("lo")} material={std(COLORS.red, { roughness: 0.5 })} position={[0, 0.238, -0.005]} scale={[0.024, 0.014, 0.024]} />
+                    <mesh geometry={geo.circle()} material={std(COLORS.gold, { roughness: 0.35, metalness: 0.6 })} position={[0, 0.148, 0.178]} rotation={[-0.62, 0, 0]} scale={0.036} />
+                    {/* short hair below the cap: back of the head + sideburns */}
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0, -0.01, -0.085]} scale={[0.2, 0.14, 0.15]} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.2, -0.02, -0.075]} scale={[0.022, 0.05, 0.034]} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[-0.2, -0.02, -0.075]} scale={[0.022, 0.05, 0.034]} />
                   </>
                 ) : (
                   <>
-                    <mesh geometry={geo.hemisphere()} material={hair} position={[0, 0.02, -0.01]} scale={[0.262, 0.25, 0.255]} rotation={[-0.25, 0, 0]} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.07, 0.15, 0.17]} scale={[0.16, 0.07, 0.09]} rotation={[0.3, 0, -0.35]} />
+                    <mesh geometry={geo.hemisphere()} material={hair} position={[0, 0.018, -0.01]} scale={[0.238, 0.228, 0.232]} rotation={[-0.25, 0, 0]} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.063, 0.135, 0.153]} scale={[0.145, 0.063, 0.082]} rotation={[0.3, 0, -0.35]} />
                   </>
                 )}
                 {/* face */}
-                <group ref={eyes} name="eyes" position={[0, 0.03, 0.212]}>
-                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[0.085, 0, 0]} scale={[0.034, 0.046, 0.02]} />
-                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[-0.085, 0, 0]} scale={[0.034, 0.046, 0.02]} />
-                  <mesh geometry={geo.sphere("lo")} material={white} position={[0.096, 0.016, 0.017]} scale={0.011} />
-                  <mesh geometry={geo.sphere("lo")} material={white} position={[-0.074, 0.016, 0.017]} scale={0.011} />
+                <group ref={eyes} name="eyes" position={[0, 0.027, 0.19]}>
+                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[0.077, 0, 0]} scale={[0.031, 0.042, 0.018]} />
+                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[-0.077, 0, 0]} scale={[0.031, 0.042, 0.018]} />
+                  <mesh geometry={geo.sphere("lo")} material={white} position={[0.087, 0.015, 0.015]} scale={0.01} />
+                  <mesh geometry={geo.sphere("lo")} material={white} position={[-0.067, 0.015, 0.015]} scale={0.01} />
                 </group>
-                <group ref={brows} name="brows" position={[0, 0.105, 0.215]}>
-                  <mesh geometry={geo.capsule(0.011, 0.05)} material={hair} position={[0.085, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
-                  <mesh geometry={geo.capsule(0.011, 0.05)} material={hair} position={[-0.085, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
+                <group ref={brows} name="brows" position={[0, browY, 0.198]}>
+                  <mesh geometry={geo.capsule(0.01, 0.045)} material={hair} position={[0.077, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
+                  <mesh geometry={geo.capsule(0.01, 0.045)} material={hair} position={[-0.077, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
                 </group>
-                <mesh ref={smileArc} geometry={geo.torus(0.06, 0.013, Math.PI)} material={dark} position={[0, -0.085, 0.222]} rotation={[0, 0, Math.PI]} />
-                <mesh ref={mouth} geometry={geo.sphere("lo")} material={dark} position={[0, -0.1, 0.214]} />
-                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.22)} position={[0.14, -0.05, 0.19]} rotation={[0, 0.55, 0]} scale={0.035} />
-                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.22)} position={[-0.14, -0.05, 0.19]} rotation={[0, -0.55, 0]} scale={0.035} />
+                <mesh ref={smileArc} geometry={geo.torus(0.054, 0.012, Math.PI)} material={dark} position={[0, -0.077, 0.2]} rotation={[0, 0, Math.PI]} />
+                <mesh ref={mouth} geometry={geo.sphere("lo")} material={dark} position={[0, -0.09, 0.194]} />
+                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.2)} position={[0.126, -0.045, 0.172]} rotation={[0, 0.55, 0]} scale={0.032} />
+                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.2)} position={[-0.126, -0.045, 0.172]} rotation={[0, -0.55, 0]} scale={0.032} />
               </group>
             </group>
           </group>

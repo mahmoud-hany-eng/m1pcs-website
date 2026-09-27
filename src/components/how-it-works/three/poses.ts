@@ -135,6 +135,13 @@ export const THINK_R: Partial<Pose> = { rArmX: -0.55, rArmZ: 0.3, rElbow: -2.25,
 /** Holding a phone up in front of the chest, looking at it. */
 export const PHONE_L: Partial<Pose> = { lArmX: -0.62, lArmZ: -0.22, lElbow: -1.75, headPitch: 0.34, lean: 0.05, brow: -0.1 };
 
+/**
+ * Seated in the car: thighs forward, shins down, a touch reclined. With the
+ * rig's proportions the hips sit at 0.48 and the soles at ~0.1 above the
+ * character's root, i.e. on the car floor when the root is on the ground.
+ */
+export const SIT: Partial<Pose> = { lHip: -1.52, rHip: -1.52, lKnee: 1.5, rKnee: 1.5, bob: -0.18, lean: -0.08 };
+
 /** Right fist pumped up beside the head — "done!". */
 export const CHEER_R: Partial<Pose> = { rArmX: -0.4, rArmZ: -1.0, rElbow: -0.1, rElbowZ: -2.05, smile: 1, mouthOpen: 0.3, brow: 0.55 };
 
