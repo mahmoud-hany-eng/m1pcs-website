@@ -195,10 +195,11 @@ export function ChapterParts() {
       model.rotation.y = (1 - smooth(emerge)) * -2.4 + Math.sin(t * 0.8 + i) * 0.14 * (1 - flight) + flight * Math.PI * 1.5;
       g.visible = emerge > 0 && merged < 1;
 
-      // Crisp DOM label above the part. On small screens only the part being
-      // presented / chosen is labelled (cross-fading), so labels never collide.
+      // Crisp DOM label above the part, at alternating heights so neighbours never touch.
+      // On small screens only the part being presented / chosen is labelled; the rows sit
+      // further apart there so the two labels of a cross-fade never overlap.
       const label = A.get(`part-${id}`);
-      label.pos.set(slot.x, slot.y + (compact ? 0.26 : i % 2 === 0 ? 0.26 : 0.46), slot.z);
+      label.pos.set(slot.x, slot.y + (i % 2 === 0 ? (compact ? 0.18 : 0.26) : compact ? 0.42 : 0.46), slot.z);
       label.align = "above";
       const labelOn = smooth(seg(s1, at + 0.03, at + 0.06)) * (1 - smooth(seg(s2, 0.0, 0.06)));
       let focus = 1;

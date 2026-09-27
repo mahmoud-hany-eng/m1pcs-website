@@ -104,8 +104,12 @@ export class Timeline {
       this.last = -1;
     } else {
       this.progress += d * (1 - Math.exp(-dt / TAU));
-      this.settled = false;
-      this.last = now;
+      // Landed within ½ px: snap now rather than spending one more frame on it.
+      this.settled = Math.abs(this.target - this.progress) <= EPS;
+      if (this.settled) {
+        this.progress = this.target;
+        this.last = -1;
+      } else this.last = now;
     }
     this.derive();
     this.listeners.forEach((fn) => fn(this));
