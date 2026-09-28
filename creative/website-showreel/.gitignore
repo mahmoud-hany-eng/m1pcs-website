@@ -1,0 +1,13 @@
+node_modules/
+out/
+output/
+public/stills/
+public/stills-blur/
+public/elements/
+public/elements-blur/
+public/frames/
+capture/raw/
+capture/frames/
+audio/*.wav
+*.log
+capture/processed/
