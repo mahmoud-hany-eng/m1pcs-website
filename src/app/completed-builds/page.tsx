@@ -26,7 +26,7 @@ export default function CompletedBuildsPage() {
         </Container>
       </section>
 
-      <section className="relative">
+      <section className="relative overflow-x-clip">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 top-24 h-[700px] w-[min(1100px,140%)] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.1),transparent)]"

@@ -26,7 +26,7 @@ export default function ProductsPage() {
         </Container>
       </section>
 
-      <section className="relative">
+      <section className="relative overflow-x-clip">
         {/* Warm key light the grid of panes sits in. */}
         <div
           aria-hidden="true"
