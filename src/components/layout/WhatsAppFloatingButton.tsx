@@ -20,7 +20,7 @@ export function WhatsAppFloatingButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat with M1 on WhatsApp"
-      className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-black shadow-lg shadow-black/40 transition-transform hover:scale-105 active:scale-95 sm:bottom-6 sm:right-6"
+      className="btn-sheen btn-whatsapp fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-[inset_0_1px_0_rgb(255_255_255/0.45),0_0_0_5px_rgb(255_255_255/0.06),0_14px_34px_-12px_rgb(37_211_102/0.5),0_8px_20px_-8px_rgb(0_0_0/0.7)] sm:bottom-6 sm:right-6"
     >
       <svg
         viewBox="0 0 32 32"

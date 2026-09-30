@@ -269,7 +269,7 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
 
           {/* progress — one slim segment per step, centred, driven by the same timeline value as the scene */}
           <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }} aria-hidden="true">
-            <div className="mt-5 flex items-center gap-1.5 sm:mt-6 sm:gap-2">
+            <div className="glass-subtle mt-4 flex items-center gap-1.5 rounded-full px-3 py-2 sm:mt-5 sm:gap-2 sm:px-4 sm:py-2.5">
               {CHAPTERS.map((c, i) => (
                 <div key={c.id} className="h-[3px] w-[26px] overflow-hidden rounded-full bg-white/[0.14] sm:w-[38px]">
                   <div
@@ -314,8 +314,8 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
               {/* first-screen affordance: says this is an interactive, scroll-driven story; fades as soon as scrolling starts */}
               <div ref={hint} className="pointer-events-none absolute inset-x-0 flex justify-center" aria-hidden="true">
                 <style>{HINT_CSS}</style>
-                <span className="flex items-center gap-3 rounded-full border border-accent/35 bg-[#131315]/95 py-2 pl-2 pr-5 shadow-[0_14px_44px_-14px_rgba(0,0,0,0.95),0_0_0_4px_rgba(249,194,4,0.06)]">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-black">
+                <span className="glass-nav glass-tint-gold flex items-center gap-3 rounded-full py-2 pl-2 pr-5">
+                  <span className="btn-gold flex h-10 w-10 items-center justify-center rounded-full">
                     {touch ? <IconSwipe className="h-6 w-6" /> : <IconMouse className="h-7 w-6" />}
                   </span>
                   <span className="flex flex-col text-left leading-tight">

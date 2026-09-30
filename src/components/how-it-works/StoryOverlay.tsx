@@ -65,10 +65,16 @@ const QUOTE_ROWS: { label: string; Icon: ComponentType<{ className?: string }> }
 export const SETUP_ITEMS = ["Windows 11 Pro", "Drivers", "Updates"] as const;
 const ORDER_LINES = ["Deposit received", "Receipt issued", "Order officially placed"] as const;
 
+/*
+ * Glass-look labels. These ride the 3D scene every frame, so they carry the
+ * showroom glass material (charcoal gradient, lit top edge, hairline) but
+ * deliberately no live backdrop-filter — a dozen moving blurred surfaces
+ * over a WebGL canvas would cost far more than they'd show.
+ */
 const CARD =
-  "rounded-2xl border border-white/[0.12] bg-[#0f0f11]/95 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.95)] ring-1 ring-black/40";
+  "rounded-2xl border border-white/[0.1] bg-[linear-gradient(160deg,rgba(40,40,44,0.95)_0%,rgba(14,14,16,0.96)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_24px_60px_-24px_rgba(0,0,0,0.95)]";
 const PILL =
-  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 font-display text-[12.5px] font-semibold leading-none shadow-[0_10px_28px_-12px_rgba(0,0,0,0.9)] sm:text-[13.5px]";
+  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 font-display text-[12.5px] font-semibold leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_28px_-12px_rgba(0,0,0,0.9)] sm:text-[13.5px]";
 
 /** Row reveal driven by a 0..1 CSS variable written from the 3D timeline. */
 const reveal = (name: string): CSSProperties => ({
@@ -111,13 +117,13 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
     >
       {/* who's who */}
       <Anchored id="tag-rep">
-        <span className={`${PILL} border-primary/50 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-primary/50 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           M1 team
         </span>
       </Anchored>
       <Anchored id="tag-customer">
-        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-white/20 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="h-1.5 w-1.5 rounded-full bg-white" />
           You
         </span>
@@ -126,7 +132,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
       {/* 1 — needs */}
       {REQUIREMENTS.map(({ id, label, Icon }) => (
         <Anchored key={id} id={id}>
-          <span className={`${PILL} border-white/[0.14] bg-[#141416]/95 py-1 pl-1 pr-3 text-white`}>
+          <span className={`${PILL} border-white/[0.14] bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] py-1 pl-1 pr-3 text-white`}>
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-accent sm:h-7 sm:w-7">
               <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </span>
@@ -138,7 +144,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
       {/* 1 — part labels (turn gold with a check once chosen) */}
       {PART_UI.map(({ id, tag }) => (
         <Anchored key={id} id={`part-${id}`}>
-          <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/[0.16] bg-[#141416]/95 px-2.5 py-1 font-display text-[11px] font-bold uppercase leading-none tracking-[0.1em] text-white group-data-[selected]:border-accent group-data-[selected]:bg-accent group-data-[selected]:text-black sm:text-[12px]">
+          <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/[0.16] bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] px-2.5 py-1 font-display text-[11px] font-bold uppercase leading-none tracking-[0.1em] text-white group-data-[selected]:border-accent group-data-[selected]:bg-accent group-data-[selected]:text-black sm:text-[12px]">
             <IconCheck className="-ml-0.5 hidden h-3 w-3 group-data-[selected]:block" />
             {tag}
           </span>
@@ -212,7 +218,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
         </div>
       </Anchored>
       <Anchored id="received">
-        <span className={`${PILL} border-accent/40 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-accent/40 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-black">
             <IconCheck className="h-3 w-3" />
           </span>
@@ -220,7 +226,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
         </span>
       </Anchored>
       <Anchored id="receipt">
-        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-white/20 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <IconReceipt className="h-4 w-4 text-accent" />
           Receipt
           <span className="ml-0.5 flex items-center gap-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10.5px] text-accent">
@@ -271,7 +277,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
       </Anchored>
       {SUPPLIERS.map((p) => (
         <Anchored key={p.id} id={`sup-${p.id}`}>
-          <span className={`${PILL} border-accent/60 bg-[#141416]/95 py-1 pl-1.5 pr-2.5 text-white`}>
+          <span className={`${PILL} border-accent/60 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] py-1 pl-1.5 pr-2.5 text-white`}>
             <IconBox className="h-3.5 w-3.5 text-accent" />
             {p.label}
           </span>
@@ -292,7 +298,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
 
       {/* 5 — shipping */}
       <Anchored id="geo-plane">
-        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-white/20 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <IconPlane className="h-3.5 w-3.5 text-accent" />
           On its way to Qatar
         </span>
@@ -350,13 +356,13 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
 
       {/* 7 — delivery */}
       <Anchored id="car">
-        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-white/20 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <IconCar className="h-4 w-4 text-accent" />
           On the way to you
         </span>
       </Anchored>
       <Anchored id="home">
-        <span className={`${PILL} border-accent/60 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-accent/60 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <IconHome className="h-3.5 w-3.5 text-accent" />
           Your home
         </span>

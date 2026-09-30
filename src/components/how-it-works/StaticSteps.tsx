@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/SectionHeading";
 import { CHAPTERS, type Chapter } from "./story";
 import { IconBox, IconCheck, IconCpu, IconHome, IconPlane, IconReceipt, IconWrench } from "./ui-icons";
 
@@ -21,10 +22,10 @@ const ICONS: Record<Chapter["id"], ComponentType<{ className?: string }>> = {
  */
 export function StaticSteps() {
   return (
-    <section aria-labelledby="how-it-works-title" className="border-b border-border">
+    <section aria-labelledby="how-it-works-title" className="relative">
       <Container className="py-16 sm:py-24">
         <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-          <p className="font-display text-xs font-bold uppercase tracking-[0.28em] text-accent sm:text-sm">Process</p>
+          <Eyebrow>Process</Eyebrow>
           <h1 id="how-it-works-title" className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
             How It Works
           </h1>
@@ -36,7 +37,7 @@ export function StaticSteps() {
                   {i < CHAPTERS.length - 1 && (
                     <span className="absolute left-1/2 top-[3.75rem] h-[calc(100%-1.5rem)] w-px -translate-x-1/2 bg-gradient-to-b from-accent/40 to-transparent" aria-hidden="true" />
                   )}
-                  <span className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/40 bg-accent/10 text-accent">
+                  <span className="glass glass-flat glass-tint-gold relative flex h-14 w-14 items-center justify-center rounded-2xl text-accent">
                     <Icon className="h-6 w-6" />
                   </span>
                   <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{step.headline}</h2>
@@ -49,7 +50,7 @@ export function StaticSteps() {
             <Button href="/build-my-pc" size="lg">
               Request a PC Quote
             </Button>
-            <Button href="/completed-builds" variant="outline" size="lg">
+            <Button href="/completed-builds" variant="glass" size="lg">
               See Completed Builds
             </Button>
           </div>

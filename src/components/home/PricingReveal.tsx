@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/SectionHeading";
 
 /** Premium, restrained "expo-out" easing — matches the other homepage sections. */
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -82,26 +83,35 @@ export function PricingReveal() {
       };
 
   return (
-    <section className="relative overflow-hidden border-b border-border bg-surface">
-      <motion.span
-        {...bgWordReveal}
+    <section className="relative overflow-hidden">
+      <div aria-hidden="true" className="hairline absolute inset-x-0 top-0" />
+      {/* Centred by the wrapper — Framer writes the span's own `transform`
+          for its reveal, which would otherwise wipe a translate class. */}
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-6 left-1/2 hidden -translate-x-1/2 select-none whitespace-nowrap font-display text-[24vw] font-bold leading-none tracking-tight text-text-primary/[0.035] lg:block"
+        className="pointer-events-none absolute inset-0 hidden items-center justify-center overflow-hidden lg:flex"
       >
-        PRICING
-      </motion.span>
+        <motion.span
+          {...bgWordReveal}
+          className="select-none whitespace-nowrap font-display text-[19vw] font-bold leading-none tracking-tight text-white/[0.025] [-webkit-text-stroke:1px_rgb(255_255_255/0.07)]"
+        >
+          PRICING
+        </motion.span>
+      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[8%] top-1/2 hidden h-[420px] w-[520px] -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(249_194_4/0.1),transparent)] lg:block"
+      />
 
-      <Container className="relative py-16 sm:py-24">
+      <Container className="relative py-20 sm:py-28">
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <div className="flex flex-col items-start gap-3">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-accent sm:text-sm">
-              Pricing
-            </span>
+            <Eyebrow>Pricing</Eyebrow>
 
             <div className="overflow-hidden">
               <motion.h2
                 {...headingReveal}
-                className="max-w-3xl font-display text-3xl font-bold tracking-tight text-text-primary sm:text-4xl lg:text-5xl"
+                className="mt-2 max-w-3xl font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl"
               >
                 Why don&rsquo;t we show fixed prices?
               </motion.h2>
@@ -121,17 +131,27 @@ export function PricingReveal() {
               {...ruleReveal}
               aria-hidden="true"
               style={{ transformOrigin: "left" }}
-              className="mt-3 h-px w-20 bg-border-strong"
+              className="mt-3 h-px w-24 bg-gradient-to-r from-accent/70 to-transparent"
             />
           </div>
 
-          <motion.div
-            {...ctaReveal}
-            className="flex flex-col gap-4 sm:flex-row lg:justify-end"
-          >
-            <Button href="/build-my-pc" size="lg">
-              Request Current Price
-            </Button>
+          {/* The one glass accent here: a quotation slip, gold-lit edge. */}
+          <motion.div {...ctaReveal} className="flex lg:justify-end">
+            <div className="glass glass-tint-gold flex w-full max-w-md flex-col gap-5 rounded-glass-lg p-7 sm:p-8">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+                  Quotation
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgb(249_194_4/0.8)]" aria-hidden="true" />
+              </div>
+              <p className="font-display text-xl font-semibold leading-snug text-white sm:text-2xl">
+                Current component availability and pricing, at the time of your request.
+              </p>
+              <div className="hairline" aria-hidden="true" />
+              <Button href="/build-my-pc" size="lg" className="w-full">
+                Request Current Price
+              </Button>
+            </div>
           </motion.div>
         </div>
       </Container>

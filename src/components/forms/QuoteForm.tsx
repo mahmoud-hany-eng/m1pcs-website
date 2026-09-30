@@ -25,6 +25,21 @@ const initialGeneral: QuoteGeneralData = {
   additionalRequirements: "",
 };
 
+/** Numbered section title — a lit step chip beside the legend text. */
+function Legend({ step, children }: { step: number; children: React.ReactNode }) {
+  return (
+    <legend className="mb-1 flex items-center gap-3 font-display text-lg font-semibold text-white sm:text-xl">
+      <span
+        aria-hidden="true"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 font-display text-xs font-bold text-accent shadow-[inset_0_0_0_1px_rgb(249_194_4/0.35)]"
+      >
+        {step}
+      </span>
+      {children}
+    </legend>
+  );
+}
+
 export function QuoteForm() {
   const searchParams = useSearchParams();
   const [category, setCategory] = useState<QuoteCategory | "">("");
@@ -138,8 +153,14 @@ export function QuoteForm() {
 
   if (submitted) {
     return (
-      <div className="rounded-card border border-border bg-surface p-8 text-center">
-        <h2 className="font-display text-xl font-semibold text-text-primary">
+      <div className="glass glass-tint-gold rounded-glass-lg p-8 text-center sm:p-10">
+        <span
+          aria-hidden="true"
+          className="btn-whatsapp mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold"
+        >
+          &#10003;
+        </span>
+        <h2 className="font-display text-xl font-semibold text-white sm:text-2xl">
           WhatsApp should now be open
         </h2>
         <p className="mt-3 text-sm text-text-secondary">
@@ -160,12 +181,10 @@ export function QuoteForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-10">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-9 sm:gap-10">
       {/* What do you want a quote for? */}
       <fieldset className="flex flex-col gap-4">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          What would you like a quote for?
-        </legend>
+        <Legend step={1}>What would you like a quote for?</Legend>
         <FieldWrapper label="Quote category" htmlFor="quote-category" required>
           <SelectInput
             id="quote-category"
@@ -198,9 +217,7 @@ export function QuoteForm() {
 
       {/* Customer details */}
       <fieldset className="flex flex-col gap-5">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Your details
-        </legend>
+        <Legend step={2}>Your details</Legend>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <FieldWrapper label="Full name" htmlFor="fullName" required>
             <TextInput
@@ -236,9 +253,7 @@ export function QuoteForm() {
 
       {/* Budget, quantity & preference */}
       <fieldset className="flex flex-col gap-5">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Budget &amp; preference
-        </legend>
+        <Legend step={3}>Budget &amp; preference</Legend>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <FieldWrapper
             label="Budget in QAR"
@@ -289,9 +304,7 @@ export function QuoteForm() {
       {/* Category-specific questions — driven entirely by @/lib/quote-schema */}
       {category && visibleFields.length > 0 && (
         <fieldset className="flex flex-col gap-6">
-          <legend className="font-display text-lg font-semibold text-text-primary">
-            {category} details
-          </legend>
+          <Legend step={4}>{category} details</Legend>
           {visibleFields.map((field) => (
             <DynamicField
               key={field.id}
@@ -305,9 +318,7 @@ export function QuoteForm() {
 
       {/* Additional requirements */}
       <fieldset className="flex flex-col gap-5">
-        <legend className="font-display text-lg font-semibold text-text-primary">
-          Anything else?
-        </legend>
+        <Legend step={category && visibleFields.length > 0 ? 5 : 4}>Anything else?</Legend>
         <FieldWrapper label="Additional requirements / notes" htmlFor="additional">
           <TextArea
             id="additional"
@@ -318,7 +329,8 @@ export function QuoteForm() {
         </FieldWrapper>
       </fieldset>
 
-      <div className="flex flex-col gap-4 border-t border-border pt-6">
+      <div className="flex flex-col gap-4">
+        <div className="hairline" aria-hidden="true" />
         <p className="text-xs text-text-muted">
           Submitting this form does not place an order or require payment. M1
           will review your requirements and contact you with a proposed

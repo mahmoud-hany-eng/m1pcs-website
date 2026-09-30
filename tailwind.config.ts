@@ -50,7 +50,15 @@ const config: Config = {
         content: "1280px",
       },
       borderRadius: {
-        card: "0.75rem",
+        // Glass panes: 20px standard, 14px for small controls, 28px for the
+        // one focal surface in a section (see --radius-glass* in globals.css).
+        card: "var(--radius-glass)",
+        "glass-sm": "var(--radius-glass-sm)",
+        glass: "var(--radius-glass)",
+        "glass-lg": "var(--radius-glass-lg)",
+      },
+      transitionTimingFunction: {
+        glass: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
       boxShadow: {
         card: "0 1px 2px 0 rgba(0,0,0,0.4)",

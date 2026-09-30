@@ -204,7 +204,16 @@ function StickyScrollStory() {
     { opacity: op3, y: y3 },
   ];
 
+  // HUD segment fills: each stage's quarter of progress, 0..1 — set in the
+  // same single subscription as everything else here.
+  const f0 = useMotionValue(0);
+  const f1 = useMotionValue(0);
+  const f2 = useMotionValue(0);
+  const f3 = useMotionValue(0);
+  const fills = [f0, f1, f2, f3];
+
   useMotionValueEvent(smoothProgress, "change", (p) => {
+    fills.forEach((f, i) => f.set(Math.min(1, Math.max(0, p * 4 - i))));
     op0.set(interp(p, r0, opOut0));
     y0.set(interp(p, r0, yOut0));
     op1.set(interp(p, r1, opOut1));
@@ -220,7 +229,7 @@ function StickyScrollStory() {
     // actual scroll distance the four stages play out over. Tuned in
     //-browser against the 280–320vh guidance rather than left at a guess.
     <div ref={sectionRef} className="relative h-[300vh]">
-      <div className="sticky top-16 flex h-[calc(100svh-4rem)] items-center overflow-hidden bg-background sm:top-20 sm:h-[calc(100svh-5rem)]">
+      <div className="sticky top-16 flex h-[calc(100svh-4rem)] items-center overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
         <motion.div
           aria-hidden="true"
           style={{
@@ -238,7 +247,7 @@ function StickyScrollStory() {
             style={{ scale: pcScale, x: pcX, y: pcY }}
             className="w-full max-w-[420px] shrink-0 xl:max-w-[500px]"
           >
-            <div className="relative aspect-[1206/1724] w-full">
+            <div className="relative isolate aspect-[1206/1724] w-full">
               <Image
                 src={HERO_IMAGE_SRC}
                 alt={HERO_IMAGE_ALT}
@@ -246,6 +255,7 @@ function StickyScrollStory() {
                 sizes="(min-width: 1280px) 500px, 420px"
                 className="object-contain"
               />
+              <ShowroomFloor />
             </div>
           </motion.div>
 
@@ -267,7 +277,7 @@ function StickyScrollStory() {
                   className="absolute inset-0 flex flex-col items-start justify-center gap-5"
                 >
                   <StageEyebrow>{stage.eyebrow}</StageEyebrow>
-                  <h2 className="font-display text-[clamp(3rem,6vw,6.25rem)] font-bold leading-[0.98] tracking-tight text-text-primary">
+                  <h2 className="font-display text-[clamp(3rem,6vw,6.25rem)] font-bold leading-[0.98] tracking-tight text-white">
                     {stage.lines.map((line) => (
                       <span key={line} className="block">
                         {line}
@@ -279,28 +289,48 @@ function StickyScrollStory() {
               ))}
             </div>
 
-            {/* Minimal stage indicator — all four numbers stay visible at a
-                dim baseline; the active one's brighter twin crossfades on
-                top of it, following that stage's own opacity curve. */}
-            <div className="flex gap-4">
+            {/* Glass HUD — all four numbers stay visible at a dim baseline;
+                the active one's brighter twin crossfades on top of it, and
+                each segment fills with its own quarter of the scroll, so the
+                indicator is scrubbed by (and reverses with) the scroll. */}
+            <div className="glass-subtle flex w-fit items-center gap-5 rounded-full py-3 pl-5 pr-6">
               {STAGES.map((stage, i) => (
-                <span
-                  key={stage.eyebrow}
-                  className="relative font-display text-xs font-semibold tracking-widest text-text-muted"
-                >
-                  {String(i + 1).padStart(2, "0")}
-                  <motion.span
-                    style={{ opacity: stageMotion[i].opacity }}
-                    className="absolute inset-0 text-text-primary"
-                  >
+                <div key={stage.eyebrow} className="flex items-center gap-2.5">
+                  <span className="relative font-display text-xs font-semibold tracking-widest text-text-muted">
                     {String(i + 1).padStart(2, "0")}
-                  </motion.span>
-                </span>
+                    <motion.span
+                      style={{ opacity: stageMotion[i].opacity }}
+                      className="absolute inset-0 text-white"
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </motion.span>
+                  </span>
+                  <span className="h-[3px] w-10 overflow-hidden rounded-full bg-white/[0.1]">
+                    <motion.span
+                      style={{ scaleX: fills[i] }}
+                      className="block h-full w-full origin-left rounded-full bg-accent"
+                    />
+                  </span>
+                </div>
               ))}
             </div>
           </div>
         </Container>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The glass floor the PC stands on: a lit hairline where its feet meet the
+ * floor and a soft red reflection pooling beneath — light only, no box, and
+ * nothing ever drawn over the photo itself.
+ */
+function ShowroomFloor() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-x-[-12%] bottom-[2.5%] -z-10">
+      <div className="mx-auto h-px w-full bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="mx-auto h-16 w-[80%] bg-[radial-gradient(50%_100%_at_50%_0%,rgb(231_50_37/0.22),transparent_75%)]" />
     </div>
   );
 }
@@ -322,7 +352,7 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
         };
 
   return (
-    <section className="relative overflow-hidden bg-background py-20 sm:py-28">
+    <section className="relative overflow-hidden py-20 sm:py-28">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -337,7 +367,7 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
           {...reveal(0)}
           className="mx-auto w-full max-w-[320px] sm:max-w-[400px]"
         >
-          <div className="relative aspect-[1206/1724] w-full">
+          <div className="relative isolate aspect-[1206/1724] w-full">
             <Image
               src={HERO_IMAGE_SRC}
               alt={HERO_IMAGE_ALT}
@@ -345,6 +375,7 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
               sizes="(min-width: 640px) 400px, 320px"
               className="object-contain"
             />
+            <ShowroomFloor />
           </div>
         </motion.div>
 
@@ -355,8 +386,13 @@ function SimpleStages({ reduceMotion }: { reduceMotion: boolean }) {
               {...reveal(0.05 * i)}
               className="flex flex-col items-start gap-4"
             >
-              <StageEyebrow>{stage.eyebrow}</StageEyebrow>
-              <h2 className="font-display text-[clamp(2.25rem,9vw,3.25rem)] font-bold leading-[1.05] tracking-tight text-text-primary">
+              <div className="flex items-center gap-3">
+                <span className="glass-subtle flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-display text-xs font-semibold tracking-widest text-white">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <StageEyebrow>{stage.eyebrow}</StageEyebrow>
+              </div>
+              <h2 className="font-display text-[clamp(2.25rem,9vw,3.25rem)] font-bold leading-[1.05] tracking-tight text-white">
                 {stage.lines.map((line) => (
                   <span key={line} className="block">
                     {line}

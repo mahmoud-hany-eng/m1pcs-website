@@ -1,5 +1,7 @@
 "use client";
 
+import { PILL_IDLE, PILL_SELECTED } from "@/components/forms/PillOptionGroup";
+
 /**
  * Multi-select variant of PillOptionGroup (used for Accessories).
  */
@@ -24,10 +26,8 @@ export function MultiPillOptionGroup<T extends string>({
             type="button"
             aria-pressed={selected}
             onClick={() => onToggle(option)}
-            className={`rounded-full border px-4 py-2.5 text-sm font-medium transition-colors ${
-              selected
-                ? "border-accent bg-accent text-black"
-                : "border-border-strong bg-surface text-text-secondary hover:border-accent/60 hover:text-text-primary"
+            className={`min-h-[2.75rem] rounded-full px-4 py-2.5 text-sm font-medium transition-[color,background-color,box-shadow] duration-200 ${
+              selected ? PILL_SELECTED : PILL_IDLE
             }`}
           >
             {option}

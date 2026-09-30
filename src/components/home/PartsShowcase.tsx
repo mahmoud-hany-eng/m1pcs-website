@@ -68,17 +68,20 @@ export function PartsShowcase() {
         transition: { duration: 0.4 },
       }
     : {
-        initial: { opacity: 0, y: 24 },
-        whileInView: { opacity: 1, y: 0 },
+        // Depth settle: rises, fades in and comes into focus. Text-only
+        // blocks — never applied to a glass pane (a filter on the pane
+        // would cut its frost off from the page behind it mid-animation).
+        initial: { opacity: 0, y: 24, filter: "blur(8px)" },
+        whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
         viewport: { once: false, margin: "-20% 0px" },
-        transition: { duration: 0.7, ease: EASE },
+        transition: { duration: 0.8, ease: EASE },
       };
 
   return (
-    <section className="overflow-hidden border-b border-border bg-background py-24 sm:py-28 lg:py-32">
+    <section className="relative overflow-hidden py-24 sm:py-28 lg:py-32">
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
-          <h2 className="font-display text-[clamp(2.75rem,6vw,5rem)] font-bold leading-[1.02] tracking-tight text-text-primary">
+          <h2 className="font-display text-[clamp(2.75rem,6vw,5rem)] font-bold leading-[1.02] tracking-tight text-white">
             <span className="block">Every part</span>
             <span className="block">matters.</span>
           </h2>
@@ -146,16 +149,39 @@ function KineticParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMoti
   });
 
   return (
-    <div ref={sectionRef} className="flex flex-col gap-1">
-      {rows.map((category, i) => (
-        <PartsRow
-          key={category.slug}
-          category={category}
-          direction={directions[i]}
-          x={xs[i]}
-          reduceMotion={reduceMotion}
-        />
-      ))}
+    <div ref={sectionRef} className="relative">
+      {/* Warm light the rows travel through. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.12),transparent)]"
+      />
+
+      <div className="relative flex flex-col gap-1">
+        {rows.map((category, i) => (
+          <PartsRow
+            key={category.slug}
+            category={category}
+            direction={directions[i]}
+            x={xs[i]}
+            reduceMotion={reduceMotion}
+          />
+        ))}
+      </div>
+
+      {/* Two frosted panes standing at the edges of the room: each word
+          slides out from behind the haze as the page scrolls, and back
+          into it on the way up. Static surfaces (the text moves, the glass
+          doesn't); the frost fades out toward the centre via a mask. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-[11vw]">
+        <div className="absolute inset-0 backdrop-blur-[10px] [-webkit-mask-image:linear-gradient(to_right,#000_30%,transparent)] [mask-image:linear-gradient(to_right,#000_30%,transparent)]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/70 to-transparent" />
+        <div className="absolute inset-y-[4%] right-[30%] w-px bg-gradient-to-b from-transparent via-white/[0.12] to-transparent" />
+      </div>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-[11vw]">
+        <div className="absolute inset-0 backdrop-blur-[10px] [-webkit-mask-image:linear-gradient(to_left,#000_30%,transparent)] [mask-image:linear-gradient(to_left,#000_30%,transparent)]" />
+        <div className="absolute inset-0 bg-gradient-to-l from-background/70 to-transparent" />
+        <div className="absolute inset-y-[4%] left-[30%] w-px bg-gradient-to-b from-transparent via-white/[0.12] to-transparent" />
+      </div>
     </div>
   );
 }
@@ -176,7 +202,7 @@ function PartsRow({
   return (
     <Link
       href={`/build-my-pc?category=${encodeURIComponent(category.name)}`}
-      className={`group flex border-b border-border/60 py-3 ${
+      className={`group flex border-b border-white/[0.06] py-3 ${
         direction === 1 ? "justify-start" : "justify-end"
       }`}
     >
@@ -223,14 +249,14 @@ function MobileParts({ rows, reduceMotion }: { rows: CategoryItem[]; reduceMotio
           <motion.div key={category.slug} {...reveal(0.05 * i)}>
             <Link
               href={`/build-my-pc?category=${encodeURIComponent(category.name)}`}
-              className="group flex items-center justify-between border-b border-border/60 py-5"
+              className="group flex items-center justify-between border-b border-white/[0.07] py-5"
             >
-              <span className="font-display text-2xl font-bold uppercase tracking-tight text-text-primary sm:text-3xl">
+              <span className="font-display text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
                 {category.name}
               </span>
               <span
                 aria-hidden="true"
-                className="text-xl text-text-secondary transition-transform group-hover:translate-x-1"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] text-base text-text-secondary shadow-[inset_0_1px_0_rgb(255_255_255/0.1),inset_0_0_0_1px_rgb(255_255_255/0.1)] transition-transform group-hover:translate-x-1 group-hover:text-white"
               >
                 &rarr;
               </span>

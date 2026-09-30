@@ -5,6 +5,8 @@ import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/SectionHeading";
+import { siteConfig } from "@/lib/site-config";
 
 /** Premium, restrained "expo-out" easing — no springy/bouncy motion. */
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -74,15 +76,15 @@ export function CinematicHero() {
         };
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden bg-background">
-      {/* Ambient light behind the PC only — extremely low opacity, no
-          filter/overlay ever touches the photo itself. */}
+    <section ref={sectionRef} className="relative overflow-hidden">
+      {/* Key light behind the brand mark plus a faint amber fill low on the
+          left — atmosphere only; no filter/overlay ever touches the mark. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(42% 38% at 74% 46%, rgb(var(--color-primary) / 0.12) 0%, transparent 72%)",
+            "radial-gradient(40% 42% at 72% 46%, rgb(var(--color-primary) / 0.2) 0%, transparent 72%), radial-gradient(35% 35% at 8% 92%, rgb(var(--color-accent) / 0.05) 0%, transparent 70%)",
         }}
       />
 
@@ -109,6 +111,21 @@ export function CinematicHero() {
                   })}
               className="relative aspect-[4/5] w-full"
             >
+              {/* A clear glass lens the mark floats in front of: the key
+                  light behind it frosts through, a hairline catches the
+                  top-left edge. Accent only — the mark itself is never
+                  behind glass. */}
+              <div
+                aria-hidden="true"
+                className="glass-subtle absolute left-1/2 top-[47%] aspect-square w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={
+                  {
+                    // Lens rim: clear in the middle, catching light at the edge.
+                    "--glass-fill":
+                      "radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.012) 58%, rgb(255 255 255 / 0.055) 100%)",
+                  } as React.CSSProperties
+                }
+              />
               <Image
                 src="/logo.png"
                 alt="M1 Gaming PCs"
@@ -118,14 +135,26 @@ export function CinematicHero() {
                 className="object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
               />
             </motion.div>
+
+            {/* Caption slab under the mark — the brand's own tagline. */}
+            <motion.div {...rise(0.4)} className="mt-2 hidden justify-center lg:flex">
+              <span className="glass-subtle flex items-center gap-3 rounded-full px-5 py-2.5 text-sm text-text-secondary">
+                <span aria-hidden="true" className="h-px w-6 bg-gradient-to-r from-transparent to-accent/80" />
+                {siteConfig.brand.tagline}
+                <span aria-hidden="true" className="h-px w-6 bg-gradient-to-l from-transparent to-accent/80" />
+              </span>
+            </motion.div>
           </motion.div>
 
           {/* Copy + CTAs — second in the DOM (below the PC on mobile),
               sits on the left on desktop via flex-row-reverse. */}
           <div className="flex flex-col items-start gap-8">
+            <motion.div {...rise(0)} className="-mb-2">
+              <Eyebrow tone="red">M1 Gaming PCs &middot; Qatar</Eyebrow>
+            </motion.div>
             <motion.h1
-              {...rise(0)}
-              className="font-display text-[clamp(3.5rem,9vw,8rem)] font-bold leading-[0.95] tracking-tight text-text-primary"
+              {...rise(0.05)}
+              className="font-display text-[clamp(3.5rem,9vw,8rem)] font-bold leading-[0.95] tracking-tight text-white"
             >
               <span className="block">Built</span>
               <span className="block">Different.</span>
@@ -147,7 +176,7 @@ export function CinematicHero() {
               <Button href="/build-my-pc" size="lg" className="w-full sm:w-auto">
                 Build Your PC
               </Button>
-              <Button href="/products" variant="outline" size="lg" className="w-full sm:w-auto">
+              <Button href="/products" variant="glass" size="lg" className="w-full sm:w-auto">
                 Shop Components
               </Button>
             </motion.div>
