@@ -36,7 +36,7 @@ export default function ContactPage() {
         <Container className="relative py-12 sm:py-16">
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
             {whatsappHref && (
-              <div className="glass flex flex-col gap-4 p-6">
+              <div className="glass glass-flat flex flex-col gap-4 p-6">
                 <h2 className="flex items-center gap-3 font-display text-lg font-semibold text-white"><ChannelIcon name="whatsapp" />WhatsApp</h2>
                 <p className="text-sm text-text-secondary">
                   {siteConfig.contact.whatsappDisplay}
@@ -53,7 +53,7 @@ export default function ContactPage() {
               </div>
             )}
 
-            <div className="glass flex flex-col gap-4 p-6">
+            <div className="glass glass-flat flex flex-col gap-4 p-6">
               <h2 className="flex items-center gap-3 font-display text-lg font-semibold text-white"><ChannelIcon name="instagram" />Instagram</h2>
               <p className="text-sm text-text-secondary">
                 {siteConfig.social.instagram.handle} — DMs open
@@ -70,7 +70,7 @@ export default function ContactPage() {
             </div>
 
             {siteConfig.contact.email && (
-              <div className="glass flex flex-col gap-4 p-6">
+              <div className="glass glass-flat flex flex-col gap-4 p-6">
                 <h2 className="flex items-center gap-3 font-display text-lg font-semibold text-white"><ChannelIcon name="email" />Email</h2>
                 <p className="text-sm text-text-secondary">
                   {siteConfig.contact.email}
@@ -87,7 +87,7 @@ export default function ContactPage() {
             )}
 
             {siteConfig.contact.phoneDisplay && (
-              <div className="glass flex flex-col gap-4 p-6">
+              <div className="glass glass-flat flex flex-col gap-4 p-6">
                 <h2 className="flex items-center gap-3 font-display text-lg font-semibold text-white">
                   <ChannelIcon name="phone" />
                   Customer Service
