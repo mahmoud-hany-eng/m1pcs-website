@@ -1,0 +1,6 @@
+node_modules/
+out/
+public/cap/
+public/audio/*.wav
+capture/frames/
+public/brand/

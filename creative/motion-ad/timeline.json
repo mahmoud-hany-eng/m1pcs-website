@@ -1,0 +1,24 @@
+{
+  "fps": 60,
+  "width": 1080,
+  "height": 1920,
+  "bpm": 116,
+  "beat": 0.51724,
+  "downbeat": 1.552,
+  "viewport": { "width": 432, "height": 768, "dpr": 3.75 },
+  "proof": {
+    "duration": 4.4,
+    "logo": { "assembleStart": 0.1, "assembleEnd": 0.74, "sweep": 0.8, "pushStart": 1.03, "impact": 1.552 },
+    "home": {
+      "captureStart": 1.1,
+      "scrollStart": 2.069,
+      "scrollEnd": 2.62,
+      "cursorIn": 2.25,
+      "cursorArrive": 3.06,
+      "press": 3.362,
+      "release": 3.45,
+      "expandEnd": 3.879,
+      "revealEnd": 4.138
+    }
+  }
+}
