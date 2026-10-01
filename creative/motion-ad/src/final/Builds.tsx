@@ -117,8 +117,8 @@ function partMotion(i: number, k: number, hold: { x: number; y: number }) {
 }
 const HOLDS = [
   { x: 540, y: 560 },
-  { x: 330, y: 820 },
-  { x: 700, y: 700 },
+  { x: 360, y: 820 },
+  { x: 690, y: 700 },
   { x: 540, y: 1560 },
   { x: 720, y: 560 },
   { x: 540, y: 600 },
@@ -227,8 +227,8 @@ export const Builds: React.FC<{ t: number }> = ({ t }) => {
               transform: `translate(-50%,-50%) rotate(${mo.r}deg) scale(${mo.s * (1 - 0.82 * ab)})`,
               fontFamily: FONT.display,
               fontWeight: 700,
-              fontSize: 156,
-              letterSpacing: -2,
+              fontSize: 196,
+              letterSpacing: -3,
               color: BRAND.white,
               opacity: 1 - range(ab, 0.6, 1),
               textShadow: "0 8px 36px rgba(0,0,0,0.85)",
@@ -248,7 +248,7 @@ export const Builds: React.FC<{ t: number }> = ({ t }) => {
           <Title k={ln(2)} color={BRAND.yellow}>
             READY.
           </Title>
-          <div style={{ display: "flex", gap: 14, marginTop: 22, fontFamily: FONT.ui, fontWeight: 500, fontSize: 38, letterSpacing: 0, opacity: chips, transform: `translateY(${(1 - chips) * 20}px)` }}>
+          <div style={{ display: "flex", gap: 14, marginTop: 22, fontFamily: FONT.ui, fontWeight: 500, fontSize: 42, letterSpacing: 0, opacity: chips, transform: `translateY(${(1 - chips) * 20}px)` }}>
             {["Windows 11 Pro", "Drivers", "Updates"].map((s) => (
               <div key={s} style={{ border: "2px solid rgba(255,255,255,0.28)", borderRadius: 40, padding: "6px 24px", color: BRAND.white, background: "rgba(10,10,11,0.55)" }}>
                 {s}

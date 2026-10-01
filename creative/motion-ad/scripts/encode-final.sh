@@ -15,9 +15,12 @@ ffmpeg -y -hide_banner -loglevel error -framerate 60 -i "$FR/element-%04d.png" -
   -vf "$CS,format=yuv422p10le" -c:v prores_ks -profile:v 3 -vendor apl0 -bits_per_mb 8000 "${TAGS[@]}" \
   -c:a pcm_s24le -ar 48000 -shortest -movflags +write_colr "out/${NAME}_MASTER_ProRes422HQ.mov"
 
-ffmpeg -y -hide_banner -loglevel error -framerate 60 -i "$FR/element-%04d.png" -i "$WAV" \
-  -vf "$CS,format=yuv420p" -c:v libx264 -preset slower -profile:v high -level:v 5.1 \
-  -b:v 20M -maxrate 25M -bufsize 40M -pix_fmt yuv420p -g 60 -bf 2 \
-  -x264-params "colorprim=bt709:transfer=bt709:colormatrix=bt709:aq-mode=3:psy-rd=1.0,0.15" "${TAGS[@]}" \
-  -c:a aac -b:a 320k -ar 48000 -ac 2 -shortest -movflags +faststart "out/${NAME}_Instagram.mp4"
+# two-pass ~20 Mbps (peaks capped at 25) so text and PC detail hold up
+X264=(-c:v libx264 -preset slower -profile:v high -level:v 5.1 -b:v 20M -maxrate 25M -bufsize 40M -pix_fmt yuv420p -g 60 -bf 2
+  -x264-params "colorprim=bt709:transfer=bt709:colormatrix=bt709:aq-mode=3:psy-rd=1.0,0.15")
+ffmpeg -y -hide_banner -loglevel error -framerate 60 -i "$FR/element-%04d.png" -vf "$CS,format=yuv420p" "${X264[@]}" "${TAGS[@]}" \
+  -pass 1 -passlogfile out/x264pass -an -f null /dev/null
+ffmpeg -y -hide_banner -loglevel error -framerate 60 -i "$FR/element-%04d.png" -i "$WAV" -vf "$CS,format=yuv420p" "${X264[@]}" "${TAGS[@]}" \
+  -pass 2 -passlogfile out/x264pass -c:a aac -b:a 320k -ar 48000 -ac 2 -shortest -movflags +faststart "out/${NAME}_Instagram.mp4"
+rm -f out/x264pass*
 echo "encoded out/${NAME}_MASTER_ProRes422HQ.mov and out/${NAME}_Instagram.mp4"

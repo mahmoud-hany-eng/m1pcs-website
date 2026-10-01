@@ -32,7 +32,7 @@ const ctaIndex = (t: number) => Math.max(0, Math.min(LAST, Math.round((t - CTA0)
 
 export const CtaPage: React.FC<{ t: number }> = ({ t }) => {
   if (t < CTA0 - 0.02) return null;
-  const end = ease.inOutCubic(range(t, END0, END0 + 0.24));
+  const end = ease.inOutCubic(range(t, END0, END0 + 0.22));
   const fadeIn = range(t, CTA0, CTA0 + 0.22);
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
@@ -45,9 +45,9 @@ export const CtaPage: React.FC<{ t: number }> = ({ t }) => {
 
 export const EndCard: React.FC<{ t: number }> = ({ t }) => {
   if (t < END0 - 0.02) return null;
-  const logo = ease.settle(range(t, END0 + 0.12, END0 + 0.56));
-  const l1 = ease.settle(range(t, END0 + 0.2, END0 + 0.52));
-  const l2 = ease.settle(range(t, END0 + 0.28, END0 + 0.6));
+  const logo = ease.settle(range(t, END0 + 0.2, END0 + 0.6));
+  const l1 = ease.settle(range(t, END0 + 0.24, END0 + 0.54));
+  const l2 = ease.settle(range(t, END0 + 0.3, END0 + 0.6));
   const sweep = range(t, END0 + 0.42, END0 + 0.86);
 
   // the real button: from its place in the page to the card
