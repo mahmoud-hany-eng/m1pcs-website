@@ -5,9 +5,9 @@
 # Both tagged BT.709 (primaries / transfer / matrix, limited range).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-FR=out/final_frames
-WAV=public/audio/final.wav
-NAME=M1_BuildYours_1080x1920_60fps
+FR=${FR:-out/final_frames}
+WAV=${WAV:-public/audio/final.wav}
+NAME=${NAME:-M1_BuildYours_1080x1920_60fps}
 CS="scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int"
 TAGS=(-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv)
 
