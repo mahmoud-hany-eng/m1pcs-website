@@ -47,6 +47,14 @@ export type PlaneState = {
   emblemOnly?: boolean;
   /** opacity of the artwork on the wall */
   artOpacity?: number;
+  /** v6: halves held apart horizontally (logo px, pre-zoom) instead of swinging in */
+  split?: { l: number; r: number; lo?: number; ro?: number };
+  /** v6: 0..1 depth shading inside the V (its walls darken as the camera nears) */
+  vDepth?: number;
+  /** v6: wordmark sits a touch behind the emblem (parallax as the camera moves in) */
+  wmParallax?: number;
+  /** v6: 0..1 position of a light travelling across the wordmark */
+  wmLight?: number;
 };
 
 const src = staticFile("brand/logo.png");
@@ -57,7 +65,7 @@ export const toScreenPlane = (st: PlaneState, x: number, y: number) => ({
 });
 
 export const EmblemPlane: React.FC<{ st: PlaneState }> = ({ st }) => {
-  const { z, hole = 1, halves = 1, wm1 = 1, wm2 = 1, seam = 0, emblemOnly = false, artOpacity = 1 } = st;
+  const { z, hole = 1, halves = 1, wm1 = 1, wm2 = 1, seam = 0, emblemOnly = false, artOpacity = 1, split, vDepth = 0, wmParallax = 0, wmLight = -1 } = st;
   const v = V_SRC.map((p) => toScreenPlane(st, p.x, p.y));
   const big = 1e6;
   const wallPath = `M${-big},${-big} H${big} V${big} H${-big} Z M${v[0].x},${v[0].y} L${v[2].x},${v[2].y} L${v[1].x},${v[1].y} Z`;
@@ -73,8 +81,8 @@ export const EmblemPlane: React.FC<{ st: PlaneState }> = ({ st }) => {
 
   // expo-out: arrives fast, locks precisely (no bounce)
   const ease = halves >= 1 ? 1 : 1 - Math.pow(2, -10 * halves);
-  const off = (1 - ease) * 240; // px (logo space, pre-zoom)
-  const yaw = (1 - ease) * 58; // degrees
+  const off = split ? 0 : (1 - ease) * 240; // px (logo space, pre-zoom)
+  const yaw = split ? 0 : (1 - ease) * 58; // degrees
 
   const half = (side: -1 | 1) => (
     <div
@@ -86,26 +94,43 @@ export const EmblemPlane: React.FC<{ st: PlaneState }> = ({ st }) => {
             ? `inset(0 ${100 - xpct(SEAM_X) - 0.05}% ${100 - pct(EMBLEM_BOTTOM)}% 0)`
             : `inset(0 0 ${100 - pct(EMBLEM_BOTTOM)}% ${xpct(SEAM_X) - 0.05}%)`,
         transformOrigin: `${xpct(SEAM_X)}% 40%`,
-        transform: `perspective(1400px) translateX(${side * off}px) rotateY(${-side * yaw}deg)`,
-        opacity: Math.min(1, halves * 3),
+        transform: split
+          ? `translateX(${side < 0 ? split.l : split.r}px)`
+          : `perspective(1400px) translateX(${side * off}px) rotateY(${-side * yaw}deg)`,
+        opacity: split ? (side < 0 ? split.lo ?? 1 : split.ro ?? 1) : Math.min(1, halves * 3),
       }}
     >
       <Img src={src} style={{ width: "100%", height: "100%", display: "block" }} />
     </div>
   );
 
+  const wmS = 1 - wmParallax * (1 - 1 / Math.max(1, z));
   const line = (rows: number[], k: number, rise: number) =>
     k > 0 && (
       <div
         style={{
           position: "absolute",
           inset: 0,
+          transformOrigin: `${(TARGET.x / SRC.w) * 100}% ${(TARGET.y / SRC.h) * 100}%`,
+          scale: `${wmS}`,
           // revealed bottom-up inside its own row band, rising into place
           clipPath: `inset(${pct(rows[0] - 30) + (1 - k) * (pct(rows[1]) - pct(rows[0]))}% 0 ${100 - pct(rows[1] + 30)}% 0)`,
           transform: `translateY(${(1 - k) * rise}px)`,
         }}
       >
         <Img src={src} style={{ width: "100%", height: "100%", display: "block" }} />
+        {wmLight > -0.2 && wmLight < 1.2 && (
+          // a quick light travelling along the wordmark as it resolves
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              WebkitMaskImage: `url(${src})`,
+              WebkitMaskSize: "100% 100%",
+              background: `linear-gradient(100deg, rgba(255,250,220,0) ${xpct(800 + wmLight * 3000) - 6}%, rgba(255,252,235,0.95) ${xpct(800 + wmLight * 3000)}%, rgba(255,250,220,0) ${xpct(800 + wmLight * 3000) + 4}%)`,
+            }}
+          />
+        )}
       </div>
     );
 
@@ -114,6 +139,27 @@ export const EmblemPlane: React.FC<{ st: PlaneState }> = ({ st }) => {
       <svg width={1080} height={1920} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
         <path d={wallPath} fill={st.wall} fillRule="evenodd" />
         {hole < 1 && <path d={tri} fill={st.wall} opacity={1 - hole} />}
+        {vDepth > 0.001 && (
+          <>
+            <defs>
+              <clipPath id={`vclip-${Math.round(st.px)}`}>
+                <path d={tri} />
+              </clipPath>
+              <linearGradient id="vwallL" gradientUnits="userSpaceOnUse" x1={v[0].x} y1={v[0].y} x2={(v[1].x + v[0].x) / 2} y2={v[2].y}>
+                <stop offset="0" stopColor="#000" stopOpacity={0.95 * vDepth} />
+                <stop offset="0.55" stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="vwallR" gradientUnits="userSpaceOnUse" x1={v[1].x} y1={v[1].y} x2={(v[1].x + v[0].x) / 2} y2={v[2].y}>
+                <stop offset="0" stopColor="#000" stopOpacity={0.95 * vDepth} />
+                <stop offset="0.55" stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <g clipPath={`url(#vclip-${Math.round(st.px)})`}>
+              <path d={tri} fill="url(#vwallL)" />
+              <path d={tri} fill="url(#vwallR)" />
+            </g>
+          </>
+        )}
       </svg>
       <div
         style={{

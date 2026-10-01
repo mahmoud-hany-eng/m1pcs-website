@@ -14,6 +14,7 @@ export const FONT = {
 const faces: [string, string, string][] = [
   ["M1Inter", "fonts/inter-latin.woff2", "100 900"],
   ["M1Grotesk", "fonts/spacegrotesk-latin.woff2", "300 700"],
+  ["M1Serif", "fonts/dmserif-latin.woff2", "400"],
 ];
 
 export const Fonts: React.FC = () => {

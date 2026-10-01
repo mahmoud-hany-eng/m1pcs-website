@@ -81,7 +81,8 @@ def svf_sweep(x, fc, q=0.7, mode="bp"):
     low = band = 0.0
     damp = 1.0 / q
     for i in range(len(x)):
-        f = 2.0 * math.sin(math.pi * min(fc[i], SR * 0.22) / SR)
+        # Chamberlin SVF: keep f well inside its stable range
+        f = 2.0 * math.sin(math.pi * min(fc[i], SR * 0.125) / SR)
         high = x[i] - low - damp * band
         band += f * high
         low += f * band
