@@ -55,5 +55,86 @@
       "release": 2.21,
       "pass": 2.66
     }
+  },
+  "final": {
+    "duration": 20.9,
+    "quote": {
+      "buildIn": 2.86,
+      "buildPress": 3.02,
+      "buildRelease": 3.09,
+      "scroll1": [
+        3.14,
+        3.66
+      ],
+      "gamingIn": 3.62,
+      "gamingPress": 3.76,
+      "gamingRelease": 3.82,
+      "resIn": 3.98,
+      "resPress": 4.06,
+      "resRelease": 4.12,
+      "fpsIn": 4.26,
+      "fpsPress": 4.34,
+      "fpsRelease": 4.4,
+      "scroll2": [
+        4.48,
+        4.98
+      ],
+      "colourIn": 5.02,
+      "colourPress": 5.14,
+      "colourRelease": 5.2,
+      "scroll3": [
+        5.34,
+        6.1
+      ],
+      "sendIn": 6.26,
+      "sendPress": 6.44,
+      "sendRelease": 6.52,
+      "captureEnd": 7.0
+    },
+    "cues": {
+      "chat": {
+        "quote": 7.24,
+        "proceed": 7.86,
+        "confirm": 8.2,
+        "order": 8.98,
+        "paid": 9.36,
+        "done": 9.66,
+        "end": 10.0
+      },
+      "route": {
+        "draw": 10.36,
+        "arrive": 11.26,
+        "out": 11.55
+      },
+      "builds": {
+        "b0": 11.62,
+        "land": 14.3
+      },
+      "parts": {
+        "t0": 14.81,
+        "dt": 0.25862,
+        "words": [
+          "CPU",
+          "GPU",
+          "RAM",
+          "STORAGE",
+          "COOLING",
+          "PSU"
+        ]
+      },
+      "built": {
+        "t0": 16.62,
+        "dt": 0.25862
+      },
+      "ready": {
+        "t0": 17.86
+      },
+      "cta": {
+        "toCta": 18.5,
+        "cta0": 18.72,
+        "end0": 19.98,
+        "duration": 20.9
+      }
+    }
   }
 }
