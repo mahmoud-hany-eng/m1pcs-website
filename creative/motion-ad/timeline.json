@@ -4,11 +4,21 @@
   "height": 1920,
   "bpm": 116,
   "beat": 0.51724,
-  "downbeat": 1.552,
-  "viewport": { "width": 432, "height": 768, "dpr": 3.75 },
+  "downbeat": 1.1,
+  "viewport": {
+    "width": 432,
+    "height": 768,
+    "dpr": 3.75
+  },
   "proof": {
     "duration": 4.4,
-    "logo": { "assembleStart": 0.1, "assembleEnd": 0.74, "sweep": 0.8, "pushStart": 1.03, "impact": 1.552 },
+    "logo": {
+      "assembleStart": 0.1,
+      "assembleEnd": 0.74,
+      "sweep": 0.8,
+      "pushStart": 1.03,
+      "impact": 1.552
+    },
     "home": {
       "captureStart": 1.1,
       "scrollStart": 2.069,
@@ -19,6 +29,31 @@
       "release": 3.45,
       "expandEnd": 3.879,
       "revealEnd": 4.138
+    }
+  },
+  "v5": {
+    "duration": 3.42,
+    "logo": {
+      "lock": 0.36,
+      "wordmark": [
+        0.24,
+        0.52
+      ],
+      "passEnd": 1.04,
+      "land": 1.1
+    },
+    "home": {
+      "captureStart": 0.55,
+      "scrollStart": 1.08,
+      "scrollEnd": 1.7,
+      "lockStart": 1.5,
+      "lockEnd": 1.98,
+      "touchIn": 1.72,
+      "contact": 1.88,
+      "mouseIn": 1.82,
+      "press": 2.13,
+      "release": 2.21,
+      "pass": 2.66
     }
   }
 }
