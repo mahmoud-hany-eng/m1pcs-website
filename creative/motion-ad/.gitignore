@@ -4,3 +4,4 @@ public/cap/
 public/audio/*.wav
 capture/frames/
 public/brand/
+__pycache__/
