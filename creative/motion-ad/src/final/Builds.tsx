@@ -3,7 +3,6 @@ import { AbsoluteFill, Img, staticFile } from "remotion";
 import { bezier, clamp01, ease, lerp, range } from "../lib/ease";
 import { BRAND, glide, snap } from "./shared";
 import { FONT } from "./fonts";
-import { routePush } from "./Route";
 import CTA_LOG from "../../public/cap/cta/log.json";
 import T from "../../timeline.json";
 
@@ -128,7 +127,7 @@ const HOLDS = [
 export const Builds: React.FC<{ t: number }> = ({ t }) => {
   if (t < B0 - 0.05 || t > 19.6) return null;
   const c = cam3(t);
-  const reveal = range(t, B0, B0 + 0.4) * (1 - 0.0 * routePush(t));
+  const reveal = ease.inOutCubic(range(t, 11.74, 12.02));
 
   // hero: 3D placement, then a glide into the site's own photo position
   const hp = project(HERO, c);

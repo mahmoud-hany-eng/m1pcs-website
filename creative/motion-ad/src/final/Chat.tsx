@@ -43,7 +43,7 @@ type Msg = { id: string; side: "in" | "out"; a: number; h: number; w: number };
 const GAP = 26;
 const MSGS: Msg[] = [
   { id: "request", side: "out", a: SE.release, h: 452, w: 760 },
-  { id: "quote", side: "in", a: CU.quote, h: 470, w: 800 },
+  { id: "quote", side: "in", a: CU.quote, h: 424, w: 800 },
   { id: "proceed", side: "out", a: CU.proceed, h: 140, w: 700 },
   { id: "confirm", side: "in", a: CU.confirm, h: 140, w: 760 },
   { id: "order", side: "in", a: CU.order, h: 300, w: 700 },

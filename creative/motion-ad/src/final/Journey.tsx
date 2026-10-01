@@ -75,9 +75,13 @@ function emblemPlane(t: number, from: { x: number; y: number }): PlaneState {
 
 // ------------------------------------------------------------------ shot 4: the quote flow camera
 const B = TAP.build, G = TAP.gaming, R = TAP.res, F = TAP.fps, CO = TAP.colour, SE = TAP.send;
+// one continuous forward push: it starts while the emblem is still passing
+// (the page behind it grows), keeps its speed through the V, then decelerates
+// onto the first control — velocity-matched at the pass (no snap)
 const QUOTE_KEYS: CamKey[] = [
-  { t: PASS - 0.06, cx: 216, cy: 384, s: 1.08 },
-  { t: B.press - 0.12, cx: 161, cy: 372, s: 1.42, e: ease.settle },
+  { t: REL, cx: 216, cy: 384, s: 1.0 },
+  { t: PASS, cx: 204, cy: 380, s: 1.17, e: (x: number) => x * x },
+  { t: B.press - 0.12, cx: 161, cy: 372, s: 1.42, e: bezier(0.22, 0.22, 0.2, 1) },
   { t: B.release + 0.04, cx: 158, cy: 370, s: 1.44, e: ease.outCubic },
   { t: 3.42, cx: 196, cy: 384, s: 1.14, e: ease.inOutCubic },
   { t: G.press - 0.04, cx: 156, cy: 300, s: 1.5, e: ease.settle },
@@ -172,7 +176,7 @@ export const Journey: React.FC<{ t: number }> = ({ t }) => {
   // -------------------------------------------------------------- quote flow (shot 4)
   const quoteCamNow = cam;
   const qIdx = Math.max(HOME_LAST + 1, idx);
-  const copyDim = 0.5 * ease.inOutCubic(range(t, B.release, B.release + 0.12)) * (1 - ease.inOutCubic(range(t, G.press - 0.24, G.press - 0.04)));
+  const copyDim = 0.78 * ease.inOutCubic(range(t, B.release - 0.02, B.release + 0.1)) * (1 - ease.inOutCubic(range(t, 3.5, 3.68)));
   const dim = onQuote ? (1 - 0.5 * ease.inOutCubic(range(t, 5.22, 5.6))) * (1 - copyDim) : 1;
   const recede = ease.inOutCubic(range(t, SE.release, SE.release + 0.42)); // page falls away as WhatsApp opens
   const sendRect = rectAt(Math.min(qIdx, 358), "send");
@@ -186,7 +190,7 @@ export const Journey: React.FC<{ t: number }> = ({ t }) => {
   // copy: YOUR PC. / YOUR WAY. rides the flick between the first two taps
   const c1 = ease.settle(range(t, B.release + 0.02, B.release + 0.3));
   const c2 = ease.settle(range(t, B.release + 0.1, B.release + 0.38));
-  const cOut = ease.inCubic(range(t, G.press - 0.22, G.press - 0.04));
+  const cOut = ease.inCubic(range(t, 3.46, 3.62));
 
   const touches = [
     { tp: B, ap: 0.16, contact: CONTACTS[1] },
@@ -237,7 +241,7 @@ export const Journey: React.FC<{ t: number }> = ({ t }) => {
       {inMorph && (
         <>
           <AbsoluteFill style={{ clipPath: "url(#jwedge)" }}>
-            <SiteFrame dir={DIR} index={qIdx} cam={{ cx: 216, cy: 384, s: 1.08 }} brightness={0.55 + 0.45 * range(t, REL + 0.1, PASS)} />
+            <SiteFrame dir={DIR} index={qIdx} cam={quoteCam(t)} brightness={0.55 + 0.45 * range(t, REL + 0.1, PASS)} />
           </AbsoluteFill>
           <svg width={1080} height={1920} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
             <path d={polyPath(shape)} fill={col(m)} opacity={1 - art} />
@@ -284,7 +288,7 @@ export const Journey: React.FC<{ t: number }> = ({ t }) => {
             const k = snap(range(t, F.release, F.release + 0.2));
             const out = range(t, 4.48, 4.62);
             return (
-              <svg width={64} height={64} viewBox="0 0 64 64" style={{ position: "absolute", left: p.x - 32, top: p.y - 32, transform: `scale(${k})`, opacity: 1 - out }}>
+              <svg width={84} height={84} viewBox="0 0 64 64" style={{ position: "absolute", left: p.x - 42, top: p.y - 42, transform: `scale(${k})`, opacity: 1 - out }}>
                 <circle cx={32} cy={32} r={28} fill={BRAND.yellow} />
                 <path d="M19 33 l9 9 l17 -19" fill="none" stroke="#000" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={40} strokeDashoffset={40 * (1 - range(t, F.release + 0.04, F.release + 0.16))} />
               </svg>
@@ -324,9 +328,9 @@ export const Journey: React.FC<{ t: number }> = ({ t }) => {
       )}
 
       {/* ------------------------------------------------ copy */}
-      {t >= B.release && t < G.press && (
+      {t >= B.release && t < 3.64 && (
         <AbsoluteFill style={{ pointerEvents: "none" }}>
-          <div style={{ position: "absolute", left: 84, top: 690, fontFamily: FONT.display, fontWeight: 700, fontSize: 132, lineHeight: 0.98, letterSpacing: -3, color: BRAND.white, textShadow: "0 6px 40px rgba(0,0,0,0.7)", opacity: 1 - cOut, transform: `translateY(${-60 * cOut}px)` }}>
+          <div style={{ position: "absolute", left: 84, top: 780, fontFamily: FONT.display, fontWeight: 700, fontSize: 132, lineHeight: 0.98, letterSpacing: -3, color: BRAND.white, textShadow: "0 6px 40px rgba(0,0,0,0.7)", opacity: 1 - cOut, transform: `translateY(${-60 * cOut}px)` }}>
             <div style={{ overflow: "hidden", paddingBottom: 6 }}>
               <div style={{ transform: `translateY(${(1 - c1) * 110}%)` }}>YOUR PC.</div>
             </div>

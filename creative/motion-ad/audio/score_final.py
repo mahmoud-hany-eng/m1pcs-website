@@ -335,15 +335,15 @@ sfx.add(CH["done"] + 0.05, riser(CH["end"] - CH["done"] + 0.3, 0.14, seed=160)) 
 # ------------------------------------------------------------------ shot 6: sourcing
 sfx.add(CH["end"] - 0.02, whoosh(0.38, 900, 6000, peak=0.5, level=0.22, pan_from=0.3, pan_to=-0.6, seed=161))
 sfx.add(CH["end"] + 0.34, pan(tick(2400, 0.3, 0.04, seed=162), -0.6))  # U.S. node
-sfx.add(10.28, pan(thock(0.45, 160), -0.15))
-sfx.add(10.36, pan(thock(0.45, 190), 0.15))
+sfx.add(10.2, pan(thock(0.45, 160), -0.15))  # SOURCED FROM
+sfx.add(10.28, pan(thock(0.45, 190), 0.15))  # THE U.S.
 travel = RT["arrive"] - RT["draw"]
 sfx.add(RT["draw"], whoosh(travel + 0.1, 250, 3600, peak=0.7, level=0.24, pan_from=-0.7, pan_to=0.7, seed=163))
 sfx.add(RT["draw"], pan(sweep(220, 440, travel) * env_bell(travel, 0.7) * 0.05, np.linspace(-0.6, 0.6, secs(travel))))
 sfx.add(RT["arrive"], pan(kick(0.5), 0.5))
 sfx.add(RT["arrive"], pan(ping(1760, 0.16), 0.55))
 send.add(RT["arrive"], pan(ping(1760, 0.12), 0.55))
-sfx.add(RT["out"] - 0.1, riser(CU["builds"]["b0"] + 0.4 - RT["out"], 0.2, seed=164))
+sfx.add(RT["arrive"] + 0.14, riser(11.86 - RT["arrive"] - 0.14, 0.22, seed=164))  # push into the light
 
 # ------------------------------------------------------------------ shot 7: real builds
 B0 = CU["builds"]["b0"]

@@ -30,7 +30,7 @@ const ROUTE = `M ${P0.x} ${P0.y} Q ${P1.x} ${P1.y} ${P2.x} ${P2.y}`;
 const LEN = 850;
 
 /** the camera's push into the Qatar light (shared with the builds shot) */
-export const routePush = (t: number) => ease.accelerate(range(t, ROUTE_OUT - 0.1, 12.05));
+export const routePush = (t: number) => ease.inCubic(range(t, ARRIVE + 0.14, 11.86));
 
 export const Route: React.FC<{ t: number }> = ({ t }) => {
   if (t < CHAT_END - 0.05 || t > 12.1) return null;
@@ -45,16 +45,16 @@ export const Route: React.FC<{ t: number }> = ({ t }) => {
   const draw = glide(range(t, RC.draw, ARRIVE));
   const parcel = at(draw);
   const arrive = range(t, ARRIVE, ARRIVE + 0.5);
-  const scene = range(t, CHAT_END + 0.1, CHAT_END + 0.4);
+  const scene = range(t, CHAT_END + 0.04, CHAT_END + 0.3);
 
   // camera: tracks the parcel a little, then pushes into Qatar's light
   const track = lerp(50, -40, glide(range(t, 10.3, ARRIVE + 0.1)));
   const push = routePush(t);
-  const zoom = 1 + 0.035 * glide(range(t, 10.2, ARRIVE)) + 7 * push;
-  const outK = range(t, ROUTE_OUT, 11.9);
+  const zoom = 1 + 0.035 * glide(range(t, 10.2, ARRIVE)) + 16 * push;
+  const outK = range(t, 11.74, 11.92);
 
-  const h1 = ease.settle(range(t, 10.28, 10.6));
-  const h2 = ease.settle(range(t, 10.36, 10.68));
+  const h1 = ease.settle(range(t, 10.2, 10.52));
+  const h2 = ease.settle(range(t, 10.28, 10.6));
   const textOut = ease.inCubic(range(t, ROUTE_OUT - 0.1, ROUTE_OUT + 0.12));
 
   return (
@@ -125,6 +125,6 @@ export const Route: React.FC<{ t: number }> = ({ t }) => {
 export const routeSamples = (t: number) => {
   if (t >= CHAT_END && t < CHAT_END + 0.34) return 6;
   if (t >= 10.5 && t < ARRIVE) return 4; // parcel travel
-  if (t >= ROUTE_OUT && t < 12.05) return 8; // push into the light
+  if (t >= ARRIVE + 0.14 && t < 11.9) return 8; // push into the light
   return 1;
 };
