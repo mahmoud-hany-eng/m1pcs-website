@@ -361,5 +361,12 @@ export const journeySamples = (t: number) => {
   if (t >= 0.86 && t < L5.passEnd + 0.06) return 14;
   if (t >= REL + 0.16 && t < PASS + 0.04) return 14;
   if (t >= REL && t < REL + 0.16) return 6;
+  if (t >= PASS && t < SE.release) {
+    // the camera on the quote flow: blur only while it actually travels fast
+    const a = quoteCam(t - 1 / 120), b = quoteCam(t + 1 / 120);
+    const px = Math.hypot((b.cx - a.cx) * K * b.s, (b.cy - a.cy) * K * b.s) + Math.abs(b.s - a.s) * 900;
+    if (px > 40) return 10;
+    if (px > 18) return 6;
+  }
   return 1;
 };

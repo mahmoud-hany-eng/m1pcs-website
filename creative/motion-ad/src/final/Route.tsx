@@ -75,6 +75,8 @@ export const Route: React.FC<{ t: number }> = ({ t }) => {
 
       <AbsoluteFill style={{ transformOrigin: `${P2.x}px ${P2.y}px`, transform: `translateX(${track * (1 - push)}px) scale(${zoom})` }}>
         <svg width={1080} height={1920} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", opacity: scene * (1 - outK) }}>
+          {/* everything but the Qatar light falls away as the camera pushes in */}
+          <g opacity={1 - range(push, 0.02, 0.25)}>
           <defs>
             <linearGradient id="trail" gradientUnits="userSpaceOnUse" x1={P0.x} y1={0} x2={P2.x} y2={0}>
               <stop offset="0" stopColor={BRAND.yellow} stopOpacity={0} />
@@ -95,11 +97,12 @@ export const Route: React.FC<{ t: number }> = ({ t }) => {
           <text x={P0.x} y={P0.y + 76} textAnchor="middle" fill={BRAND.white} style={{ fontFamily: FONT.ui, fontWeight: 700, fontSize: 34, letterSpacing: 5 }} opacity={range(t, 10.25, 10.45)}>
             U.S.
           </text>
+          </g>
           {/* QATAR */}
           <circle cx={P2.x} cy={P2.y} r={120 + 120 * arrive} fill="url(#qglow)" opacity={range(t, 10.3, 10.6) * (0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, arrive * 1.4 + (arrive > 0 ? 0.3 : 0))))} />
           <circle cx={P2.x} cy={P2.y} r={17 + 8 * snap(arrive)} fill={BRAND.red} opacity={range(t, 10.3, 10.5)} />
           {arrive > 0 && arrive < 1 && <circle cx={P2.x} cy={P2.y} r={22 + 110 * ease.outCubic(arrive)} fill="none" stroke={BRAND.red} strokeWidth={4} opacity={1 - arrive} />}
-          <text x={P2.x} y={P2.y + 76} textAnchor="middle" fill={BRAND.red} style={{ fontFamily: FONT.ui, fontWeight: 700, fontSize: 34, letterSpacing: 5 }} opacity={range(t, 10.3, 10.5)}>
+          <text x={P2.x} y={P2.y + 76} textAnchor="middle" fill={BRAND.red} style={{ fontFamily: FONT.ui, fontWeight: 700, fontSize: 34, letterSpacing: 5 }} opacity={range(t, 10.3, 10.5) * (1 - range(push, 0.02, 0.2))}>
             QATAR
           </text>
           {/* parcel (the site's yellow parcel) */}
