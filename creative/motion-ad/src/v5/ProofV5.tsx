@@ -137,13 +137,20 @@ const Scene: React.FC = () => {
 
   // red plane (transition)
   const rp = redPlane(t, touchScreen);
-  const growK = ease.outCubic(range(t, H.release, H.release + 0.16));
+  // The pressed pill IS the surface carrying the emblem: it grows at exactly
+  // the same perspective rate, about the same (drifting) point — so the
+  // homepage stays visible around a widening red band while the V opens
+  // inside it. Never a flat red frame.
+  const zr = rp.z / 0.2;
+  const growK = range(t, H.release, H.release + 0.16); // label fade only
+  const pillA = { x: (bA.x - touchScreen.x) * zr + rp.px, y: (bA.y - touchScreen.y) * zr + rp.py };
+  const pillB = { x: (bB.x - touchScreen.x) * zr + rp.px, y: (bB.y - touchScreen.y) * zr + rp.py };
   const clip = {
-    x: lerp(bA.x, -60, growK),
-    y: lerp(bA.y, -60, growK),
-    w: lerp(bB.x - bA.x, 1200, growK),
-    h: lerp(bB.y - bA.y, 2040, growK),
-    r: lerp((bB.y - bA.y) / 2, 0, growK),
+    x: pillA.x,
+    y: pillA.y,
+    w: pillB.x - pillA.x,
+    h: pillB.y - pillA.y,
+    r: Math.min(((bB.y - bA.y) / 2) * zr, 4000),
   };
 
   return (
@@ -220,7 +227,7 @@ const Scene: React.FC = () => {
           {!passed2 && <EmblemPlane st={rp} />}
           {/* the button label rides the surface for its first instant */}
           {!passed2 && (
-            <AbsoluteFill style={{ opacity: 1 - range(t, H.release, H.release + 0.07), mixBlendMode: "screen" }}>
+            <AbsoluteFill style={{ opacity: 1 - range(t, H.release, H.release + 0.07) }}>
               <AbsoluteFill
                 style={{
                   clipPath: `inset(${bA.y}px ${1080 - bB.x}px ${1920 - bB.y}px ${bA.x}px round ${(bB.y - bA.y) / 2}px)`,
