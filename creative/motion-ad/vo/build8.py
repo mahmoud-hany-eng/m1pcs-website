@@ -32,7 +32,7 @@ WIDEN = {
 START = {
     "q": 0.40, "show": 4.05, "starts": 7.35, "tell": 10.55, "turn": 16.55, "send": 19.85,
     "confirm": 23.95, "source": 30.05, "real": 37.60, "rest": 42.10, "build": 44.50,
-    "setup": 46.05, "ready": 47.60, "next": 50.60, "cta": 52.90, "visit": 54.60,
+    "setup": 46.05, "ready": 47.60, "next": 51.20, "cta": 53.50, "visit": 55.20,
 }
 # a few onsets the prefix method can't see (word-initial vowels / list rhythm), measured by hand from the pauses
 MANUAL = {
@@ -168,10 +168,11 @@ parts["snaps"] = [v("build") + 0.55 + 0.1 * i for i in range(5)]
 parts["built"] = v("build") + 0.25
 parts["setup"] = v("setup") + 0.2
 parts["setupChips"] = [v("setup") + 0.45, v("setup") + 0.65, v("setup") + 0.85]
-parts["off"] = v("ready", "ready") - 0.32
-parts["click"] = v("ready", "ready") + 0.02
-parts["ready"] = v("ready", "ready") + 0.06
-parts["hold"] = e("ready") + 0.25
+# the line finishes — then the RGB drops out, a held breath, CLICK, READY.
+parts["off"] = e("ready") - 0.12
+parts["click"] = e("ready") + 0.22
+parts["ready"] = parts["click"] + 0.04
+parts["hold"] = parts["click"] + 1.0
 
 ret = {"glow": [parts["hold"], parts["hold"] + 0.55], "pull": [parts["hold"] + 0.15, parts["hold"] + 1.2]}
 ret["approach"] = [ret["pull"][1] - 0.1, v("next", "next") + 0.3]

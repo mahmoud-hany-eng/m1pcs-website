@@ -189,7 +189,7 @@ function worldWords(vo: boolean): WK[] {
     ? [{ words: [{ w: "STARTS", dt: 0 }, { w: "WITH", dt: ST.words.with - ST.words.starts }, { w: "YOU.", dt: ST.words.you - ST.words.starts, color: Y }], dy: 0 }]
     : [
         { words: [{ w: "AT M1,", dt: -0.75 }], dy: -88, size: 62, weight: 600, track: 0.06 },
-        { words: [{ w: "IT", dt: -0.15 }, { w: "STARTS", dt: 0 }, { w: "WITH", dt: ST.words.with - ST.words.starts }, { w: "YOU.", dt: ST.words.you - ST.words.starts, color: Y }], dy: 0 },
+        { words: [{ w: "IT", dt: -0.15 }, { w: "STARTS", dt: 0 }, { w: "WITH", dt: ST.words.with - ST.words.starts }, { w: "YOU.", dt: ST.words.you - ST.words.starts, color: Y }], dy: 0, size: 80 },
       ];
   const one = (big: string, small: string | null, color = BRAND.white) =>
     vo ? [{ words: [{ w: big, dt: 0, color }], dy: 0 }] : [{ words: [{ w: small ?? "YOUR", dt: 0 }], dy: -84, size: 60, weight: 600, track: 0.08 }, { words: [{ w: big, dt: 0.08, color }], dy: 0 }];
