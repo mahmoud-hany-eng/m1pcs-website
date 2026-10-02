@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Img, staticFile, useCurrentFrame } from "remotion"
 import { MotionBlur } from "../lib/MotionBlur";
 import { Fonts } from "../final/fonts";
 import { bezier, clamp01, ease, lerp, range } from "../lib/ease";
-import { Camera, MON, PHONE, V3, add, fullFrameCam, phonePoint, project, toCam, v3 } from "./world";
+import { Camera, MON, PHONE, V3, add, fullFrameCam, lerp3, phonePoint, project, toCam, v3 } from "./world";
 import { CamKey, keyCam, lookAt, mixCam, monCam, phoneCam } from "./cams";
 import { Environment, Monitor, Phone, monScreenPoint } from "./Devices";
 import { Intro7, introSamples } from "./Intro7";
@@ -56,11 +56,11 @@ const KEYS: CamKey[] = [
   { t: HM.press - 0.05, cam: onScreen(300, 820, 1400, 3, -10), e: ease.inOutCubic },
   { t: Q.settle[1], cam: onScreen(330, 560, 1380, 1, -10), e: settle },
   { t: Q.scroll1[0] + 0.2, cam: onScreen(340, 520, 1420, 0, -10), e: ease.inOutCubic },
-  { t: Q.gaming.path[0], cam: onScreen(330, 360, 1200, -1, 0), e: ease.inOutCubic },
-  { t: TAP.gaming.release + 0.15, cam: onScreen(320, 330, 1080, -1.5, 0), e: ease.inOutCubic }, // first choice: push in
-  { t: TAP.res.release + 0.15, cam: onScreen(330, 560, 1100, 3.5, 0), e: ease.inOutCubic }, // second: slide 3–4° right
-  { t: TAP.fps.release + 0.15, cam: onScreen(320, 640, 1030, 2.5, 10), e: ease.inOutCubic }, // third: push
-  { t: TAP.colour.release + 0.2, cam: onScreen(330, 640, 1150, 0, 0), e: ease.inOutCubic }, // fourth: centre again
+  { t: Q.gaming.path[0], cam: onScreen(300, 360, 1200, -1, 0), e: ease.inOutCubic },
+  { t: TAP.gaming.release + 0.15, cam: onScreen(292, 330, 1100, -1.5, 0), e: ease.inOutCubic }, // first choice: push in
+  { t: TAP.res.release + 0.15, cam: onScreen(300, 560, 1120, 3.5, 0), e: ease.inOutCubic }, // second: slide 3–4° right
+  { t: TAP.fps.release + 0.15, cam: onScreen(292, 640, 1060, 2.5, 10), e: ease.inOutCubic }, // third: push
+  { t: TAP.colour.release + 0.2, cam: onScreen(305, 640, 1170, 0, 0), e: ease.inOutCubic }, // fourth: centre again
   { t: Q.card + 0.1, cam: onScreen(360, 560, 1420, 0, 0), e: ease.inOutCubic },
   { t: Q.price + 0.2, cam: onScreen(360, 600, 1360, -1, 0), e: ease.inOutCubic },
   { t: TP.camera[0], cam: onScreen(380, 660, 1380, 0.5, 0), e: ease.inOutCubic },
@@ -70,19 +70,22 @@ const KEYS: CamKey[] = [
   { t: CH.attach + 0.5, cam: phoneCam(780, 73), e: settle },
   { t: CH.push, cam: phoneCam(745, 75), e: (x: number) => x },
 ];
+/** the dive into the ✓: after the payoff, landing as the route takes over */
+const PUSH = [CH.payoff[1], RT.stroke[0] + 0.3];
 function pushIntoCheck(t: number, base: Camera): Camera {
-  // the camera dives straight at the confirmation check on the phone
-  const k = ease.inCubic(range(t, CH.push, RT.stroke[0]));
+  // the camera dives straight at the confirmation check on the phone — pure translation, no roll:
+  // it slides so the check ends on the optical axis, 22% of the original distance away
+  const k = ease.inCubic(range(t, PUSH[0], PUSH[1]));
   if (k <= 0) return base;
   const c = DONE_CHECK_PHONE(CH.push);
   const target = phonePoint(c.x / 3, c.y / 3, PHONE.thick + 0.4);
-  const aim = lookAt(base.pos, target, base.f);
-  const dir = { x: target.x - base.pos.x, y: target.y - base.pos.y, z: target.z - base.pos.z };
-  const pos = add(base.pos, { x: dir.x * 0.88 * k, y: dir.y * 0.88 * k, z: dir.z * 0.88 * k });
-  return { ...mixCam(base, aim, Math.min(1, k * 2)), pos };
+  const fwd = v3(Math.cos(base.pitch) * Math.sin(base.yaw), Math.sin(base.pitch), Math.cos(base.pitch) * Math.cos(base.yaw));
+  const dist = Math.hypot(target.x - base.pos.x, target.y - base.pos.y, target.z - base.pos.z);
+  const end = add(target, v3(-fwd.x * dist * 0.22, -fwd.y * dist * 0.22, -fwd.z * dist * 0.22));
+  return { ...base, pos: lerp3(base.pos, end, k) };
 }
 function camAt(t: number): Camera {
-  if (t < RT.stroke[0] + 0.05) return pushIntoCheck(t, keyCam(KEYS, Math.min(t, CH.push)));
+  if (t < RT.stroke[0] + 0.45) return pushIntoCheck(t, keyCam(KEYS, Math.min(t, CH.push)));
   // the return
   const close = returnCloseCam();
   const wide = monCam(3100, 14, -260);
@@ -96,7 +99,7 @@ function camAt(t: number): Camera {
 
 /** the projected confirmation check (the route is born from it) */
 const checkAt = (t: number) => {
-  const cam = camAt(Math.min(t, RT.stroke[0] + 0.05));
+  const cam = camAt(Math.min(t, PUSH[1]));
   const c = DONE_CHECK_PHONE(CH.push);
   const p = project(cam, phonePoint(c.x / 3, c.y / 3, PHONE.thick + 0.4));
   return { x: p.x, y: p.y, size: (c.size / 3) * p.s };
@@ -118,9 +121,9 @@ const Scene: React.FC = () => {
   const fullScreen = t >= FLY[1];
 
   // world visibility by section
-  const inWorld = t < RT.stroke[0] + 0.35 || (t >= RET.glow[0] - 0.02 && !fullScreen);
+  const inWorld = t < RT.stroke[0] + 0.45 || (t >= RET.glow[0] - 0.02 && !fullScreen);
   const envO = t < 4 ? ease.inOutCubic(range(t, I.materialize[0] + 0.05, I.materialize[1] + 0.15)) : t < RET.glow[0] ? 1 - range(t, RT.stroke[0] - 0.1, RT.stroke[0] + 0.3) : ease.inOutCubic(range(t, RET.pull[0] + 0.1, RET.pull[1]));
-  const deviceO = t < RET.glow[0] ? 1 - range(t, RT.stroke[0], RT.stroke[0] + 0.3) : 1;
+  const deviceO = t < RET.glow[0] ? 1 - range(t, RT.stroke[0] + 0.2, RT.stroke[0] + 0.42) : 1;
 
   // monitor
   const look = {
@@ -214,7 +217,7 @@ const samplesAt = (frame: number) => {
   let n = Math.max(introSamples(t), routeSamples7(t), pcSamples7(t), endSamples(t));
   // fast camera moves in the world
   if (t >= TP.camera[0] && t < TP.wake + 0.2) n = Math.max(n, 6);
-  if (t >= CH.push && t < RT.stroke[0] + 0.05) n = Math.max(n, 8);
+  if (t >= PUSH[0] && t < PUSH[1]) n = Math.max(n, 8);
   if (t >= FLY[0] + 0.3 && t < FLY[1]) n = Math.max(n, 6);
   return n;
 };
