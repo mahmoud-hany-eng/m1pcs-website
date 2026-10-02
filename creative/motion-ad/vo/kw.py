@@ -13,7 +13,7 @@ def envelope(x, sr, hop=0.005, win=0.02):
     return np.array([np.sqrt(np.mean(x[i : i + w] ** 2) + 1e-12) for i in range(0, len(x) - w, h)]), hop
 
 
-def refine(voice="am_michael"):
+def refine(voice="am_fenrir"):
     meta = json.load(open(os.path.join(HERE, "lines", voice, "meta.json")))
     out = {}
     for l in meta["lines"]:

@@ -24,10 +24,10 @@ const logo = (floatFrom: number, m0: number, contact: number, D0: number) =>
 const curves = {
   meta: { intro: { halvesIn: I.halvesIn, merge: I.merge, contact: I.contact, D0: INTRO_D0, comp: compressionPx(INTRO_D0, I.contact - I.merge[0]) }, sig: { merge: SG.merge, lock: SG.lock, D0: END_D0, comp: compressionPx(END_D0, SG.lock - SG.merge[0]) }, gallery: GA },
   introHalves: logo(I.halvesIn[0], I.merge[0], I.contact, INTRO_D0),
-  endHalves: logo(SG.fly[1] + 0.12, SG.merge[0], SG.lock, END_D0),
+  endHalves: logo(SG.fly[1], SG.merge[0], SG.lock, END_D0),
   gallery: sample(GA.start - 0.2, GA.end + 0.2, (t) => { const c = galCam(t); return [c.z, c.x]; }),
   builds: BUILDS.map((b) => ({ n: b.n, hero: !!b.hero, track: sample(GA.start, GA.end, (t) => { const p = place(b, t); return [p.x, p.y, p.s, p.dz]; }).filter((_, i) => i % 4 === 0) })),
-  word: sample(0, 0.56, (t) => [arrive(t / 0.56)]),
+  word: sample(0, 0.36, (t) => [arrive(t / 0.36)]),
   camera: sample(0, V.route.stroke[0] + 0.4, (t) => { const c = camAt(t); return [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.pitch, c.f]; }).filter((_, i) => i % 2 === 0),
 };
 fs.mkdirSync("qa/out", { recursive: true });

@@ -1,4 +1,4 @@
-"""Score + SFX + mixes for v8/v9 — the voiceover cut (male narration, ~80 s, 116 BPM, A minor).
+"""Score + SFX + mixes for v8–v10 — the voiceover cut (v10: tech-presenter narration, ~41 s, 116 BPM, A minor).
 
 Every cue comes from timeline.json `v8` (derived from the narration's word
 onsets by vo/build8.py) or from the journey8 capture log (the real press /
@@ -104,9 +104,6 @@ def section(t):
 kicks = []
 # the question on black: air and a low pulse that answers QATAR?
 music.add(0.05, pan(lp(noise(1.4, 401), 800) * env_bell(1.4, 0.6) * 0.035, 0))
-music.add(I["words"]["qatar"], pan(sub_boom(0.18), 0))
-pad_q = pad_chord([110.0, 164.81, 220.0], I["collapse"][0] - I["words"]["qatar"] + 0.3, cutoff=700, level=0.32)
-music.add(I["words"]["qatar"], pad_q * (np.linspace(0, 1, len(pad_q)) ** 1.2)[:, None])
 # the brand hold: one open chord under the narrator
 pad_in = pad_chord([110.0, 164.81, 220.0, 329.63], A - I["hold"][0] + 0.4, cutoff=900, level=0.4)
 music.add(I["hold"][0], pad_in * np.minimum(1, np.linspace(0, 3, len(pad_in)))[:, None])
@@ -178,15 +175,9 @@ music.buf *= env[:, None]
 
 # ------------------------------------------------------------------ 1. the question → the brand
 W = I["words"]
-sfx.add(W["are"], pan(kin(0.12, 1500, 801), -0.1))
-sfx.add(W["qatar"], pan(word_hit(0.42, 120, 802), 0))  # QATAR? lands
-sfx.add(W["qatar"] + 0.02, shimmer(0.5, 0.08, seed=803))
-sfx.add(W["looking"], pan(kin(0.1, 1700, 804), 0.1))
-sfx.add(W["build"], whoosh(0.4, 300, 2600, peak=0.6, level=0.08, seed=805))  # BUILD A PC? out of depth
-sfx.add(W["pc"], pan(word_hit(0.3, 170, 806), 0.05))
-c0, c1 = I["collapse"]
-sfx.add(c0, pan(sweep(1400, 200, c1 - c0) * env_bell(c1 - c0, 0.7) * 0.06, 0))  # letters compress
-sfx.add(c0 + 0.1, whoosh(c1 - c0, 2400, 400, peak=0.6, level=0.14, seed=807))
+sfx.add(W["qatar"] - 0.02, shimmer(0.4, 0.06, seed=803))  # QATAR lights in DOHA • QATAR
+sfx.add(W["build"] - 0.05, whoosh(0.32, 300, 2600, peak=0.6, level=0.07, seed=805))  # BUILD A PC? lands
+sfx.add(W["pc"], pan(word_hit(0.22, 170, 806), 0.05))
 hi0, hi1 = I["halvesIn"]
 sfx.add(hi0 - 0.05, line_zip(hi1 - hi0, 0.09, seed=701, p0=-0.2, p1=-0.75))  # the two halves materialise apart
 sfx.add(hi0 - 0.02, line_zip(hi1 - hi0, 0.085, seed=702, p0=0.2, p1=0.75))
@@ -250,7 +241,7 @@ bt0, bt1 = Q["budget"]["type"]
 for k in range(len(Q["budget"]["text"])):
     sfx.add(bt0 + k * (bt1 - bt0) / len(Q["budget"]["text"]), pan(tick(2800 + 150 * k, 0.06, 0.02, seed=860 + k), -0.1))
 sfx.add(Q["colour"]["path"][0] + 0.05, whoosh(0.4, 400, 2400, peak=0.4, level=0.06, seed=735))
-sfx.add(tl["look"], pan(kin(0.12, 2500, 816), 0))
+sfx.add(tl["style"], pan(kin(0.12, 2500, 816), 0))
 click(*COLOUR, -0.05)
 sfx.add(COLOUR[1], shimmer(0.6, 0.11, seed=736))
 for k in ["gaming", "res", "fps", "colour"]:  # the chosen pill lifts off the glass
@@ -296,7 +287,8 @@ sfx.add(CH["attach"] + 0.02, pan(tick_in(0.26), P))
 sfx.add(CH["proceed"], pan(pop_out(0.36), P + 0.1))
 for d in range(3):
     sfx.add(CH["typing"] + 0.04 + 0.1 * d, pan(blip(880 * (1.26**d), 0.04, 0.04), P - 0.2))
-sfx.add(CH["typing"] + 0.3, pan(typing(CH["reply"] - CH["typing"] - 0.32, 0.07), P - 0.2))
+if CH["reply"] - CH["typing"] > 0.2:
+    sfx.add(CH["typing"] + 0.08, pan(typing(CH["reply"] - CH["typing"] - 0.1, 0.07), P - 0.2))
 sfx.add(CH["reply"], pan(tick_in(0.3), P - 0.2))
 for k in range(3):
     sfx.add(CH["tokens"][k], pan(tick(2600 + 300 * k, 0.09, 0.02, seed=781 + k), P - 0.3 + 0.2 * k))

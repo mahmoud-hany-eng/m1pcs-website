@@ -12,7 +12,14 @@ import { CamKey } from "../v7/cams";
 type Comp = (c: Camera) => number;
 const COMPS: Comp[] = [(c) => c.pos.x, (c) => c.pos.y, (c) => c.pos.z, (c) => c.yaw, (c) => c.pitch, (c) => c.f];
 
-export function makeSplineCam(keys: CamKey[]) {
+export function makeSplineCam(input: CamKey[]) {
+  // keys in time order; a key closer than 0.25 s to the previous one is folded into it (cue times move
+  // with the narration — two keys must never land on top of each other or swap order)
+  const keys: CamKey[] = [];
+  for (const k of [...input].sort((a, b) => a.t - b.t)) {
+    if (keys.length && k.t - keys[keys.length - 1].t < 0.25) continue;
+    keys.push(k);
+  }
   const ts = keys.map((k) => k.t);
   // unwrap yaw so the shortest way round is always taken
   const yaws: number[] = [];

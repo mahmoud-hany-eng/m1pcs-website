@@ -44,16 +44,17 @@ type LineProps = {
  * Word motion: ONE acceleration → clean travel → ONE deceleration → settled.
  * A symmetric-ish S-curve (no fast-start "settle" tail, no spring, no overshoot)
  * over a slightly longer travel; opacity and a light focus pull run on their own
- * shorter curves so the word is readable well before the travel ends. Only
+ * shorter curves so the word is readable well before the travel ends.
+ * Quick: ~0.36 s from first pixel to landed (MOVE → LAND → STAY), ~0.25 s out. Only
  * transform / opacity / filter animate — the layout (size, tracking, spacing)
  * never changes, and nothing is rounded to whole pixels.
  */
 export const arrive = bezier(0.42, 0, 0.18, 1);
 const depart = bezier(0.55, 0, 0.8, 0.35);
 export const Word: React.FC<{ t: number; k: KW; size: number; color: string; weight: number; font: string; track: number; enterDur: number; exit: number; outMode: LineProps["outMode"] }> = ({ t, k, size, color, weight, font, track, enterDur, exit, outMode }) => {
-  const u = range(t, k.at - 0.04, k.at - 0.04 + enterDur);
+  const u = range(t, k.at - 0.03, k.at - 0.03 + enterDur);
   const e = arrive(u);
-  const vis = ease.inOutCubic(range(t, k.at - 0.04, k.at - 0.04 + enterDur * 0.45));
+  const vis = ease.inOutCubic(range(t, k.at - 0.03, k.at - 0.03 + enterDur * 0.5));
   const base: React.CSSProperties = { display: "inline-block", fontSize: k.size ?? size, marginRight: k.gap ?? "0.28em", letterSpacing: `${track}em`, whiteSpace: "pre" };
   if (vis <= 0) return <span style={{ ...base, opacity: 0 }}>{k.w}</span>;
   const push = k.push ? lerp(1, k.push[2], ease.inOutCubic(range(t, k.push[0], k.push[1]))) : 1;
@@ -69,7 +70,7 @@ export const Word: React.FC<{ t: number; k: KW; size: number; color: string; wei
         fontWeight: k.weight ?? weight,
         fontFamily: k.font === "ui" ? FONT.ui : k.font === "display" ? FONT.display : font,
         opacity: vis * (1 - ox),
-        transform: `translate3d(0, ${((1 - e) * 0.5 + exitY * ox).toFixed(5)}em, 0) scale(${((0.965 + 0.035 * e) * push * exitScale).toFixed(5)})`,
+        transform: `translate3d(0, ${((1 - e) * 0.42 + exitY * ox).toFixed(5)}em, 0) scale(${((0.965 + 0.035 * e) * push * exitScale).toFixed(5)})`,
         filter: `blur(${(7 * focus + (outMode === "blur" || outMode === "scale" ? 10 : 4) * ox).toFixed(3)}px)`,
         transformOrigin: "50% 70%",
       }}
@@ -80,7 +81,7 @@ export const Word: React.FC<{ t: number; k: KW; size: number; color: string; wei
 };
 
 /** a line of kinetic words */
-export const Line: React.FC<LineProps> = ({ t, words, x, y, size, align = "left", out = 1e9, outDur = 0.35, outMode = "up", color = BRAND.white, weight = 700, font = "display", track = -0.02, shadow = true, enterDur = 0.56, style }) => {
+export const Line: React.FC<LineProps> = ({ t, words, x, y, size, align = "left", out = 1e9, outDur = 0.25, outMode = "up", color = BRAND.white, weight = 700, font = "display", track = -0.02, shadow = true, enterDur = 0.36, style }) => {
   if (t < words[0].at - 0.05 || t > out + outDur + 0.05) return null;
   const exit = depart(range(t, out, out + outDur));
   return (
@@ -109,7 +110,7 @@ export const Line: React.FC<LineProps> = ({ t, words, x, y, size, align = "left"
 
 /** a short underline that draws under a word (emphasis) */
 export const Underline: React.FC<{ t: number; at: number; x: number; y: number; w: number; color?: string; thick?: number; out?: number }> = ({ t, at, x, y, w, color = BRAND.yellow, thick = 6, out = 1e9 }) => {
-  const k = arrive(range(t, at, at + 0.5));
+  const k = arrive(range(t, at, at + 0.36));
   if (k <= 0) return null;
   const o = 1 - range(t, out, out + 0.25);
   return <div style={{ position: "absolute", left: x, top: y, width: w, transformOrigin: "0 50%", transform: `scaleX(${k.toFixed(5)})`, height: thick, borderRadius: thick / 2, background: color, opacity: o, boxShadow: `0 0 18px ${color}` }} />;

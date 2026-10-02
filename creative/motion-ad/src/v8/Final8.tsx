@@ -7,7 +7,7 @@ import { clamp01, ease, lerp, range } from "../lib/ease";
 import { Camera, MON, PHONE, V3, add, fullFrameCam, homography, lerp3, monScreenCorners, phonePoint, project, toCam, v3 } from "../v7/world";
 import { CamKey, keyCam, lookAt, mixCam, monCam } from "../v7/cams";
 import { Environment, Monitor, Phone, monScreenPoint } from "../v7/Devices";
-import { Intro8, introSamples } from "./Intro8";
+import { Intro8, IntroQuestion, introSamples } from "./Intro8";
 import { LIFTS, MonitorScreen8, frameSrc, pillRect } from "./MonitorScreen8";
 import { DONE_CHECK_PHONE, PH, PW, PhoneChat, WA, WA_GLYPH } from "./PhoneChat8";
 import { Route8, routeSamples8 } from "./Route8";
@@ -80,7 +80,9 @@ const KEYS: CamKey[] = [
   { t: I.pullBack[0], cam: E0 },
   // the monitor in 3/4, then the camera eases round toward the front while "it starts with you"
   { t: I.pullBack[1], cam: monCam(2650, 24, -230), e: settle },
-  { t: HM.cursorIn[0] + 0.35, cam: onScreen(330, 740, 1900, 12, -60), e: ease.inOutCubic },
+  // one steady approach to the screen under "Let us show you how it's properly done…" — never parked
+  { t: (I.pullBack[1] + HM.cursorIn[0]) / 2 + 0.2, cam: onScreen(335, 760, 2150, 15, -70), e: ease.inOutCubic },
+  { t: HM.cursorIn[0] + 0.5, cam: onScreen(320, 800, 1700, 9, -40), e: ease.inOutCubic },
   { t: HM.press, cam: onScreen(300, 820, 1480, 5, -10), e: ease.inOutCubic },
   { t: Q.settle[1], cam: onScreen(330, 560, 1420, 2, -10), e: settle },
   // choice 1 — "what you play": slight left → centre
@@ -108,7 +110,7 @@ const KEYS: CamKey[] = [
   { t: CH.push, cam: phoneCamA(790, 85, 0), e: (x: number) => x },
 ];
 export const KEYS_EXPORT = KEYS;
-export const splineCam = smoothCam(makeSplineCam(KEYS), 0.3);
+export const splineCam = smoothCam(makeSplineCam(KEYS), 0.22);
 /** small physical responses to the important messages */
 const BUMPS = [CH.proceed, CH.reply, CH.collapse[1], CH.order, CH.paid, CH.done];
 const bump = (t: number) => BUMPS.reduce((s, a) => s + Math.sin(Math.PI * range(t, a, a + 0.6)) ** 2, 0); // sin²: starts and ends at rest
@@ -195,16 +197,17 @@ function worldWords(vo: boolean): WK[] {
       ];
   const one = (big: string, small: string | null, color = BRAND.white) =>
     vo ? [{ words: [{ w: big, dt: 0, color }], dy: 0 }] : [{ words: [{ w: small ?? "YOUR", dt: 0 }], dy: -84, size: 60, weight: 600, track: 0.08 }, { words: [{ w: big, dt: 0.08, color }], dy: 0 }];
+  const TU = V.vo.turn.kw, SE = V.vo.send.kw;
   const out: WK[] = [
     { at: ST.words.starts, out: ST.out, sx: 540, sy: 330, z: 0, size: 100, lines: s1 },
-    { at: tl.play - 0.08, out: tl.performance - 0.32, sx: 540, sy: 300, z: -320, size: 112, lines: vo ? [{ words: [{ w: "WHAT", dt: 0 }, { w: "YOU", dt: 0.12 }, { w: "PLAY", dt: 0.3, color: Y }], dy: 0 }] : one("GAMES.", null, Y) },
-    { at: tl.performance, out: tl.budget - 0.4, sx: 540, sy: 330, z: -320, size: 118, lines: one("PERFORMANCE.", null).map((l) => ({ ...l, words: l.words.map((w) => (w.w === "PERFORMANCE." && vo ? { ...w, w: "PERFORMANCE" } : w)) })) },
-    { at: tl.budget, out: tl.look - 0.35, sx: 540, sy: 1250, z: -320, size: 150, lines: one(vo ? "BUDGET" : "BUDGET.", null, Y) },
-    { at: tl.look, out: V.vo.tell.end + 0.15, sx: 540, sy: 330, z: -320, size: 118, lines: vo ? [{ words: [{ w: "THE", dt: 0 }, { w: "LOOK", dt: 0.2, color: Y }], dy: 0 }] : one("STYLE.", null, Y) },
+    { at: tl.performance, out: tl.budget - 0.3, sx: 540, sy: 330, z: -320, size: 118, lines: one("PERFORMANCE.", null).map((l) => ({ ...l, words: l.words.map((w) => (w.w === "PERFORMANCE." && vo ? { ...w, w: "PERFORMANCE" } : w)) })) },
+    { at: tl.budget, out: tl.style - 0.28, sx: 540, sy: 1250, z: -320, size: 150, lines: one(vo ? "BUDGET" : "BUDGET.", null, Y) },
+    { at: tl.style, out: V.vo.tell.end + 0.1, sx: 540, sy: 330, z: -320, size: 118, lines: [{ words: [{ w: "YOUR", dt: 0 }, { w: vo ? "STYLE" : "STYLE.", dt: 0.12, color: Y }], dy: 0 }] },
+    { at: TU.custom - 0.04, out: Q.attach[0] + 0.05, sx: 540, sy: 250, z: -360, size: 112, lines: [{ words: [{ w: "CUSTOM", dt: 0 }, { w: "QUOTE.", dt: TU.quote - TU.custom, color: Y }], dy: 0 }] },
+    { at: SE.WhatsApp - 0.03, out: TP.wake - 0.05, sx: 540, sy: 270, z: -360, size: 104, lines: [{ words: [{ w: "WHATSAPP", dt: 0, color: WA.green }], dy: 0 }] },
   ];
   if (!vo) {
-    out.push({ at: Q.lines[0], out: Q.price + 0.8, sx: 540, sy: 250, z: -360, size: 120, lines: [{ words: [{ w: "YOUR", dt: 0 }, { w: "BUILD.", dt: 0.2, color: Y }], dy: 0 }] });
-    out.push({ at: Q.attach[0], out: TP.icon[0] + 0.1, sx: 540, sy: 270, z: -360, size: 96, lines: [{ words: [{ w: "QUOTE", dt: 0 }, { w: "READY.", dt: 0.15, color: Y }], dy: 0 }, { words: [{ w: "SEND", dt: 0.6 }, { w: "IT", dt: 0.72 }, { w: "ON", dt: 0.82 }, { w: "WHATSAPP.", dt: 0.95, color: WA.green }], dy: 112, size: 72 }] });
+    out.push({ at: tl.play - 0.08, out: tl.performance - 0.3, sx: 540, sy: 300, z: -320, size: 112, lines: one("GAMES.", null, Y) });
   }
   return out;
 }
@@ -341,21 +344,16 @@ const Scene: React.FC<{ vo: boolean }> = ({ vo }) => {
             </svg>
           )}
           {t < I.materialize[1] + 0.25 && <Intro8 t={t} cam={E0} />}
+          <IntroQuestion t={t} />
           {/* kinetic words in the world */}
           {worldWords(vo).map((k, i) => (
             <WorldWords key={i} t={t} k={k} />
           ))}
-          {/* the conversation's key moments */}
-          {!vo && (
-            <>
-              <Line t={t} x={540} y={250} size={96} align="center" out={CH.collapse[1] + 0.5} outDur={0.3} outMode="blur" words={[{ w: "PRICE", at: CH.checks[0] - 0.05 }, { w: "✓", at: CH.checks[0], color: WA.green }]} />
-              <Line t={t} x={540} y={370} size={96} align="center" out={CH.collapse[1] + 0.55} outDur={0.3} outMode="blur" words={[{ w: "AVAILABILITY", at: CH.checks[2] - 0.15 }, { w: "✓", at: CH.checks[2], color: WA.green, gap: 0 }]} />
-            </>
-          )}
-          <Line t={t} x={540} y={230} size={150} align="center" out={RT.stroke[0] + 0.2} outDur={0.3} outMode="scale" words={[{ w: "ORDER", at: oc[0], gap: 0 }]} />
-          <Line t={t} x={540} y={392} size={150} align="center" out={RT.stroke[0] + 0.24} outDur={0.3} outMode="scale" words={[{ w: "CONFIRMED.", at: oc[0] + 0.22, color: Y, gap: 0 }]} />
-          {/* no-VO: "yours could be next" as the workstation returns */}
-          {!vo && <Line t={t} x={540} y={300} size={96} align="center" out={FLY[0] + 0.1} outDur={0.3} outMode="blur" words={[{ w: "YOURS", at: V.vo.next.kw.yours }, { w: "COULD", at: V.vo.next.kw.yours + 0.15 }, { w: "BE", at: V.vo.next.kw.yours + 0.28 }, { w: "NEXT.", at: V.vo.next.kw.next, color: Y, gap: 0 }]} />}
+          {/* the conversation's key moments: PRICE ✓ / AVAILABILITY ✓ (both versions) */}
+          <Line t={t} x={540} y={64} size={84} align="center" out={CH.collapse[1] + 0.45} outDur={0.25} outMode="blur" words={[{ w: "PRICE", at: CH.checks[0] - 0.05 }, { w: "✓", at: CH.checks[0], color: WA.green }]} />
+          <Line t={t} x={540} y={166} size={84} align="center" out={CH.collapse[1] + 0.5} outDur={0.25} outMode="blur" words={[{ w: "AVAILABILITY", at: CH.checks[2] - 0.15 }, { w: "✓", at: CH.checks[2], color: WA.green, gap: 0 }]} />
+          <Line t={t} x={540} y={230} size={150} align="center" out={RT.stroke[0] + 0.24} outDur={0.25} outMode="scale" words={[{ w: "ORDER", at: oc[0], gap: 0 }]} />
+          <Line t={t} x={540} y={392} size={150} align="center" out={RT.stroke[0] + 0.27} outDur={0.25} outMode="scale" words={[{ w: "CONFIRMED.", at: oc[0] + 0.22, color: Y, gap: 0 }]} />
         </>
       )}
       <Route8 t={t} check={checkAt} />

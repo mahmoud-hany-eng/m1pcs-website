@@ -5,54 +5,39 @@ import { BRAND } from "../final/shared";
 import { LOGO_SRC, SEAM } from "../v7/geom";
 
 /**
- * The two halves of the real M1 emblem closing on each other — shared by the
+ * The two halves of the real M1 emblem striking each other — shared by the
  * opening and the closing signature.
  *
  * Motion (per half, mirrored so the distance from centre is symmetric):
- *  - float: the halves hang apart, a slow common vertical drift and a slight
- *    outward tilt (tension, not wobble — one long sine, faded in from rest);
- *  - merge: one cubic Hermite from rest to contact — a gentle acceleration, then
- *    a long deceleration that still carries ~20% of its peak speed at contact;
- *  - contact: that last bit of momentum becomes a 1.4 px compression (a quarter
- *    sine whose start velocity matches the arrival speed), which then releases
- *    into exact alignment with a smoothstep (zero velocity at both ends).
- * No springs, no bounce: every piece joins the next with continuous velocity.
+ *  - the halves establish a short distance apart (close enough that the move
+ *    reads instantly), each with a slight outward tilt;
+ *  - ONE cubic Hermite from rest to contact: one acceleration, then a
+ *    deceleration that still carries ~55% of the average speed into the hit —
+ *    purposeful, never slow-motion, no second acceleration, no pause;
+ *  - contact: the halves stop dead in exact alignment on the clash frame (the
+ *    impact), hidden in the spark and a 2-frame camera jolt — no rebound, no
+ *    correction afterwards. The tilt resolves on the same curve.
  */
 
-export const END_SLOPE = 0.3; // merge curve's speed at contact, relative to the average speed
+export const END_SLOPE = 0.55; // speed at contact, relative to the average speed of the move
 /** 0 → 1 over u: Hermite with f'(0)=0, f'(1)=END_SLOPE */
 export const mergeCurve = (u: number) => {
   const x = clamp01(u);
   return (END_SLOPE - 2) * x * x * x + (3 - END_SLOPE) * x * x;
 };
-const COMP_IN = 0.08; // s: the compression after contact
-const COMP_OUT = 0.24; // s: the release into exact alignment
-const smooth = (x: number) => x * x * (3 - 2 * x);
 
 export type HalfPose = { dx: number; dy: number; rot: number; f: number };
 /**
  * Per-half pose at time t. dx: distance of each half from its final position
- * (positive = apart). dy: common vertical drift. rot: outward tilt (deg).
+ * (positive = apart). rot: outward tilt (deg). (floatFrom is kept for the call sites; there is no float.)
  */
-export function halfPose(t: number, floatFrom: number, m0: number, contact: number, D0: number): HalfPose {
-  const T = contact - m0;
-  const f = mergeCurve(range(t, m0, contact));
-  const env = smooth(range(t, floatFrom, floatFrom + 0.45)) * (1 - f);
-  const ph = (t - floatFrom) * 2 * Math.PI * 0.42;
-  const dy = env * 5 * Math.sin(ph);
-  const rot = env * (2.2 + 0.6 * Math.sin(ph * 0.7));
-  let dx = D0 * (1 - f);
-  if (t > contact) {
-    const vc = (D0 * END_SLOPE) / T; // px/s at contact
-    const A = (vc * 2 * COMP_IN) / Math.PI; // quarter sine with matching start velocity
-    const tau = t - contact;
-    dx = tau < COMP_IN ? -A * Math.sin((Math.PI / 2) * (tau / COMP_IN)) : -A * (1 - smooth(clamp01((tau - COMP_IN) / COMP_OUT)));
-  }
-  return { dx, dy, rot, f };
+export function halfPose(t: number, _floatFrom: number, m0: number, contact: number, D0: number, tilt = 2.4): HalfPose {
+  const f = t >= contact ? 1 : mergeCurve(range(t, m0, contact));
+  return { dx: D0 * (1 - f), dy: 0, rot: tilt * (1 - f), f };
 }
-/** the compression depth (px) for a given travel — reported by the QA */
-export const compressionPx = (D0: number, T: number) => ((D0 * END_SLOPE) / T) * (2 * COMP_IN) / Math.PI;
-export const settledAt = (contact: number) => contact + COMP_IN + COMP_OUT;
+/** no compression any more (the hit is a clean stop) — reported by the QA */
+export const compressionPx = (_D0: number, _T: number) => 0;
+export const settledAt = (contact: number) => contact;
 
 /** a 1–2 frame camera impulse at contact (px) */
 export const impulse = (t: number, at: number) => {
@@ -104,9 +89,9 @@ const sparks = (n: number, seed: number): Spark[] =>
     const base = side > 0 ? 0 : Math.PI;
     const spread = (rand(seed + i * 7.1) - 0.62) * 1.5; // biased upward
     const a = base + side * spread;
-    return { a, v: 820 + 760 * rand(seed + i * 3.3), life: 0.17 + 0.17 * rand(seed + i * 5.7), trail: i === 2 || i === 7 ? 0.065 : 0.028, w: 3.2 + 2.2 * rand(seed + i * 9.9) };
+    return { a, v: 950 + 800 * rand(seed + i * 3.3), life: 0.13 + 0.13 * rand(seed + i * 5.7), trail: i === 2 || i === 5 ? 0.05 : 0.022, w: 3.2 + 2.2 * rand(seed + i * 9.9) };
   });
-const SPARKS_A = sparks(10, 11);
+const SPARKS_A = sparks(9, 11);
 const SPARKS_B = sparks(8, 47);
 const sparkCol = (k: number) => {
   // white-hot → M1 yellow → orange → red
@@ -120,18 +105,18 @@ const sparkCol = (k: number) => {
 
 /**
  * The sword-clash spark at the exact contact frame: a white-hot flash, an
- * M1-yellow core, 10 (closing: 8) sparks with a couple of brief trails, a
- * short cross / star glint. Strongest for ~0.1 s, gone by ~0.4 s; a local
+ * M1-yellow core, 9 (closing: 8) sparks with a couple of brief trails, a
+ * short cross / star glint. Strongest for ~0.1 s, gone by 0.3 s; a local
  * bloom only (never a full-frame white-out).
  */
 export const ClashSpark: React.FC<{ t: number; at: number; x: number; y: number; refined?: boolean; scale?: number }> = ({ t, at, x, y, refined = false, scale = 1 }) => {
   const tau = t - at;
-  if (tau < 0 || tau > 0.42) return null;
+  if (tau < 0 || tau > 0.3) return null;
   const S = 460;
-  const flash = tau < 1 / 60 ? 1 : Math.exp(-(tau - 1 / 60) / 0.035);
-  const core = Math.exp(-tau / (refined ? 0.07 : 0.085));
-  const bloom = Math.exp(-tau / 0.11);
-  const glintK = tau < 0.025 ? tau / 0.025 : Math.exp(-(tau - 0.025) / 0.045);
+  const flash = tau < 1 / 60 ? 1 : Math.exp(-(tau - 1 / 60) / 0.028);
+  const core = Math.exp(-tau / (refined ? 0.055 : 0.065));
+  const bloom = Math.exp(-tau / 0.08);
+  const glintK = tau < 0.02 ? tau / 0.02 : Math.exp(-(tau - 0.02) / 0.04);
   const list = refined ? SPARKS_B : SPARKS_A;
   const pos = (s: Spark, u: number) => {
     const k = 7; // drag

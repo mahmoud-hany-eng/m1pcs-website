@@ -102,7 +102,7 @@ export const PC8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
         <Line t={t} x={86} y={260} size={132} words={[{ w: "BUILT.", at: PT.built, gap: 0 }]} />
         <Line t={t} x={86} y={392} size={132} words={[{ w: "SET UP.", at: PT.setup, gap: 0 }]} />
         <div style={{ position: "absolute", left: 0, top: 0 }}>
-          <Line t={t} x={86} y={524} size={160} enterDur={0.46} words={[{ w: "READY.", at: PT.ready, color: BRAND.yellow, gap: 0 }]} style={{ textShadow: `0 0 ${40 * Math.sin(Math.PI * range(t, PT.ready, PT.ready + 0.6))}px rgba(249,194,4,0.55), 0 6px 36px rgba(0,0,0,0.85)` }} />
+          <Line t={t} x={86} y={524} size={160} enterDur={0.36} words={[{ w: "READY.", at: PT.ready, color: BRAND.yellow, gap: 0 }]} style={{ textShadow: `0 0 ${40 * Math.sin(Math.PI * range(t, PT.ready, PT.ready + 0.6))}px rgba(249,194,4,0.55), 0 6px 36px rgba(0,0,0,0.85)` }} />
         </div>
         <div style={{ position: "absolute", left: 660, top: 404, display: "flex", flexDirection: "column", gap: 10, fontFamily: FONT.ui, fontWeight: 500, fontSize: 34 }}>
           {["Windows 11 Pro", "Drivers", "Updates"].map((s, i) => (

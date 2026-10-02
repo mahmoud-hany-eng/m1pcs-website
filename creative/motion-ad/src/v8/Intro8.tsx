@@ -10,16 +10,12 @@ import { Line, arrive as glideIn } from "./Kinetic";
 import { ClashSpark, EmblemHalves, halfPose, impulse, settledAt } from "./Merge";
 
 /**
- * v8 opening — a question, then the brand, then the world.
- * BLACK. "Are you in" — QATAR? (M1 yellow, a red light answers behind it, it
- * drifts toward camera) — "looking to / build a PC?" emerges behind it, the
- * whole group in a slight parallax. Then — the pause after the question — the
- * letters compress into light: two red traces become the two halves of the REAL
- * M1 emblem, hanging apart with a little tension (QATAR?'s yellow waits between
- * them as an ember); they close slowly, decelerating, and meet — a sword-clash
- * spark on the exact contact frame. The logo sits still; M1 GAMING PCS lights;
- * DOHA • QATAR — held while the narrator speaks. Then (as v7) the emblem gains
- * pressure and unfolds into the bezel of a monitor.
+ * Opening (v10) — the brand in ~1.6 s, then the world.
+ * The two halves of the REAL M1 emblem establish a short distance apart and
+ * strike together on one curve (0.15 → 0.72 s): a sword-clash spark on the
+ * contact frame; M1 GAMING PCS and DOHA • QATAR are readable by ~1.1 s while the
+ * narrator asks "Are you in Qatar…" (QATAR lights on the word) — then the
+ * emblem unfolds into the bezel of a monitor ("…BUILD A PC?" lands above it).
  *
  * (v7 notes follow)
  * BLACK. A thin red line draws in; a second answers from the other side; they
@@ -52,7 +48,7 @@ function bands(cam: Camera, thick: number) {
 }
 // explosive but controlled: a hard launch, a long settle (no overshoot)
 const unfoldEase = bezier(0.12, 0.9, 0.22, 1);
-export const INTRO_D0 = 100; // px each half hangs from its place before the merge
+export const INTRO_D0 = 46; // px each half starts from its place — close enough that the move reads instantly
 const CONTACT_PT = { x: 2258, y: 2080 }; // where the halves first touch (source px, on the seam)
 
 export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
@@ -90,57 +86,19 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
 
   const emblemPath = pathOf(EMB.map((p) => sc(L2(p))));
 
-  // ---------------------------------------------------------------- the question
+  // ---------------------------------------------------------------- the question, spoken over the brand
+  // "Are you in QATAR…" — QATAR in DOHA • QATAR lights M1-yellow on the word; "…BUILD A PC?" lands above
+  // the monitor as it forms.
   const W = I.words;
-  const drift = lerp(-1, 1, ease.inOutCubic(range(t, W.are, I.collapse[0])));
-  const lift = ease.inOutCubic(range(t, W.looking - 0.12, W.looking + 0.3)); // QATAR? makes room
-  const sq = ease.inCubic(range(t, I.collapse[0], I.collapse[0] + 0.26)); // letters compress
-  const fly = ease.swift(range(t, I.collapse[0] + 0.2, I.halvesIn[0] + 0.12)); // traces travel to the halves
-  const qRed = range(t, W.qatar - 0.05, W.qatar + 0.4) * (1 - 0.6 * range(t, I.collapse[0], I.halvesIn[0])) * (1 - range(t, I.contact, I.contact + 0.3));
-  const squeeze = (k: number): React.CSSProperties => ({ transform: `scale(${1 - 0.95 * k}, ${1 - 0.86 * k})`, filter: `brightness(${1 + 2.2 * k})`, opacity: 1 - range(k, 0.75, 1) });
-  const question = t < I.halvesIn[0] + 0.05 && (
-    <>
-      {/* the red light that answers QATAR? */}
-      {qRed > 0 && <div style={{ position: "absolute", left: 540 - 620, top: 860 - 620 - 120 * lift, width: 1240, height: 1240, borderRadius: "50%", background: `radial-gradient(closest-side, rgba(231,50,37,${0.3 * qRed}), rgba(231,50,37,${0.08 * qRed}) 55%, rgba(231,50,37,0) 100%)` }} />}
-      <div style={{ position: "absolute", inset: 0, transform: `translateX(${10 * drift}px)`, transformOrigin: "540px 700px" }}>
-        <Line t={t} x={540} y={640} size={64} weight={600} track={0.06} align="center" out={W.looking - 0.15} outDur={0.3} outMode="up" words={[{ w: "ARE", at: W.are }, { w: "YOU", at: W.you }, { w: "IN", at: W.in }]} />
-      </div>
-      <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 840px", transform: `translate(${28 * drift}px, ${-150 * lift}px) scale(${lerp(1, 1.06, ease.inOutCubic(range(t, W.qatar, I.collapse[0])))})`, ...squeeze(sq) }}>
-        <Line t={t} x={540} y={735} size={236} align="center" track={-0.01} enterDur={0.64} words={[{ w: "QATAR?", at: W.qatar, color: BRAND.yellow, gap: 0 }]} />
-      </div>
-      <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 1090px", transform: `translate(${6 * drift}px, ${-150 * lift}px)`, ...squeeze(sq) }}>
-        <Line t={t} x={540} y={1060} size={66} weight={600} track={0.06} align="center" words={[{ w: "LOOKING", at: W.looking }, { w: "TO", at: W.looking + 0.26, gap: 0 }]} />
-      </div>
-      {/* BUILD A PC? emerges from behind, out of depth */}
-      <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 1190px", transform: `translate(${-4 * drift}px, ${-150 * lift + 40 * (1 - glideIn(range(t, W.build, W.build + 0.6)))}px) scale(${lerp(0.84, 1, glideIn(range(t, W.build, W.build + 0.6)))})`, ...squeeze(sq) }}>
-        <Line t={t} x={540} y={1140} size={138} align="center" words={[{ w: "BUILD", at: W.build }, { w: "A", at: W.build + 0.12 }, { w: "PC?", at: W.pc - 0.05, color: BRAND.red, gap: 0 }]} />
-      </div>
-    </>
-  );
-  // the traces: QATAR? → the yellow ember between the halves; the two lines below → the two halves
-  const hl = { x: (la.x + hit.x) / 2 - INTRO_D0, y: (la.y + hit.y) / 2 + 40 }, hr = { x: (ra.x + hit.x) / 2 + INTRO_D0, y: (ra.y + hit.y) / 2 + 40 };
-  const traces = sq > 0.5 && t < I.halvesIn[1] && (() => {
-    const src = [{ x: 540, y: 840 - 150, c: BRAND.yellow, to: hit }, { x: 540, y: 1090 - 150, c: BRAND.red, to: hl }, { x: 540, y: 1205 - 150, c: BRAND.red, to: hr }];
-    return src.map((s0, i) => {
-      const k = clamp01(fly * 1.08 - i * 0.04);
-      const p = { x: lerp(s0.x, s0.to.x, k) + Math.sin(Math.PI * k) * (i === 1 ? -140 : i === 2 ? 140 : 0), y: lerp(s0.y, s0.to.y, k) };
-      const len = lerp(i === 0 ? 260 : 300, 26, k);
-      const ang = Math.atan2(s0.to.y - s0.y, s0.to.x - s0.x);
-      const a = k < 0.05 ? 0 : ang;
-      return (
-        <g key={i} opacity={i === 0 ? 1 - range(t, I.halvesIn[0] + 0.1, I.halvesIn[0] + 0.25) : 1 - range(t, I.halvesIn[0] + 0.02, I.halvesIn[0] + 0.3)}>
-          <line x1={p.x - Math.cos(a) * len} y1={p.y - Math.sin(a) * len * (k < 0.05 ? 0 : 1)} x2={p.x} y2={p.y} stroke={s0.c} strokeWidth={i === 0 ? 7 : 6} strokeLinecap="round" filter="url(#redglow)" />
-          <circle cx={p.x} cy={p.y} r={i === 0 ? 7 : 5} fill={i === 0 ? "#fff6c8" : "#ffd2c8"} />
-        </g>
-      );
-    });
-  })();
+  const qatarHi = Math.sin(Math.PI * range(t, W.qatar - 0.04, W.qatar + 0.42));
+  const question = null; // (BUILD A PC? — IntroQuestion, mounted by the composition: it outlives this component)
+  const traces = null;
   // DOHA • QATAR under the real logo
   const dq = glideIn(range(t, I.doha[0], I.doha[1]));
   const dqOut = ease.inCubic(range(t, I.dohaOut[0], I.dohaOut[1]));
 
   // QATAR?'s yellow, waiting between the halves — it brightens as they close, then becomes the clash
-  const ember = t >= I.halvesIn[0] + 0.1 && t < I.contact ? range(t, I.halvesIn[0] + 0.1, I.halvesIn[0] + 0.3) : 0;
+  const ember = t >= I.halvesIn[0] + 0.04 && t < I.contact ? range(t, I.halvesIn[0] + 0.04, I.halvesIn[1] + 0.05) : 0;
   const settled = t >= settledAt(I.contact);
 
   return (
@@ -202,7 +160,7 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
         <EmblemHalves left={540 + (LOGO.left - 540) * scale} top={830 + (LOGO.top - 830) * scale} width={LOGO_W * scale} pose={pose} whole={settled} opacity={art} filter={halvesK < 1 ? `blur(${(8 * (1 - halvesK)).toFixed(2)}px) brightness(${(1 + 0.6 * (1 - halvesK)).toFixed(3)})` : undefined} />
       )}
       <ClashSpark t={t} at={I.contact} x={hit.x} y={hit.y} />
-      {dq > 0 && dqOut < 1 && <DohaQatar k={dq} out={dqOut} y={LOGO.top + 5053 * s + 52} scale={scale} tremor={tremor} />}
+      {dq > 0 && dqOut < 1 && <DohaQatar k={dq} out={dqOut} y={LOGO.top + 5053 * s + 52} scale={scale} tremor={tremor} qatarHi={qatarHi} />}
       {wm > 0 && t < I.expand[0] + 0.1 && (
         <div style={{ position: "absolute", left: 540 + (LOGO.left - 540) * scale + tremor, top: 830 + (LOGO.top - 830) * scale, width: LOGO_W * scale, height: LOGO_SRC.h * s * scale, opacity: 1 - range(t, I.expand[0] - 0.02, I.expand[0] + 0.08), clipPath: `inset(${(3480 / LOGO_SRC.h) * 100}% ${100 - (8 + wm * 90)}% 0 0)` }}>
           <Img src={staticFile("brand/logo.png")} style={{ width: "100%", height: "100%" }} />
@@ -214,7 +172,7 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
 };
 
 /** DOHA • QATAR — the location line, used under the logo at the start and in the final hold */
-export const DohaQatar: React.FC<{ k: number; out?: number; y: number; size?: number; scale?: number; tremor?: number }> = ({ k, out = 0, y, size = 46, scale = 1, tremor = 0 }) => (
+export const DohaQatar: React.FC<{ k: number; out?: number; y: number; size?: number; scale?: number; tremor?: number; qatarHi?: number }> = ({ k, out = 0, y, size = 46, scale = 1, tremor = 0, qatarHi = 0 }) => (
   <div
     style={{
       position: "absolute",
@@ -234,11 +192,19 @@ export const DohaQatar: React.FC<{ k: number; out?: number; y: number; size?: nu
       whiteSpace: "nowrap",
     }}
   >
-    DOHA <span style={{ color: BRAND.yellow }}>•</span> QATAR
+    DOHA <span style={{ color: BRAND.yellow }}>•</span>{" "}
+    <span style={{ color: `rgb(${Math.round(255 - 6 * qatarHi)},${Math.round(255 - 61 * qatarHi)},${Math.round(255 - 251 * qatarHi)})`, textShadow: qatarHi > 0.01 ? `0 0 ${(18 * qatarHi).toFixed(1)}px rgba(249,194,4,${(0.6 * qatarHi).toFixed(3)})` : undefined }}>QATAR</span>
   </div>
 );
 
 export const introSamples = (t: number) => {
   if (t >= I.expand[0] && t < I.expand[1]) return 10;
   return 1;
+};
+
+/** "…BUILD A PC?" — lands on the spoken words above the monitor as it forms */
+export const IntroQuestion: React.FC<{ t: number }> = ({ t }) => {
+  const W = I.words;
+  if (t < W.build - 0.1 || t > I.pullBack[1] + 0.6) return null;
+  return <Line t={t} x={540} y={170} size={118} align="center" out={I.pullBack[1] + 0.12} outDur={0.25} outMode="up" words={[{ w: "BUILD", at: W.build }, { w: "A", at: W.build + 0.1 }, { w: "PC?", at: W.pc - 0.04, color: BRAND.yellow, gap: 0 }]} />;
 };

@@ -12,8 +12,8 @@ import { Line, arrive as glideIn } from "./Kinetic";
  * (transparent cut-out, never edited) standing at its own depth. A camera
  * moves forward through them at ONE steady pace (eased in at the start and out
  * into the flagship only), on a slow lateral arc. Four builds stand near the
- * camera's line and grow into big, readable passes (~0.9–1.5 s each); the rest
- * stand wider and sweep through the sides (~0.7 s each); depth reads through
+ * camera's line and grow into big, readable passes (~1.0 s each); the rest
+ * stand wider and sweep through the sides (~0.55 s each), several in view at once; depth reads through
  * scale, fog and a little focus falloff. It ends framing the 9800X3D / RTX 5080 flagship — the
  * hero of the next beat — while the others sink into darkness.
  *
@@ -26,18 +26,18 @@ const RT = V.route;
 type B = { n: number; src: string; w: number; h: number; bb: [number, number, number, number]; x: number; z: number; hero?: boolean };
 // oldest → newest (src/lib/builds.ts is newest-first); bb = alpha>160 bounds of the real photo (source px)
 export const BUILDS: B[] = [
-  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -360, z: 2800 },
+  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -300, z: 3400 },
   { n: 2, src: "ryzen-5-gtx-1660-ti.webp", w: 1090, h: 1280, bb: [38, 7, 1033, 1229], x: 270, z: 1350, hero: true },
-  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 640, z: 3050 },
-  { n: 4, src: "ryzen-7-rtx-4060.webp", w: 720, h: 1280, bb: [20, 242, 701, 1168], x: -390, z: 3910 },
-  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 60, z: 4460, hero: true },
-  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -520, z: 5600 },
-  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 450, z: 6600 },
-  { n: 8, src: "ryzen-5-rtx-5060-a520m.webp", w: 1052, h: 1280, bb: [58, 100, 963, 1227], x: -200, z: 7350, hero: true },
-  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 360, z: 8290 },
-  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -680, z: 9090 },
-  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 10, z: 9840, hero: true },
-  { n: 12, src: "ryzen-5-rtx-5060-ti.webp", w: 1221, h: 1280, bb: [144, 4, 1095, 1194], x: -500, z: 11250 },
+  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 600, z: 3240 },
+  { n: 4, src: "ryzen-7-rtx-4060.webp", w: 720, h: 1280, bb: [20, 242, 701, 1168], x: -350, z: 4110 },
+  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 90, z: 4460, hero: true },
+  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -520, z: 6000 },
+  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 370, z: 6600 },
+  { n: 8, src: "ryzen-5-rtx-5060-a520m.webp", w: 1052, h: 1280, bb: [58, 100, 963, 1227], x: -160, z: 7150, hero: true },
+  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 320, z: 8290 },
+  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -580, z: 9490 },
+  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 30, z: 10240, hero: true },
+  { n: 12, src: "ryzen-5-rtx-5060-ti.webp", w: 1221, h: 1280, bb: [144, 4, 1095, 1194], x: -440, z: 11250 },
   { n: 13, src: "ryzen-7-9800x3d-rtx-5080.webp", w: 1206, h: 1724, bb: [0, 55, 1205, 1668], x: 0, z: 12000, hero: true },
 ];
 const CASE_H = 700; // every case stands the same physical height (world units)
@@ -96,7 +96,7 @@ const Build: React.FC<{ b: B; x: number; y: number; sx: number; sy: number; pps:
 export const Gallery8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
   if (t < g0 - 0.05 || t > ge + 0.9) return null;
   // the opening: inside #2's fan → its gallery placement
-  const pull = glideIn(range(t, g0, g0 + 0.95));
+  const pull = glideIn(range(t, g0, g0 + 0.7));
   const recede = ease.inOutCubic(range(t, ge - 0.35, ge + 0.6)); // the others sink into darkness
   const items = BUILDS.map((b) => {
     const p = place(b, t);
@@ -110,7 +110,7 @@ export const Gallery8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
   });
   // far → near
   items.sort((a, c) => c.dz - a.dz);
-  const reveal = range(t, g0 + 0.2, g0 + 0.9); // everything except #2 emerges as we pull back
+  const reveal = range(t, g0 + 0.15, g0 + 0.65); // everything except #2 emerges as we pull back
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       {items.map(({ b, x, y, sx, sy, pps, dz }) => {
@@ -137,8 +137,8 @@ export const Gallery8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
 /** REAL / BUILDS. — kinetic, over the flight (BUILDS. lands as the PCs keep coming) */
 export const GalleryText: React.FC<{ t: number; vo: boolean }> = ({ t }) => (
   <>
-    <Line t={t} x={86} y={250} size={168} out={GA.textOut} outDur={0.4} outMode="blur" words={[{ w: "REAL", at: GA.real, gap: 0 }]} />
-    <Line t={t} x={86} y={410} size={168} out={GA.textOut + 0.06} outDur={0.4} outMode="blur" words={[{ w: "BUILDS.", at: GA.builds, color: BRAND.yellow, gap: 0 }]} />
+    <Line t={t} x={86} y={250} size={168} out={GA.textOut} outDur={0.28} outMode="blur" words={[{ w: "REAL", at: GA.real, gap: 0 }]} />
+    <Line t={t} x={86} y={410} size={168} out={GA.textOut + 0.06} outDur={0.28} outMode="blur" words={[{ w: "BUILDS.", at: GA.builds, color: BRAND.yellow, gap: 0 }]} />
   </>
 );
 

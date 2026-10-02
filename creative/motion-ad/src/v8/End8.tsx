@@ -15,8 +15,8 @@ import { CLOG, D, SH, SW, V, cIndex } from "./time";
  * and the real button answers with its hover. Then the brand signature: the
  * page falls away except the red button; it splits into two angular strips
  * that turn and fold into the halves of the real M1 emblem; the site's own
- * header mark flies in with them; they hang apart, then close slowly (the same
- * decelerating merge as the opening) and meet — a refined clash spark on the
+ * header mark flies in with them; a short distance apart they strike together
+ * (the same single-curve move as the opening) — a refined clash spark on the
  * contact frame; the logo is perfect and still; yellow light lifted from the
  * header logo draws M1 GAMING PCS; DOHA • QATAR; monepcs.qa; a clean hold.
  */
@@ -30,7 +30,7 @@ const LS = LOGO_W / LOGO_SRC.w;
 const LOGO = { left: 540 - LOGO_W / 2, top: 400 };
 const BY = 700; // where the button waits before it splits (just under the emblem's apex)
 const logoPt = (p: P): P => ({ x: LOGO.left + p.x * LS, y: LOGO.top + p.y * LS });
-export const END_D0 = 92; // px each half hangs from its place before the merge
+export const END_D0 = 40; // px each half starts from its place before the strike
 
 function strips(c: P, w: number, h: number) {
   const r = h / 2;
@@ -76,7 +76,7 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const S0 = strips({ x: 540, y: BY }, 640, (640 * BTN.h) / BTN.w);
   const apart = ease.outCubic(range(t, SG.split, SG.fly[0] + 0.24));
   const fold = ease.inOutCubic(range(t, SG.fly[0] + 0.14, SG.fly[1]));
-  const pose = halfPose(t, SG.fly[1] + 0.12, SG.merge[0], SG.lock, END_D0);
+  const pose = halfPose(t, SG.fly[1], SG.merge[0], SG.lock, END_D0, 0);
   const toArt = range(t, SG.fly[1] - 0.04, SG.fly[1] + 0.16); // the folded shapes become the real art halves
   const settled = t >= settledAt(SG.lock);
   const jolt = impulse(t, SG.lock);
@@ -105,8 +105,8 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const wm1 = ease.inOutCubic(range(t, SG.wordmark[0], SG.wordmark[0] + 0.24));
   const wm2 = ease.inOutCubic(range(t, SG.gaming, SG.wordmark[1] + 0.06));
   const sweep = range(t, SG.sweep[0], SG.sweep[1]);
-  const dq = glideIn(range(t, SG.doha, SG.doha + 0.5));
-  const url = glideIn(range(t, SG.url, SG.url + 0.45));
+  const dq = glideIn(range(t, SG.doha, SG.doha + 0.36));
+  const url = glideIn(range(t, SG.url, SG.url + 0.36));
   // kinetic CTA (in the site's empty band above its own heading) and the address
   const CW = V.cta.words;
   const yoursTint = range(t, CW.yours + 0.05, CW.yours + 0.3) * (1 - fade);
@@ -145,9 +145,9 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
         );
       })()}
       <div style={{ position: "absolute", inset: 0, opacity: 1 - fade }}>
-        <Line t={t} x={56} y={300} size={150} out={V.vo.visit.start - 0.05} outDur={0.4} outMode="blur" words={[{ w: "READY", at: CW.ready, gap: 0 }]} />
-        <Line t={t} x={56} y={455} size={150} out={V.vo.visit.start} outDur={0.4} outMode="blur" words={[{ w: "TO", at: CW.to }, { w: "BUILD", at: CW.to + 0.2, gap: 0 }]} />
-        <Line t={t} x={56} y={610} size={150} out={V.vo.visit.start + 0.05} outDur={0.4} outMode="blur" words={[{ w: "YOURS?", at: CW.yours, color: BRAND.yellow, gap: 0 }]} />
+        <Line t={t} x={56} y={300} size={150} out={V.vo.visit.start + 0.05} outDur={0.28} outMode="blur" words={[{ w: "READY", at: CW.ready, gap: 0 }]} />
+        <Line t={t} x={56} y={455} size={150} out={V.vo.visit.start + 0.1} outDur={0.28} outMode="blur" words={[{ w: "TO", at: CW.to }, { w: "BUILD", at: CW.to + 0.1, gap: 0 }]} />
+        <Line t={t} x={56} y={610} size={150} out={V.vo.visit.start + 0.15} outDur={0.28} outMode="blur" words={[{ w: "YOURS?", at: CW.yours, color: BRAND.yellow, gap: 0 }]} />
         {/* monepcs.qa — said, and written large */}
         <Line t={t} x={540} y={430} size={118} align="center" weight={700} track={0.0} out={SG.fade[0] + 0.05} outDur={0.3} outMode="blur" words={[{ w: "monepcs.qa", at: V.cta.url, gap: 0 }]} />
         {t >= V.cta.url + 0.25 && <div style={{ position: "absolute", left: 540 - 300, top: 572, width: 600 * glide(range(t, V.cta.url + 0.25, V.cta.url + 0.65)), height: 7, borderRadius: 4, background: BRAND.yellow, boxShadow: "0 0 18px rgba(249,194,4,0.7)", opacity: 1 - range(t, SG.fade[0] + 0.05, SG.fade[0] + 0.3) }} />}
