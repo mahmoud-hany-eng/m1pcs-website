@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 B=out/bundle
 [ -d "$B" ] || npx remotion bundle src/index.ts --out-dir "$B" >/dev/null
-r() { npx remotion render "$B" "$1" "$2" --sequence --image-format=png --gl=angle --concurrency="${4:-4}" --frames="$3" --log=error; }
+r() { npx remotion render "$B" "$1" "$2" --sequence --image-format=png --gl=angle --concurrency="${4:-4}" --frames="$3" --log=error --timeout=120000; }
 norm() { for f in "$1"/element-*.png; do b=$(basename "$f" .png); n=${b#element-}; [ ${#n} -lt 4 ] && mv -f "$f" "$1/$(printf 'element-%04d.png' $((10#$n)))"; done; return 0; }
 case "${1:-vo}" in
   vo)
