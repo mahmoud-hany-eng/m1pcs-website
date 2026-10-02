@@ -139,7 +139,7 @@ export const Route7: React.FC<{ t: number; check: CheckAt }> = ({ t, check }) =>
           const q = P(m);
           if (q.x < -40 || q.x > 1120 || q.y < -40 || q.y > 1960) return null;
           const depth = clamp01((q.f - 0.55) / 0.6);
-          const col = val === 2 ? `rgba(245,245,247,${0.55 * depth + 0.3})` : val === 3 ? BRAND.red : `rgba(166,166,173,${0.38 * depth + 0.16})`;
+          const col = val === 2 ? `rgba(245,245,247,${0.55 * depth + 0.3})` : val === 3 ? BRAND.red : `rgba(176,176,184,${0.5 * depth + 0.28})`;
           return <circle key={i} cx={q.x} cy={q.y} r={dotR * q.f} fill={col} />;
         })}
       </svg>

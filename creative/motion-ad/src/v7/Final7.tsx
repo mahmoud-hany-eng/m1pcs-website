@@ -125,7 +125,8 @@ const Scene: React.FC = () => {
   const envO = t < 4 ? ease.inOutCubic(range(t, I.materialize[0] + 0.05, I.materialize[1] + 0.15)) : t < RET.glow[0] ? 1 - range(t, RT.stroke[0] - 0.1, RT.stroke[0] + 0.3) : ease.inOutCubic(range(t, RET.pull[0] + 0.1, RET.pull[1]));
   const deviceO = t < RET.glow[0] ? 1 - range(t, RT.stroke[0] + 0.2, RT.stroke[0] + 0.42) : 1;
 
-  // monitor
+  // monitor (it falls away behind the dive into the ✓ — also keeps the dive's frames light to render)
+  const monO = t >= PUSH[0] && t < RET.glow[0] ? 1 - ease.inOutCubic(range(t, PUSH[0], PUSH[0] + 0.25)) : 1;
   const look = {
     body: t < 4 ? ease.inOutCubic(range(t, I.materialize[0], I.materialize[1])) : 1,
     stand: t < 4 ? ease.inOutCubic(range(t, I.materialize[0] + 0.1, I.materialize[1] + 0.05)) : 1,
@@ -169,7 +170,11 @@ const Scene: React.FC = () => {
           <Environment cam={cam} o={envO} rim={t < 4 ? range(t, I.materialize[0], I.materialize[1] + 0.3) : 1} />
           {deviceO > 0.001 && (t >= I.materialize[0] - 0.05) && (
             <AbsoluteFill style={{ opacity: deviceO }}>
-              <Monitor cam={cam} look={look} screen={screen} screenW={SW} screenH={SH} screenOn={screenOn} />
+              {monO > 0.001 && (
+                <AbsoluteFill style={{ opacity: monO }}>
+                  <Monitor cam={cam} look={look} screen={screen} screenW={SW} screenH={SH} screenOn={screenOn} />
+                </AbsoluteFill>
+              )}
               <Phone cam={cam} o={t < 4 ? envO : 1} wake={wake} screenW={PW} screenH={PH} blur={phoneBlur} screen={<PhoneChat t={t} />} />
             </AbsoluteFill>
           )}
@@ -217,7 +222,7 @@ const samplesAt = (frame: number) => {
   let n = Math.max(introSamples(t), routeSamples7(t), pcSamples7(t), endSamples(t));
   // fast camera moves in the world
   if (t >= TP.camera[0] && t < TP.wake + 0.2) n = Math.max(n, 6);
-  if (t >= PUSH[0] && t < PUSH[1]) n = Math.max(n, 8);
+  if (t >= PUSH[0] && t < RT.stroke[0] + 0.45) n = 4; // the dive: world + route together — keep it light
   if (t >= FLY[0] + 0.3 && t < FLY[1]) n = Math.max(n, 6);
   return n;
 };
