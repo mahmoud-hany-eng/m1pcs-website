@@ -1,7 +1,8 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { clamp01, ease, lerp, range } from "../lib/ease";
-import { BRAND, glide, snap } from "../final/shared";
+import { BRAND, glide } from "../final/shared";
+import { arrive as snap } from "./Kinetic";
 import { FONT } from "../final/fonts";
 import { V } from "./time";
 import { BUDGET, GAMES, QUOTE_LINES } from "./MonitorScreen8";
@@ -146,7 +147,7 @@ export const PhoneChat: React.FC<{ t: number }> = ({ t }) => {
           } else if (m.id === "reply") {
             const toText = range(t, CH.reply - 0.02, CH.reply + 0.14);
             const dot = (d: number) => {
-              const on = ease.outBack(range(local, 0.06 + d * 0.13, 0.2 + d * 0.13), 2);
+              const on = ease.inOutCubic(range(local, 0.06 + d * 0.13, 0.22 + d * 0.13));
               const wave = local > 0.48 ? Math.max(0, Math.sin((local - 0.48) * 10 - d * 0.9)) : 0;
               return { s: on, y: -12 * wave, o: 0.5 + 0.5 * on };
             };
@@ -195,7 +196,7 @@ export const PhoneChat: React.FC<{ t: number }> = ({ t }) => {
               </>
             );
           } else if (m.id === "paid") {
-            const doc = ease.outBack(range(local, 0.05, 0.32), 1.4);
+            const doc = snap(range(local, 0.05, 0.36));
             body = (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 24, background: "rgba(0,0,0,0.22)", borderRadius: 18, padding: "18px 26px", fontSize: 42 }}>

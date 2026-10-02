@@ -110,3 +110,38 @@ def land(level=1.0):
     return out * level
 
 
+
+
+def clash(level=1.0, seed=61, refined=False):
+    """The logo halves meeting — a modern 'sword clash' made from scratch (no samples):
+    a metallic TING (inharmonic blade modes, slightly detuned L/R so it rings wide),
+    an ELECTRICAL CRACK (a 3 ms broadband snap, a fast zap sweep and a 70 ms burst of crackle)
+    and a small SUB impact (a pitch-dropping sine). Short tail; the reverb send adds the room."""
+    d = 0.9
+    n = secs(d)
+    t = np.arange(n) / SR
+    rng = np.random.default_rng(seed)
+    # TING — blade modes (ratios of a free bar, nudged), each with its own decay
+    base = 2280.0 if not refined else 2490.0
+    modes = [(1.0, 0.38, 1.0), (1.594, 0.24, 0.62), (2.38, 0.15, 0.42), (3.13, 0.095, 0.28), (4.06, 0.06, 0.18)]
+    L = np.zeros(n)
+    R = np.zeros(n)
+    for k, (r, dec, a) in enumerate(modes):
+        f = base * r
+        ph = rng.uniform(0, 2 * np.pi)
+        L += a * np.sin(2 * np.pi * f * t + ph) * np.exp(-t / dec)
+        R += a * np.sin(2 * np.pi * (f * 1.0016 + 0.8) * t + ph) * np.exp(-t / dec)
+    att = np.minimum(1, t / 0.0006)
+    ting = np.stack([L, R], 1) * att[:, None] * 0.34
+    # CRACK — snap + zap + crackle
+    snap = bp(noise(d, seed + 1), 2500, 15000) * np.exp(-t / 0.0028) * 1.1
+    zf = 4200 * (900 / 4200) ** np.minimum(1, t / 0.05)
+    zap = np.sin(2 * np.pi * np.cumsum(zf) / SR) * np.exp(-t / 0.022) * 0.16
+    crk = crackle(d, 70 if not refined else 45, 0.32 if not refined else 0.2, seed=seed + 2) * (np.exp(-t / 0.035) * (t < 0.12))[:, None]
+    crack = pan((snap + zap) * (0.85 if not refined else 0.7), 0) + crk
+    # SUB — a short, low thump (not a boom)
+    fs = 62 * (40 / 62) ** np.minimum(1, t / 0.16)
+    sub = np.sin(2 * np.pi * np.cumsum(fs) / SR) * np.exp(-t / 0.13) * np.minimum(1, t / 0.002) * 0.62
+    body = lp(noise(d, seed + 3), 380) * np.exp(-t / 0.012) * 0.5
+    out = ting + crack + pan(sub + body, 0)
+    return out * level

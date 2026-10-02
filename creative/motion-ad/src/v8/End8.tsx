@@ -4,8 +4,9 @@ import { clamp01, ease, lerp, range } from "../lib/ease";
 import { BRAND, glide } from "../final/shared";
 import { FONT } from "../final/fonts";
 import { LEFT, RIGHT, LOGO_SRC, P, SEAM, lerpP, pathOf, resample, N } from "../v7/geom";
-import { Line } from "./Kinetic";
+import { Line, arrive as glideIn } from "./Kinetic";
 import { DohaQatar } from "./Intro8";
+import { ClashSpark, EmblemHalves, halfPose, impulse, settledAt } from "./Merge";
 import { CLOG, D, SH, SW, V, cIndex } from "./time";
 
 /**
@@ -14,9 +15,10 @@ import { CLOG, D, SH, SW, V, cIndex } from "./time";
  * and the real button answers with its hover. Then the brand signature: the
  * page falls away except the red button; it splits into two angular strips
  * that turn and fold into the halves of the real M1 emblem; the site's own
- * header mark flies in with them; they hang a breath apart — LOCK; yellow
- * light lifted from the header logo draws the wordmark; one sweep; BUILD
- * YOURS. / monepcs.qa; a clean hold.
+ * header mark flies in with them; they hang apart, then close slowly (the same
+ * decelerating merge as the opening) and meet — a refined clash spark on the
+ * contact frame; the logo is perfect and still; yellow light lifted from the
+ * header logo draws M1 GAMING PCS; DOHA • QATAR; monepcs.qa; a clean hold.
  */
 const SG = V.sig;
 const FS = 1080 / SW; // capture px → frame px when full-screen
@@ -28,6 +30,7 @@ const LS = LOGO_W / LOGO_SRC.w;
 const LOGO = { left: 540 - LOGO_W / 2, top: 400 };
 const BY = 700; // where the button waits before it splits (just under the emblem's apex)
 const logoPt = (p: P): P => ({ x: LOGO.left + p.x * LS, y: LOGO.top + p.y * LS });
+export const END_D0 = 92; // px each half hangs from its place before the merge
 
 function strips(c: P, w: number, h: number) {
   const r = h / 2;
@@ -73,13 +76,15 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const S0 = strips({ x: 540, y: BY }, 640, (640 * BTN.h) / BTN.w);
   const apart = ease.outCubic(range(t, SG.split, SG.fly[0] + 0.24));
   const fold = ease.inOutCubic(range(t, SG.fly[0] + 0.14, SG.fly[1]));
-  const lock = ease.inCubic(range(t, SG.lock - 0.05, SG.lock));
-  const gap = (t < SG.fly[1] ? 120 : lerp(18, 10, range(t, SG.fly[1], SG.dip[1] - 0.04)) + 1.2 * Math.sin(t * 60) * range(t, SG.dip[0], SG.dip[1] - 0.04)) * (1 - lock);
+  const pose = halfPose(t, SG.fly[1] + 0.12, SG.merge[0], SG.lock, END_D0);
+  const toArt = range(t, SG.fly[1] - 0.04, SG.fly[1] + 0.16); // the folded shapes become the real art halves
+  const settled = t >= settledAt(SG.lock);
+  const jolt = impulse(t, SG.lock);
   const flyHalf = (side: -1 | 1, poly: P[], target: P[]) => {
     const ang = (side * 28 * apart * (1 - fold) * Math.PI) / 180;
     const cx = 540 + side * 300 * apart * (1 - fold), cy = BY - 120 * apart * (1 - fold);
     const stripT = poly.map((p) => { const dx = p.x - 540, dy = p.y - BY; return { x: cx + dx * Math.cos(ang) - dy * Math.sin(ang), y: cy + dx * Math.sin(ang) + dy * Math.cos(ang) }; });
-    const emb = target.map((p) => { const q = logoPt(p); return { x: q.x + side * gap * LS * 4.5, y: q.y }; });
+    const emb = target.map((p) => { const q = logoPt(p); return { x: q.x + side * pose.dx, y: q.y + pose.dy }; });
     return lerpP(stripT, emb, fold);
   };
   const Lp = flyHalf(-1, S0.left, LEFT), Rp = flyHalf(1, S0.right, RIGHT);
@@ -89,8 +94,7 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
     const kk = range(t, SG.fly[0] + 0.1, SG.fly[1]);
     return `rgb(${Math.round(lerp(c0[0], 190, kk))},${Math.round(lerp(c0[1], 48, kk))},${Math.round(lerp(c0[2], 29, kk))})`;
   })();
-  const art = range(t, SG.lock + 0.01, SG.lock + 0.1);
-  const flash = Math.max(0, 1 - Math.abs(t - SG.lock - 0.02) / 0.06);
+  const hit = logoPt({ x: SEAM, y: 2080 });
 
   // the site's header mark joins (red), its yellow becomes the wordmark
   const hlA = zoomAbout({ x: css(HL.x), y: css(HL.y) });
@@ -101,8 +105,8 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const wm1 = ease.inOutCubic(range(t, SG.wordmark[0], SG.wordmark[0] + 0.24));
   const wm2 = ease.inOutCubic(range(t, SG.gaming, SG.wordmark[1] + 0.06));
   const sweep = range(t, SG.sweep[0], SG.sweep[1]);
-  const dq = ease.settle(range(t, SG.doha, SG.doha + 0.5));
-  const url = ease.settle(range(t, SG.url, SG.url + 0.45));
+  const dq = glideIn(range(t, SG.doha, SG.doha + 0.5));
+  const url = glideIn(range(t, SG.url, SG.url + 0.45));
   // kinetic CTA (in the site's empty band above its own heading) and the address
   const CW = V.cta.words;
   const yoursTint = range(t, CW.yours + 0.05, CW.yours + 0.3) * (1 - fade);
@@ -112,7 +116,7 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const wmClip = (y0: number, y1: number, k: number) => `inset(${pct(y0 - 40)}% ${100 - (xpct(500) + k * (xpct(4450) - xpct(500)))}% ${100 - pct(y1 + 40)}% 0)`;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+    <AbsoluteFill style={{ backgroundColor: "#000", transform: jolt ? `translateY(${jolt}px)` : undefined }}>
       {/* the real site, full frame */}
       <AbsoluteFill style={{ opacity: 1 - fade }}>
         <div style={{ position: "absolute", left: 0, top: 0, width: SW, height: SH, transformOrigin: "0 0", transform: `translate(${540 - 540 * calm}px, ${860 - 860 * calm}px) scale(${FS * calm})` }}>
@@ -163,14 +167,12 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
       {split && (
         <>
           <svg width={1080} height={1920} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
-            <path d={pathOf(Lp)} fill={btnRed} opacity={1 - art} />
-            <path d={pathOf(Rp)} fill={btnRed} opacity={1 - art} />
+            {toArt < 1 && <path d={pathOf(Lp)} fill={btnRed} opacity={1 - toArt} />}
+            {toArt < 1 && <path d={pathOf(Rp)} fill={btnRed} opacity={1 - toArt} />}
           </svg>
           <div style={{ position: "absolute", left: 0, right: 0, top: BY - 30, textAlign: "center", fontFamily: FONT.ui, fontWeight: 600, fontSize: 46, color: "#fff", opacity: 1 - range(t, SG.split, SG.split + 0.08) }}>Build Your PC</div>
-          <div style={{ position: "absolute", left: LOGO.left, top: LOGO.top, width: LOGO_W, height: LOGO_SRC.h * LS, opacity: art, clipPath: `inset(0 0 ${100 - pct(3150)}% 0)` }}>
-            <Img src={staticFile("brand/logo.png")} style={{ width: "100%", height: "100%" }} />
-          </div>
-          {flash > 0 && <div style={{ position: "absolute", left: logoPt({ x: SEAM, y: 0 }).x - 3, top: logoPt({ x: 0, y: 1500 }).y, width: 6, height: (3150 - 1500) * LS, background: "rgba(255,240,228,0.9)", opacity: flash, boxShadow: "0 0 24px 6px rgba(255,120,80,0.6)" }} />}
+          {toArt > 0 && <EmblemHalves left={LOGO.left} top={LOGO.top} width={LOGO_W} pose={pose} whole={settled} opacity={toArt} />}
+          <ClashSpark t={t} at={SG.lock} x={hit.x} y={hit.y} refined />
           {[{ y0: 3542, y1: 4257, k: wm1 }, { y0: 4666, y1: 5053, k: wm2 }].map(({ y0, y1, k }, i) =>
             k > 0 ? (
               <div key={i} style={{ position: "absolute", left: LOGO.left, top: LOGO.top, width: LOGO_W, height: LOGO_SRC.h * LS, clipPath: wmClip(y0, y1, k) }}>
@@ -182,13 +184,13 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
           {sweep > 0 && sweep < 1 && <div style={{ position: "absolute", left: LOGO.left, top: LOGO.top, width: LOGO_W, height: LOGO_SRC.h * LS, WebkitMaskImage: `url(${staticFile("brand/logo.png")})`, WebkitMaskSize: "100% 100%", background: `linear-gradient(105deg, rgba(255,255,255,0) ${-30 + 150 * sweep}%, rgba(255,220,140,0.9) ${-18 + 150 * sweep}%, rgba(255,120,80,0.55) ${-12 + 150 * sweep}%, rgba(255,255,255,0) ${150 * sweep}%)`, mixBlendMode: "screen" }} />}
         </>
       )}
-      {/* yellow light lifted from the header logo's wordmark, travelling under the emblem */}
+      {/* the clash's yellow light runs out of the spark and draws the wordmark */}
       {t >= SG.yellow[0] && t < SG.wordmark[0] + 0.12 &&
         [0, 1, 2].map((i) => {
           const k = yel(i);
           const target = logoPt({ x: 1100 + 1100 * i, y: i === 2 ? 4860 : 3900 });
-          const from = { x: hlA.x + hlW * 0.5 + 6 * i, y: hlA.y + hlH * 0.85 };
-          const ctrl = { x: lerp(from.x, target.x, 0.2) + 220, y: Math.max(from.y, target.y) + 260 };
+          const from = hit;
+          const ctrl = { x: target.x + (target.x - 540) * 0.5, y: lerp(from.y, target.y, 0.35) };
           const q = (u: number) => ({ x: (1 - u) * (1 - u) * from.x + 2 * (1 - u) * u * ctrl.x + u * u * target.x, y: (1 - u) * (1 - u) * from.y + 2 * (1 - u) * u * ctrl.y + u * u * target.y });
           const p = q(k), p2 = q(Math.max(0, k - 0.08));
           const ang = (Math.atan2(p.y - p2.y, p.x - p2.x) * 180) / Math.PI;
@@ -207,7 +209,7 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
 };
 
 export const endSamples8 = (t: number) => {
-  if (t >= SG.fade[0] && t < SG.lock + 0.05) return 6;
+  if (t >= SG.fade[0] && t < SG.fly[1]) return 6;
   return 1;
 };
 export { clamp01 };

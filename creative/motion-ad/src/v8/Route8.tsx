@@ -1,7 +1,8 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { clamp01, ease, lerp, range } from "../lib/ease";
-import { BRAND, glide, snap } from "../final/shared";
+import { BRAND, glide } from "../final/shared";
+import { arrive as snap } from "./Kinetic";
 import { FONT } from "../final/fonts";
 import { V } from "./time";
 import { Line } from "./Kinetic";
@@ -127,7 +128,7 @@ export const Route8: React.FC<{ t: number; check: CheckAt }> = ({ t, check }) =>
   const RW = R.words;
   // "U.S." leaves the headline and becomes the route's origin label
   const usFly = ease.inOutCubic(range(t, RW.us + 0.42, RW.us + 0.95));
-  const qaWord = ease.settle(range(t, R.qatarWord - 0.04, R.qatarWord + 0.45));
+  const qaWord = snap(range(t, R.qatarWord - 0.06, R.qatarWord + 0.55));
 
   const dotR = 4.4 * c.zoom * extra;
 
@@ -270,7 +271,7 @@ export const Route8: React.FC<{ t: number; check: CheckAt }> = ({ t, check }) =>
         const qa = P(QA);
         const o = 1 - range(fanK, 0, 0.25);
         return (
-          <div style={{ position: "absolute", left: qa.x - 400, width: 800, top: qa.y + 70 * qa.f, textAlign: "center", fontFamily: FONT.display, fontWeight: 700, fontSize: 68 * qa.f, letterSpacing: `${0.18 + 0.2 * (1 - qaWord)}em`, color: BRAND.white, opacity: clamp01(qaWord * 1.5) * o, transform: `scale(${lerp(1.35, 1, qaWord)})`, filter: `blur(${(8 * (1 - qaWord)).toFixed(2)}px)`, textShadow: "0 0 30px rgba(231,50,37,0.9), 0 6px 30px rgba(0,0,0,0.8)" }}>
+          <div style={{ position: "absolute", left: qa.x - 400, width: 800, top: qa.y + 70 * qa.f, textAlign: "center", fontFamily: FONT.display, fontWeight: 700, fontSize: 68 * qa.f, letterSpacing: "0.18em", color: BRAND.white, opacity: clamp01(qaWord * 1.5) * o, transform: `scale(${lerp(1.12, 1, qaWord).toFixed(5)})`, filter: `blur(${(8 * (1 - qaWord)).toFixed(2)}px)`, textShadow: "0 0 30px rgba(231,50,37,0.9), 0 6px 30px rgba(0,0,0,0.8)" }}>
             QATAR
           </div>
         );

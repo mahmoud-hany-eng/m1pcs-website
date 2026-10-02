@@ -1,7 +1,8 @@
 import React from "react";
 import { AbsoluteFill, Img, staticFile } from "remotion";
 import { clamp01, ease, lerp, range } from "../lib/ease";
-import { BRAND, glide, snap } from "../final/shared";
+import { BRAND, glide } from "../final/shared";
+import { arrive as snap, arrive as glideIn } from "./Kinetic";
 import { FONT } from "../final/fonts";
 import { D, JLOG, Pill, Rect, SH, SW, TAP, V, jIndex } from "./time";
 
@@ -74,7 +75,7 @@ export const CHIP = { x: SEND.x + 14, y: SEND.y - 70, w: 300, h: 58 };
 export function cardBox(t: number) {
   const rise = ease.inOutCubic(range(t, Q.card, Q.card + 0.34));
   const sumY = lerp(SUM_Y0, SUM_Y1, rise);
-  const unfold = ease.settle(range(t, Q.card + 0.06, Q.card + 0.46));
+  const unfold = glideIn(range(t, Q.card + 0.06, Q.card + 0.46));
   const top = sumY - (SUM_Y1 - CARD.y);
   const h = lerp(150, 760, unfold);
   const a = range(t, Q.attach[0], Q.attach[1]);
@@ -90,9 +91,9 @@ export const MonitorScreen8: React.FC<{ t: number; layer?: "base" | "card" }> = 
   if (layer === "card") {
     if (t < c0 - 0.05 || t > V.toPhone.lift[1] + 0.05) return null;
     const cb = cardBox(t);
-    const capsule = ease.settle(range(t, c1 - 0.25, c1 + 0.1));
+    const capsule = glideIn(range(t, c1 - 0.25, c1 + 0.1));
     const line = (i: number) => snap(range(t, Q.lines[i], Q.lines[i] + 0.22));
-    const price = ease.settle(range(t, Q.price, Q.price + 0.3));
+    const price = glideIn(range(t, Q.price, Q.price + 0.3));
     const sweep = glide(range(t, Q.price + 0.14, Q.price + 0.44));
     const chip = range(cb.attach, 0.56, 0.78);
     const dock = ease.inCubic(range(t, V.toPhone.lift[0], V.toPhone.lift[1])); // swallowed by the WhatsApp disc

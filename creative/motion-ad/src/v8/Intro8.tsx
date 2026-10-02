@@ -6,16 +6,20 @@ import { EMB, LEFT, RIGHT, LOGO_SRC, P, V_TRI, lerpP, pathOf, resample, N } from
 import { Camera, MON, project, v3 } from "../v7/world";
 import { V } from "./time";
 import { FONT } from "../final/fonts";
-import { Line } from "./Kinetic";
+import { Line, arrive as glideIn } from "./Kinetic";
+import { ClashSpark, EmblemHalves, halfPose, impulse, settledAt } from "./Merge";
 
 /**
  * v8 opening — a question, then the brand, then the world.
  * BLACK. "Are you in" — QATAR? (M1 yellow, a red light answers behind it, it
  * drifts toward camera) — "looking to / build a PC?" emerges behind it, the
- * whole group in a slight parallax. Then the letters compress into traces:
- * two red lines and a yellow spark that draw the REAL M1 emblem; the wordmark
- * lights; DOHA • QATAR — held while the narrator speaks. Then (as v7) the
- * emblem gains pressure and unfolds into the bezel of a monitor.
+ * whole group in a slight parallax. Then — the pause after the question — the
+ * letters compress into light: two red traces become the two halves of the REAL
+ * M1 emblem, hanging apart with a little tension (QATAR?'s yellow waits between
+ * them as an ember); they close slowly, decelerating, and meet — a sword-clash
+ * spark on the exact contact frame. The logo sits still; M1 GAMING PCS lights;
+ * DOHA • QATAR — held while the narrator speaks. Then (as v7) the emblem gains
+ * pressure and unfolds into the bezel of a monitor.
  *
  * (v7 notes follow)
  * BLACK. A thin red line draws in; a second answers from the other side; they
@@ -46,24 +50,25 @@ function bands(cam: Camera, thick: number) {
   const right = [o(c.x, yo0), o(xo1, yo0), o(xo1, yo1), o(c.x, yo1), o(c.x, yi1), o(xi1, yi1), o(xi1, yi0), o(c.x, yi0)];
   return { left: resample(left, N), right: resample(right, N) };
 }
-// explosive but controlled: a hard launch, a long settle, a hair of overshoot
-const unfoldEase = bezier(0.12, 0.9, 0.22, 1.04);
+// explosive but controlled: a hard launch, a long settle (no overshoot)
+const unfoldEase = bezier(0.12, 0.9, 0.22, 1);
+export const INTRO_D0 = 100; // px each half hangs from its place before the merge
+const CONTACT_PT = { x: 2258, y: 2080 }; // where the halves first touch (source px, on the seam)
 
 export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
   if (t > I.materialize[1] + 0.2) return null;
-  const apex = L2(V_TRI.apex), la = L2(V_TRI.l), ra = L2(V_TRI.r);
-  const lA = ease.inOutCubic(range(t, I.lineA[0], I.lineA[1]));
-  const lB = ease.inOutCubic(range(t, I.lineB[0], I.lineB[1]));
-  const spark = range(t, I.spark, I.spark + 0.2);
-  const outline = ease.inOutCubic(range(t, I.fill[0], I.fill[1] - 0.05));
-  const fill = range(t, I.fill[0] + 0.12, I.fill[1]);
-  const art = range(t, I.fill[1] - 0.12, I.fill[1] + 0.06) * (1 - range(t, I.expand[0] - 0.05, I.expand[0] + 0.02));
+  const la = L2(V_TRI.l), ra = L2(V_TRI.r);
+  const hit = L2(CONTACT_PT);
+  // the two halves: appear apart, float, close slowly, contact, settle
+  const pose = halfPose(t, I.halvesIn[0], I.merge[0], I.contact, INTRO_D0);
+  const halvesK = ease.swift(range(t, I.halvesIn[0], I.halvesIn[1]));
+  const art = halvesK * (1 - range(t, I.expand[0] - 0.05, I.expand[0] + 0.02));
   const wm = ease.inOutCubic(range(t, I.wm[0], I.wm[1]));
-  const breathe = 1 + 0.008 * Math.sin(Math.PI * range(t, I.hold[0], I.hold[1]));
-  const press = ease.inCubic(range(t, I.pressure[0], I.pressure[1]));
-  const tremor = press * 1.6 * Math.sin(t * 95);
-  const scale = breathe * (1 - 0.04 * press);
+  const press = ease.inOutCubic(range(t, I.pressure[0], I.pressure[1]));
+  const tremor = 0;
+  const scale = 1 - 0.04 * press;
   const glow = 0.25 + 0.75 * press;
+  const jolt = impulse(t, I.contact); // 1–2 frame camera impulse on the contact frame
 
   // the unfold
   const k = unfoldEase(range(t, I.expand[0], I.expand[1] - 0.1));
@@ -90,10 +95,10 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
   const drift = lerp(-1, 1, ease.inOutCubic(range(t, W.are, I.collapse[0])));
   const lift = ease.inOutCubic(range(t, W.looking - 0.12, W.looking + 0.3)); // QATAR? makes room
   const sq = ease.inCubic(range(t, I.collapse[0], I.collapse[0] + 0.26)); // letters compress
-  const fly = ease.inOutCubic(range(t, I.collapse[0] + 0.22, I.lineA[0] + 0.02)); // traces travel to the emblem
-  const qRed = range(t, W.qatar - 0.05, W.qatar + 0.4) * (1 - 0.6 * range(t, I.collapse[0], I.lineA[0])) * (1 - range(t, I.fill[0], I.fill[1]));
+  const fly = ease.swift(range(t, I.collapse[0] + 0.2, I.halvesIn[0] + 0.12)); // traces travel to the halves
+  const qRed = range(t, W.qatar - 0.05, W.qatar + 0.4) * (1 - 0.6 * range(t, I.collapse[0], I.halvesIn[0])) * (1 - range(t, I.contact, I.contact + 0.3));
   const squeeze = (k: number): React.CSSProperties => ({ transform: `scale(${1 - 0.95 * k}, ${1 - 0.86 * k})`, filter: `brightness(${1 + 2.2 * k})`, opacity: 1 - range(k, 0.75, 1) });
-  const question = t < I.lineA[0] + 0.05 && (
+  const question = t < I.halvesIn[0] + 0.05 && (
     <>
       {/* the red light that answers QATAR? */}
       {qRed > 0 && <div style={{ position: "absolute", left: 540 - 620, top: 860 - 620 - 120 * lift, width: 1240, height: 1240, borderRadius: "50%", background: `radial-gradient(closest-side, rgba(231,50,37,${0.3 * qRed}), rgba(231,50,37,${0.08 * qRed}) 55%, rgba(231,50,37,0) 100%)` }} />}
@@ -101,20 +106,21 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
         <Line t={t} x={540} y={640} size={64} weight={600} track={0.06} align="center" out={W.looking - 0.15} outDur={0.3} outMode="up" words={[{ w: "ARE", at: W.are }, { w: "YOU", at: W.you }, { w: "IN", at: W.in }]} />
       </div>
       <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 840px", transform: `translate(${28 * drift}px, ${-150 * lift}px) scale(${lerp(1, 1.06, ease.inOutCubic(range(t, W.qatar, I.collapse[0])))})`, ...squeeze(sq) }}>
-        <Line t={t} x={540} y={735} size={236} align="center" track={-0.01} enterDur={0.5} words={[{ w: "QATAR?", at: W.qatar, color: BRAND.yellow, gap: 0 }]} />
+        <Line t={t} x={540} y={735} size={236} align="center" track={-0.01} enterDur={0.64} words={[{ w: "QATAR?", at: W.qatar, color: BRAND.yellow, gap: 0 }]} />
       </div>
       <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 1090px", transform: `translate(${6 * drift}px, ${-150 * lift}px)`, ...squeeze(sq) }}>
         <Line t={t} x={540} y={1060} size={66} weight={600} track={0.06} align="center" words={[{ w: "LOOKING", at: W.looking }, { w: "TO", at: W.looking + 0.26, gap: 0 }]} />
       </div>
       {/* BUILD A PC? emerges from behind, out of depth */}
-      <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 1190px", transform: `translate(${-4 * drift}px, ${-150 * lift + 40 * (1 - ease.settle(range(t, W.build, W.build + 0.6)))}px) scale(${lerp(0.84, 1, ease.settle(range(t, W.build, W.build + 0.6)))})`, ...squeeze(sq) }}>
+      <div style={{ position: "absolute", inset: 0, transformOrigin: "540px 1190px", transform: `translate(${-4 * drift}px, ${-150 * lift + 40 * (1 - glideIn(range(t, W.build, W.build + 0.6)))}px) scale(${lerp(0.84, 1, glideIn(range(t, W.build, W.build + 0.6)))})`, ...squeeze(sq) }}>
         <Line t={t} x={540} y={1140} size={138} align="center" words={[{ w: "BUILD", at: W.build }, { w: "A", at: W.build + 0.12 }, { w: "PC?", at: W.pc - 0.05, color: BRAND.red, gap: 0 }]} />
       </div>
     </>
   );
-  // the traces: QATAR? → a yellow spark for the apex; the two lines below → the two red strokes
-  const traces = sq > 0.5 && t < I.spark + 0.06 && (() => {
-    const src = [{ x: 540, y: 840 - 150, c: BRAND.yellow, to: apex }, { x: 540, y: 1090 - 150, c: BRAND.red, to: la }, { x: 540, y: 1205 - 150, c: BRAND.red, to: ra }];
+  // the traces: QATAR? → the yellow ember between the halves; the two lines below → the two halves
+  const hl = { x: (la.x + hit.x) / 2 - INTRO_D0, y: (la.y + hit.y) / 2 + 40 }, hr = { x: (ra.x + hit.x) / 2 + INTRO_D0, y: (ra.y + hit.y) / 2 + 40 };
+  const traces = sq > 0.5 && t < I.halvesIn[1] && (() => {
+    const src = [{ x: 540, y: 840 - 150, c: BRAND.yellow, to: hit }, { x: 540, y: 1090 - 150, c: BRAND.red, to: hl }, { x: 540, y: 1205 - 150, c: BRAND.red, to: hr }];
     return src.map((s0, i) => {
       const k = clamp01(fly * 1.08 - i * 0.04);
       const p = { x: lerp(s0.x, s0.to.x, k) + Math.sin(Math.PI * k) * (i === 1 ? -140 : i === 2 ? 140 : 0), y: lerp(s0.y, s0.to.y, k) };
@@ -122,7 +128,7 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
       const ang = Math.atan2(s0.to.y - s0.y, s0.to.x - s0.x);
       const a = k < 0.05 ? 0 : ang;
       return (
-        <g key={i} opacity={i === 0 ? 1 - range(t, I.spark, I.spark + 0.05) : 1 - range(t, I.lineA[0] + i * 0.03, I.lineA[0] + 0.08 + i * 0.03)}>
+        <g key={i} opacity={i === 0 ? 1 - range(t, I.halvesIn[0] + 0.1, I.halvesIn[0] + 0.25) : 1 - range(t, I.halvesIn[0] + 0.02, I.halvesIn[0] + 0.3)}>
           <line x1={p.x - Math.cos(a) * len} y1={p.y - Math.sin(a) * len * (k < 0.05 ? 0 : 1)} x2={p.x} y2={p.y} stroke={s0.c} strokeWidth={i === 0 ? 7 : 6} strokeLinecap="round" filter="url(#redglow)" />
           <circle cx={p.x} cy={p.y} r={i === 0 ? 7 : 5} fill={i === 0 ? "#fff6c8" : "#ffd2c8"} />
         </g>
@@ -130,14 +136,18 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
     });
   })();
   // DOHA • QATAR under the real logo
-  const dq = ease.settle(range(t, I.doha[0], I.doha[1]));
+  const dq = glideIn(range(t, I.doha[0], I.doha[1]));
   const dqOut = ease.inCubic(range(t, I.dohaOut[0], I.dohaOut[1]));
 
+  // QATAR?'s yellow, waiting between the halves — it brightens as they close, then becomes the clash
+  const ember = t >= I.halvesIn[0] + 0.1 && t < I.contact ? range(t, I.halvesIn[0] + 0.1, I.halvesIn[0] + 0.3) : 0;
+  const settled = t >= settledAt(I.contact);
+
   return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
+    <AbsoluteFill style={{ pointerEvents: "none", transform: jolt ? `translateY(${jolt}px)` : undefined }}>
       {question}
       {/* the red tightening behind the emblem (pressure) */}
-      {!unfolding && t > I.fill[0] && (
+      {!unfolding && t > I.contact && (
         <div style={{ position: "absolute", left: 540 - 520, top: 690 - 520, width: 1040, height: 1040, borderRadius: "50%", background: `radial-gradient(closest-side, rgba(231,50,37,${0.18 * glow}), rgba(231,50,37,0) ${lerp(100, 60, press)}%)` }} />
       )}
       <svg width={1080} height={1920} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
@@ -151,29 +161,11 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
           </filter>
         </defs>
         {traces}
-        {/* two lines, from two directions, meeting at the apex */}
-        {!unfolding && outline < 1 && (
-          <g filter="url(#redglow)" opacity={1 - fill}>
-            {lA > 0 && <line x1={la.x} y1={la.y} x2={lerp(la.x, apex.x, lA)} y2={lerp(la.y, apex.y, lA)} stroke={BRAND.red} strokeWidth={6} strokeLinecap="round" />}
-            {lB > 0 && <line x1={ra.x} y1={ra.y} x2={lerp(ra.x, apex.x, lB)} y2={lerp(ra.y, apex.y, lB)} stroke={BRAND.red} strokeWidth={6} strokeLinecap="round" />}
+        {ember > 0 && (
+          <g opacity={ember}>
+            <circle cx={hit.x} cy={hit.y} r={26 + 22 * pose.f} fill={BRAND.yellow} opacity={0.12 + 0.2 * pose.f} filter="url(#redglow)" />
+            <circle cx={hit.x} cy={hit.y} r={4 + 2.5 * pose.f} fill="#fff3c4" />
           </g>
-        )}
-        {spark > 0 && spark < 1 && (
-          <g opacity={1 - spark}>
-            {[0, 1, 2, 3, 4].map((i) => {
-              const a = -Math.PI / 2 + (i - 2) * 0.55;
-              const r0 = 6 + 30 * spark, r1 = r0 + 18 * (1 - spark);
-              return <line key={i} x1={apex.x + Math.cos(a) * r0} y1={apex.y + Math.sin(a) * r0} x2={apex.x + Math.cos(a) * r1} y2={apex.y + Math.sin(a) * r1} stroke={BRAND.yellow} strokeWidth={3} strokeLinecap="round" />;
-            })}
-            <circle cx={apex.x} cy={apex.y} r={6 * (1 - spark) + 2} fill="#fff6c8" />
-          </g>
-        )}
-        {/* the emblem resolves around the lines */}
-        {!unfolding && outline > 0 && (
-          <>
-            <path d={emblemPath} fill="none" stroke={BRAND.red} strokeWidth={3} strokeDasharray={3000} strokeDashoffset={3000 * (1 - outline)} opacity={1 - art} />
-            <path d={emblemPath} fill="rgb(200,52,32)" opacity={fill * (1 - art)} />
-          </>
         )}
         {/* the unfold: each half of the emblem becomes half of the monitor's bezel */}
         {unfolding && (
@@ -205,12 +197,11 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
             return <line key={i} x1={p0.x} y1={p0.y} x2={p.x} y2={p.y} stroke={BRAND.yellow} strokeWidth={5} strokeLinecap="round" opacity={fade} />;
           })}
       </svg>
-      {/* the real logo art (emblem + wordmark) while it is a logo */}
+      {/* the real logo art: two halves of the emblem until they have settled, then the single emblem */}
       {art > 0 && (
-        <div style={{ position: "absolute", left: 540 + (LOGO.left - 540) * scale + tremor, top: 830 + (LOGO.top - 830) * scale, width: LOGO_W * scale, height: LOGO_SRC.h * s * scale, opacity: art, clipPath: `inset(0 0 ${100 - (3150 / LOGO_SRC.h) * 100}% 0)` }}>
-          <Img src={staticFile("brand/logo.png")} style={{ width: "100%", height: "100%" }} />
-        </div>
+        <EmblemHalves left={540 + (LOGO.left - 540) * scale} top={830 + (LOGO.top - 830) * scale} width={LOGO_W * scale} pose={pose} whole={settled} opacity={art} filter={halvesK < 1 ? `blur(${(8 * (1 - halvesK)).toFixed(2)}px) brightness(${(1 + 0.6 * (1 - halvesK)).toFixed(3)})` : undefined} />
       )}
+      <ClashSpark t={t} at={I.contact} x={hit.x} y={hit.y} />
       {dq > 0 && dqOut < 1 && <DohaQatar k={dq} out={dqOut} y={LOGO.top + 5053 * s + 52} scale={scale} tremor={tremor} />}
       {wm > 0 && t < I.expand[0] + 0.1 && (
         <div style={{ position: "absolute", left: 540 + (LOGO.left - 540) * scale + tremor, top: 830 + (LOGO.top - 830) * scale, width: LOGO_W * scale, height: LOGO_SRC.h * s * scale, opacity: 1 - range(t, I.expand[0] - 0.02, I.expand[0] + 0.08), clipPath: `inset(${(3480 / LOGO_SRC.h) * 100}% ${100 - (8 + wm * 90)}% 0 0)` }}>
@@ -234,11 +225,11 @@ export const DohaQatar: React.FC<{ k: number; out?: number; y: number; size?: nu
       fontFamily: FONT.display,
       fontWeight: 500,
       fontSize: size,
-      letterSpacing: `${0.34 + 0.22 * (1 - k)}em`,
+      letterSpacing: "0.34em",
       paddingLeft: "0.34em",
       color: BRAND.white,
       opacity: clamp01(k * 1.4) * (1 - out),
-      transform: `translate(${tremor}px, ${(1 - k) * 14 - 10 * out}px)`,
+      transform: `translate(${tremor}px, ${((1 - k) * 22 - 10 * out).toFixed(3)}px)`,
       filter: `blur(${(6 * (1 - k) * (1 - k) + 5 * out).toFixed(2)}px)`,
       whiteSpace: "nowrap",
     }}
@@ -249,6 +240,5 @@ export const DohaQatar: React.FC<{ k: number; out?: number; y: number; size?: nu
 
 export const introSamples = (t: number) => {
   if (t >= I.expand[0] && t < I.expand[1]) return 10;
-  if (t >= I.pressure[0] && t < I.pressure[1]) return 2;
   return 1;
 };

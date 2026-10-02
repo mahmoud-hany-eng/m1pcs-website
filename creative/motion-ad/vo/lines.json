@@ -2,7 +2,7 @@
  {
   "id": "q",
   "text": "Are you in Qatar and looking to build a PC?",
-  "speed": 0.9,
+  "speed": 0.77,
   "kw": {
    "Qatar": "Are you in",
    "looking": "Are you in Qatar and",
@@ -12,7 +12,7 @@
  {
   "id": "show",
   "text": "Then let us show you how it's properly done.",
-  "speed": 0.92,
+  "speed": 0.72,
   "kw": {
    "properly": "Then let us show you how it's"
   }
@@ -20,7 +20,7 @@
  {
   "id": "starts",
   "text": "At M1, it starts with you.",
-  "speed": 0.92,
+  "speed": 0.82,
   "kw": {
    "starts": "At M1, it",
    "you": "At M1, it starts with"
@@ -29,7 +29,7 @@
  {
   "id": "tell",
   "text": "Tell us what you play, the performance you want, your budget, and the look you're going for.",
-  "speed": 0.95,
+  "speed": 0.76,
   "kw": {
    "play": "Tell us what you",
    "performance": "Tell us what you play, the",
@@ -40,7 +40,7 @@
  {
   "id": "turn",
   "text": "We'll turn those choices into a build made around you.",
-  "speed": 0.95,
+  "speed": 0.8,
   "kw": {
    "build": "We'll turn those choices into a",
    "around": "We'll turn those choices into a build made"
@@ -49,7 +49,7 @@
  {
   "id": "send",
   "text": "Once you're happy with the quotation, send it to us through WhatsApp.",
-  "speed": 0.95,
+  "speed": 0.8,
   "kw": {
    "quotation": "Once you're happy with the",
    "send": "Once you're happy with the quotation,",
@@ -59,7 +59,7 @@
  {
   "id": "confirm",
   "text": "We'll confirm the latest pricing and availability, then your deposit confirms the order.",
-  "speed": 0.95,
+  "speed": 0.84,
   "kw": {
    "pricing": "We'll confirm the latest",
    "availability": "We'll confirm the latest pricing and",
@@ -70,7 +70,7 @@
  {
   "id": "source",
   "text": "From there, we source the requested parts directly from the U.S. and ship them to Qatar.",
-  "speed": 0.95,
+  "speed": 0.8,
   "kw": {
    "source": "From there, we",
    "US": "From there, we source the requested parts directly from the",
@@ -81,7 +81,7 @@
  {
   "id": "rest",
   "text": "Then M1 takes care of the rest.",
-  "speed": 0.92,
+  "speed": 0.77,
   "kw": {
    "rest": "Then M1 takes care of the"
   }
@@ -89,19 +89,19 @@
  {
   "id": "build",
   "text": "We build it.",
-  "speed": 0.88,
+  "speed": 0.78,
   "kw": {}
  },
  {
   "id": "setup",
   "text": "We set it up.",
-  "speed": 0.88,
+  "speed": 0.76,
   "kw": {}
  },
  {
   "id": "ready",
   "text": "And we make sure it's ready to use.",
-  "speed": 0.9,
+  "speed": 0.71,
   "kw": {
    "ready": "And we make sure it's"
   }
@@ -109,7 +109,7 @@
  {
   "id": "real",
   "text": "These are real PCs we've already built for our customers.",
-  "speed": 0.92,
+  "speed": 0.82,
   "kw": {
    "real": "These are",
    "PCs": "These are real",
@@ -120,7 +120,7 @@
  {
   "id": "next",
   "text": "And yours could be next.",
-  "speed": 0.92,
+  "speed": 0.8,
   "kw": {
    "yours": "And",
    "next": "And yours could be"
@@ -129,7 +129,7 @@
  {
   "id": "cta",
   "text": "Ready to build yours?",
-  "speed": 0.9,
+  "speed": 0.8,
   "kw": {
    "build": "Ready to",
    "yours": "Ready to build"
@@ -138,7 +138,7 @@
  {
   "id": "visit",
   "text": "Visit monepcs.qa.",
-  "speed": 0.88,
+  "speed": 0.8,
   "kw": {
    "mone": "Visit"
   }

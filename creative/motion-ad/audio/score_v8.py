@@ -1,4 +1,4 @@
-"""Score + SFX + mixes for v8 — the voiceover cut (~60.5 s, 116 BPM, A minor).
+"""Score + SFX + mixes for v8/v9 — the voiceover cut (male narration, ~80 s, 116 BPM, A minor).
 
 Every cue comes from timeline.json `v8` (derived from the narration's word
 onsets by vo/build8.py) or from the journey8 capture log (the real press /
@@ -30,7 +30,7 @@ from scipy.signal import resample_poly
 sys.path.insert(0, os.path.dirname(__file__))
 from engine import *  # noqa
 from sfx_lib import lock_clack, glass_tap, soft_kick, fold, thock, pop_out, tick_in, typing, chime, paper_click, ping, zap_drop, swish  # noqa
-from physical import hum, line_zip, spark, creak, power_on, panel_on, power_down, mouse_click, count_tick, detach, land  # noqa
+from physical import hum, line_zip, spark, creak, power_on, panel_on, power_down, mouse_click, count_tick, detach, land, clash  # noqa
 
 HERE = os.path.dirname(__file__)
 ROOT = os.path.join(HERE, "..")
@@ -187,13 +187,14 @@ sfx.add(W["pc"], pan(word_hit(0.3, 170, 806), 0.05))
 c0, c1 = I["collapse"]
 sfx.add(c0, pan(sweep(1400, 200, c1 - c0) * env_bell(c1 - c0, 0.7) * 0.06, 0))  # letters compress
 sfx.add(c0 + 0.1, whoosh(c1 - c0, 2400, 400, peak=0.6, level=0.14, seed=807))
-la, lb = I["lineA"], I["lineB"]
-sfx.add(la[0], line_zip(la[1] - la[0], 0.12, seed=701, p0=-0.85, p1=-0.05))
-sfx.add(lb[0], line_zip(lb[1] - lb[0], 0.11, seed=702, p0=0.85, p1=0.05))
-sfx.add(I["spark"], spark(0.4))
-send.add(I["spark"], spark(0.2, seed=9))
-sfx.add(I["fill"][0], pan(sub_boom(0.24), 0))
-sfx.add(I["fill"][0], pan(lock_clack(0.55, pitch=0.9, seed=703), 0))
+hi0, hi1 = I["halvesIn"]
+sfx.add(hi0 - 0.05, line_zip(hi1 - hi0, 0.09, seed=701, p0=-0.2, p1=-0.75))  # the two halves materialise apart
+sfx.add(hi0 - 0.02, line_zip(hi1 - hi0, 0.085, seed=702, p0=0.2, p1=0.75))
+m0, m1 = I["merge"]
+sfx.add(hi1, pan(hum(m1 - hi1, 52, 78, level=0.07, shape=2.2), 0))  # tension while they close
+sfx.add(m0 + 0.2, riser(m1 - m0 - 0.2, 0.07, seed=703))
+sfx.add(I["contact"], clash(0.95, seed=61))  # ✦ the clash — on the contact frame
+send.add(I["contact"], clash(0.45, seed=62))
 sfx.add(I["wm"][0], swish(I["wm"][1] - I["wm"][0] + 0.1, 0.05, 4000, 9000, -0.5, 0.5, seed=704))
 sfx.add(I["doha"][0], pan(kin(0.12, 2600, 808), 0))  # DOHA • QATAR
 sfx.add(I["hold"][0] + 0.4, pan(hum(I["pressure"][1] - I["hold"][0] - 0.4, 48, 72, level=0.09, shape=1.4), 0))
@@ -346,27 +347,39 @@ sfx.add(RT["fan"][1] - 0.2, whoosh(0.4, 200, 4000, peak=0.5, level=0.2, seed=805
 # ------------------------------------------------------------------ 8. the 13 builds (pass-bys from the gallery camera)
 gsrc = open(os.path.join(ROOT, "src/v8/Gallery8.tsx")).read()
 g0, ge = GA["start"], GA["end"]
-keys = []
-for m in re.finditer(r"\[(g0|ge)( \+ ([\d.]+))?, ([\d -]+?), (-?[\d.]+)\]", gsrc):
-    base = g0 if m.group(1) == "g0" else ge
-    keys.append((base + float(m.group(3) or 0), eval(m.group(4)), float(m.group(5))))
-builds = [(int(m.group(1)), float(m.group(2)), float(m.group(3))) for m in re.finditer(r"\{ n: (\d+), src: \"[^\"]+\", w: \d+, h: \d+, bb: \[[^\]]+\], x: (-?\d+), z: (\d+)", gsrc)]
-kt = np.array([k[0] for k in keys]); kz = np.array([k[1] for k in keys]); kx = np.array([k[2] for k in keys])
+builds = [(int(m.group(1)), float(m.group(2)), float(m.group(3)), bool(m.group(4))) for m in re.finditer(r"\{ n: (\d+), src: \"[^\"]+\", w: \d+, h: \d+, bb: \[[^\]]+\], x: (-?\d+), z: (\d+)(, hero: true)?", gsrc)]
+assert len(builds) == 13, len(builds)
+EI, EO = float(re.search(r"EASE_IN = ([\d.]+)", gsrc).group(1)), float(re.search(r"EASE_OUT = ([\d.]+)", gsrc).group(1))
+Z1 = 12000 - 1060
+
+
+def gal_progress(u):  # == galProgress() in Gallery8.tsx
+    x = np.clip(u, 0, 1)
+    ramp = lambda s: s / 2 - np.sin(np.pi * s) / (2 * np.pi)
+    tot = EI / 2 + (1 - EI - EO) + EO / 2
+    return np.where(x < EI, EI * ramp(x / EI), np.where(x <= 1 - EO, EI / 2 + (x - EI), EI / 2 + (1 - EI - EO) + EO * (0.5 - ramp(1 - (x - (1 - EO)) / EO)))) / tot
+
+
 tt = np.linspace(g0, ge, 4000)
-cz = np.interp(tt, kt, kz); cx = np.interp(tt, kt, kx)
+cz = Z1 * gal_progress((tt - g0) / (ge - g0))
+sm5 = lambda x: x * x * x * (x * (6 * x - 15) + 10)
+Pp = gal_progress((tt - g0) / (ge - g0))
+cx = 170 * np.sin(2 * np.pi * (1.15 * Pp + 0.08)) * (1 - sm5(np.clip((Pp - 0.68) / 0.32, 0, 1))) - 20 * (1 - Pp)
 sfx.add(g0, pan(sub_boom(0.26), 0))
 sfx.add(g0, shimmer(0.7, 0.1, seed=810))  # RGB swell — the fan
-for n, bx, bz in builds:
-    if n == 13:
+for n, bx, bz, hero in builds:
+    if n in (2, 13):
         continue
-    idx = np.argmax(cz >= bz - 650)
+    idx = np.argmax(cz >= bz - 650)  # the build passes the lens
     if cz[idx] < bz - 650:
         continue
     tp = tt[idx]
     side = np.sign(bx - cx[idx]) or 1
-    sfx.add(tp - 0.18, whoosh(0.42, 300, 3800, peak=0.55, level=0.1, pan_from=side * 0.3, pan_to=side * 0.9, seed=820 + n))
-for k in keys[1::2][:5]:  # mini-hero moments
-    sfx.add(k[0] - 0.05, shimmer(0.4, 0.05, seed=840 + int(k[0] * 10)))
+    near = abs(bx - cx[idx]) < 300
+    sfx.add(tp - 0.2, whoosh(0.46, 260 if near else 400, 3400, peak=0.55, level=0.12 if near else 0.075, pan_from=side * 0.25, pan_to=side * (0.6 if near else 0.95), seed=820 + n))
+    if hero:  # the big readable passes get a soft shimmer as they fill the frame
+        j = np.argmax(cz >= bz - 1700)
+        sfx.add(tt[j], shimmer(0.4, 0.05, seed=840 + n))
 sfx.add(GA["real"], pan(word_hit(0.3, 150, 850), 0))
 sfx.add(GA["builds"], pan(word_hit(0.3, 130, 851), 0))
 sfx.add(ge - 0.6, whoosh(0.8, 2400, 300, peak=0.3, level=0.1, seed=852))  # the others sink into darkness
@@ -420,11 +433,12 @@ sfx.add(SG["fly"][0], whoosh(0.3, 650, 5200, peak=0.5, level=0.14, pan_from=0, p
 sfx.add(SG["fly"][0] + 0.24, pan(fold(0.34, 0.26), -0.3))
 sfx.add(SG["fly"][0] + 0.26, pan(fold(0.34, 0.26), 0.3))
 sfx.add(SG["yellow"][0], swish(SG["yellow"][1] - SG["yellow"][0], 0.045, 5000, 11000, -0.7, 0.2, seed=883))
-sfx.add(SG["dip"][0] - 0.1, pan(hum(SG["lock"] - SG["dip"][0] + 0.1, 70, 110, level=0.09), 0))
-sfx.add(SG["lock"], pan(sub_boom(0.58), 0))
-sfx.add(SG["lock"], pan(lock_clack(0.88, pitch=1.0, seed=884), -0.15))
-sfx.add(SG["lock"] + 0.045, pan(lock_clack(0.72, pitch=1.18, seed=885), 0.15))
-send.add(SG["lock"], pan(lock_clack(0.38), 0))
+sm0, sm1 = SG["merge"]
+sfx.add(SG["fly"][1], pan(hum(sm1 - SG["fly"][1], 60, 90, level=0.08, shape=2.2), 0))  # the halves hang, then close
+sfx.add(sm0 + 0.2, riser(sm1 - sm0 - 0.2, 0.08, seed=884))
+sfx.add(SG["lock"], clash(1.0, seed=71, refined=True))  # ✦ the final clash — on the contact frame
+sfx.add(SG["lock"], pan(sub_boom(0.3), 0))
+send.add(SG["lock"], clash(0.5, seed=72, refined=True))
 sfx.add(SG["wordmark"][0], shimmer(0.5, 0.16, seed=886))
 sfx.add(SG["wordmark"][0], pan(chime([2637.0, 3135.96, 3951.07], 0.06, 0.05, 0.4), 0))
 send.add(SG["wordmark"][0], shimmer(0.5, 0.1, seed=887))
@@ -441,7 +455,7 @@ fxenv[c0_ - nf : c0_] = np.linspace(1, db(-6), nf)
 fxenv[c0_:c1_] = db(-6)
 fxenv[c1_ : c1_ + nf] = np.linspace(db(-6), 1, nf)
 wet = apply_reverb(send.buf, reverb_ir(1.8, 0.45), wet=1.0) * 0.4
-N = secs(DUR)
+N = secs(round(DUR * 60) / 60 + 0.03)  # a hair longer than the picture so -shortest keeps the last frame
 music_b = music.buf[:N] * db(-4)
 fx = (sfx.buf + wet)[:N]
 
@@ -461,7 +475,19 @@ for i in range(1, len(gate)):
     sm[i] = sm[i - 1] + a * (gate[i] - sm[i - 1])
 side = np.repeat(sm, blk)[:N]
 music_vo = music_b * (1 - (1 - db(-10)) * side)[:, None]
-fx_vo = fx * ((1 - (1 - db(-6)) * side) * fxenv[:N])[:, None]  # (chat step-back: VO version only)
+# the moments where the SFX may step forward (no narration on top, or only its onset)
+lift = np.zeros(N)
+for t0_, t1_, amt in [(I["contact"] - 0.05, I["contact"] + 0.7, 1.0), (CH["orderText"][0] - 0.05, CH["payoff"][1] + 0.3, 1.0),
+                      (RT["arrive"] - 0.03, RT["arrive"] + 0.25, 0.6), (PT["click"] - 0.05, PT["click"] + 0.9, 1.0), (SG["lock"] - 0.05, SG["lock"] + 0.9, 1.0)]:
+    i0_, i1_, f_ = secs(t0_), secs(t1_), secs(0.08)
+    w_ = np.zeros(N)
+    w_[i0_:i1_] = amt
+    w_[i1_ : i1_ + f_] = np.linspace(amt, 0, len(w_[i1_ : i1_ + f_]))
+    lift = np.maximum(lift, w_)
+lift *= 1 - side  # never while the narrator is talking — the moments step forward only into the gaps
+# SFX: −6 dB under the voice (the chat's UI a further −6 dB under the pricing line); at the five key moments the
+# duck is released and the SFX step forward +2.5 dB
+fx_vo = fx * ((1 - (1 - db(-6)) * side * (1 - lift)) * fxenv[:N] * (1 + (db(2.5) - 1) * lift))[:, None]
 voice = pan(vo, 0) * db(7)
 
 
@@ -478,18 +504,33 @@ def finish(stereo, dest):
         lines = [l.strip() for l in r.splitlines()]
         return float([l for l in lines if l.startswith("I:")][-1].split()[1]), float([l for l in lines if l.startswith("Peak:")][-1].split()[1])
 
-    ceil = db(-3.1)
+    def tp_limit(x, ceil):
+        """look-ahead true-peak limiter: 4× oversampled peak detection, 1.5 ms look-ahead (instant attack),
+        60 ms release — gain only ever moves smoothly, no clipping"""
+        up = np.abs(resample_poly(x, 4, 1, axis=0)).max(axis=1)
+        pk = up.reshape(-1, 4).max(axis=1)[: len(x)]
+        pk = np.pad(pk, (0, len(x) - len(pk)), constant_values=0)
+        g = np.minimum(1.0, ceil / np.maximum(pk, 1e-9))
+        la = secs(0.0015)
+        gmin = np.minimum.reduce([np.roll(g, -k) for k in range(la + 1)])
+        rel = np.exp(-1 / secs(0.06))
+        out_g = np.empty_like(gmin)
+        cur = 1.0
+        for i in range(len(gmin)):
+            cur = gmin[i] if gmin[i] < cur else gmin[i] + (cur - gmin[i]) * rel
+            out_g[i] = cur
+        # smooth the attack over the look-ahead window as well
+        k = np.hanning(2 * la + 1)
+        k /= k.sum()
+        sm_g = np.minimum(out_g, np.convolve(out_g, k, mode="same"))
+        return x * sm_g[:, None]
+
+    ceil = db(-2.6)
     for it in range(8):
         lufs, peak = measure(dest)
         if abs(lufs + 14) < 0.1 and peak <= -2.0:
             break
-        out = out * db(-14 - lufs)
-        up = resample_poly(out, 4, 1, axis=0)
-        if np.abs(up).max() > ceil:
-            knee = ceil * 0.7
-            mag = np.abs(out)
-            comp = knee + (ceil - knee) * np.tanh((mag - knee) / (ceil - knee))
-            out = np.where(mag > knee, np.sign(out) * comp, out)
+        out = tp_limit(out * db(-14 - lufs), ceil)
         write_wav(dest, out)
     lufs, peak = measure(dest)
     print(f"{os.path.basename(dest)}: {lufs:.1f} LUFS, true peak {peak:.1f} dBTP")
@@ -498,4 +539,4 @@ def finish(stereo, dest):
 A_DIR = os.path.join(ROOT, "public/audio")
 finish(voice + music_vo + fx_vo, os.path.join(A_DIR, "final8_vo.wav"))
 finish(music_vo + fx_vo, os.path.join(A_DIR, "final8_bed_vo.wav"))
-finish(music_b * db(1.5) + fx * db(1.0), os.path.join(A_DIR, "final8_novo.wav"))
+finish(music_b * db(1.5) + fx * (db(1.0) * (1 + (db(1.5) - 1) * lift))[:, None], os.path.join(A_DIR, "final8_novo.wav"))

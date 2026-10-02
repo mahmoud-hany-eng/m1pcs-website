@@ -3,17 +3,18 @@ import { AbsoluteFill, Img, staticFile } from "remotion";
 import { clamp01, ease, lerp, range } from "../lib/ease";
 import { BRAND } from "../final/shared";
 import { V } from "./time";
-import { Line } from "./Kinetic";
+import { Line, arrive as glideIn } from "./Kinetic";
 
 /**
  * ALL 13 real M1 builds — one continuous flight through the build history,
  * oldest → newest (the site's own data, newest last = the final hero).
  * Black space, no cards / borders / frames: each build is its real photo
  * (transparent cut-out, never edited) standing at its own depth. A camera
- * moves forward through them with lateral sway; five builds get a mini-hero
- * moment (the camera eases off as it frames them), the rest pass through the
- * foreground / midground / distance; depth reads through scale, fog and a
- * little focus falloff. It ends framing the 9800X3D / RTX 5080 flagship — the
+ * moves forward through them at ONE steady pace (eased in at the start and out
+ * into the flagship only), on a slow lateral arc. Four builds stand near the
+ * camera's line and grow into big, readable passes (~0.9–1.5 s each); the rest
+ * stand wider and sweep through the sides (~0.7 s each); depth reads through
+ * scale, fog and a little focus falloff. It ends framing the 9800X3D / RTX 5080 flagship — the
  * hero of the next beat — while the others sink into darkness.
  *
  * It begins inside the light of build #2's front fan (Qatar's glow became that
@@ -25,18 +26,18 @@ const RT = V.route;
 type B = { n: number; src: string; w: number; h: number; bb: [number, number, number, number]; x: number; z: number; hero?: boolean };
 // oldest → newest (src/lib/builds.ts is newest-first); bb = alpha>160 bounds of the real photo (source px)
 export const BUILDS: B[] = [
-  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -520, z: 2300 },
+  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -360, z: 2800 },
   { n: 2, src: "ryzen-5-gtx-1660-ti.webp", w: 1090, h: 1280, bb: [38, 7, 1033, 1229], x: 270, z: 1350, hero: true },
-  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 430, z: 2700 },
-  { n: 4, src: "ryzen-7-rtx-4060.webp", w: 720, h: 1280, bb: [20, 242, 701, 1168], x: -440, z: 3500 },
-  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 440, z: 4300 },
-  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -440, z: 5100 },
-  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 440, z: 5900 },
-  { n: 8, src: "ryzen-5-rtx-5060-a520m.webp", w: 1052, h: 1280, bb: [58, 100, 963, 1227], x: -260, z: 7000, hero: true },
-  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 300, z: 8000, hero: true },
-  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -440, z: 8900 },
-  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 280, z: 9800, hero: true },
-  { n: 12, src: "ryzen-5-rtx-5060-ti.webp", w: 1221, h: 1280, bb: [144, 4, 1095, 1194], x: -280, z: 10800, hero: true },
+  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 640, z: 3050 },
+  { n: 4, src: "ryzen-7-rtx-4060.webp", w: 720, h: 1280, bb: [20, 242, 701, 1168], x: -390, z: 3910 },
+  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 60, z: 4460, hero: true },
+  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -520, z: 5600 },
+  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 450, z: 6600 },
+  { n: 8, src: "ryzen-5-rtx-5060-a520m.webp", w: 1052, h: 1280, bb: [58, 100, 963, 1227], x: -200, z: 7350, hero: true },
+  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 360, z: 8290 },
+  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -680, z: 9090 },
+  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 10, z: 9840, hero: true },
+  { n: 12, src: "ryzen-5-rtx-5060-ti.webp", w: 1221, h: 1280, bb: [144, 4, 1095, 1194], x: -500, z: 11250 },
   { n: 13, src: "ryzen-7-9800x3d-rtx-5080.webp", w: 1206, h: 1724, bb: [0, 55, 1205, 1668], x: 0, z: 12000, hero: true },
 ];
 const CASE_H = 700; // every case stands the same physical height (world units)
@@ -45,42 +46,34 @@ const CAM_Y = -150; // eye a little above the case centres
 /** build #2's front fan (source px) — where the shot begins */
 export const FAN2 = { x: 862, y: 650, r: 96 };
 
-// ------------------------------------------------------------------ the camera (monotone through the keys)
+// ------------------------------------------------------------------ the camera: ONE global progress
+// One velocity profile for the whole flight: a cosine ease-in over the first 12 %, a constant cruise,
+// a cosine ease-out over the last 13 % into the flagship. Never re-timed per build: what makes each
+// build land is where it stands (scale, foreground passes, depth, the camera's lateral arc), not speed.
 const g0 = GA.start;
 const ge = GA.end;
-const KEYS: [number, number, number][] = [
-  // [t, camera z, camera x]
-  [g0 + 0.7, 0, -40],
-  [g0 + 1.2, 260, -30], // #1 + #2 revealed (mini-hero #2)
-  [g0 + 2.45, 5800, -150], // #3…#7 pass
-  [g0 + 2.85, 5980, -140], // mini-hero #8
-  [g0 + 3.35, 6830, 170],
-  [g0 + 3.65, 6960, 180], // mini-hero #9
-  [g0 + 4.15, 8640, 170],
-  [g0 + 4.42, 8750, 160], // mini-hero #11
-  [g0 + 4.85, 9650, -150],
-  [g0 + 5.1, 9760, -150], // mini-hero #12
-  [ge, 12000 - 1060, 0], // the flagship, framed
-];
-function monotone(t: number, col: 1 | 2) {
-  const n = KEYS.length;
-  if (t <= KEYS[0][0]) return KEYS[0][col];
-  if (t >= KEYS[n - 1][0]) return KEYS[n - 1][col];
-  let i = 0;
-  while (t > KEYS[i + 1][0]) i++;
-  const xs = KEYS.map((k) => k[0]), ys = KEYS.map((k) => k[col]);
-  const d = (j: number) => (ys[j + 1] - ys[j]) / (xs[j + 1] - xs[j]);
-  const m = (j: number) => {
-    if (j === 0 || j === n - 1) return 0;
-    const a = d(j - 1), b = d(j);
-    if (a * b <= 0) return 0;
-    return (2 * a * b) / (a + b); // harmonic mean — no overshoot
-  };
-  const h = xs[i + 1] - xs[i], u = (t - xs[i]) / h;
-  const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
-  return h00 * ys[i] + h10 * h * m(i) + h01 * ys[i + 1] + h11 * h * m(i + 1);
+export const CAM_Z0 = 0;
+export const CAM_Z1 = 12000 - 1060; // the flagship, framed
+export const EASE_IN = 0.12, EASE_OUT = 0.13;
+/** integral of the trapezoid-with-cosine-ramps velocity, normalised to 0 → 1 */
+export function galProgress(u: number) {
+  const a = EASE_IN, b = EASE_OUT;
+  const x = Math.max(0, Math.min(1, u));
+  const ramp = (s: number) => s / 2 - Math.sin(Math.PI * s) / (2 * Math.PI); // ∫ (1 - cos πs)/2
+  const total = a / 2 + (1 - a - b) + b / 2;
+  let d: number;
+  if (x < a) d = a * ramp(x / a);
+  else if (x <= 1 - b) d = a / 2 + (x - a);
+  else d = a / 2 + (1 - a - b) + b * (0.5 - ramp(1 - (x - (1 - b)) / b));
+  return d / total;
 }
-export const galCam = (t: number) => ({ z: monotone(t, 1), x: monotone(t, 2) });
+// the lateral arc: a slow S through the field, flattening into the flagship's centre line
+const smooth5 = (x: number) => x * x * x * (x * (6 * x - 15) + 10);
+export const camX = (P: number) => 170 * Math.sin(2 * Math.PI * (1.15 * P + 0.08)) * (1 - smooth5(Math.max(0, (P - 0.68) / 0.32))) - 20 * (1 - P);
+export const galCam = (t: number) => {
+  const P = galProgress((t - g0) / (ge - g0));
+  return { z: CAM_Z0 + (CAM_Z1 - CAM_Z0) * P, x: camX(P), P };
+};
 
 /** screen placement of build b with the gallery camera at time t */
 export function place(b: B, t: number) {
@@ -103,7 +96,7 @@ const Build: React.FC<{ b: B; x: number; y: number; sx: number; sy: number; pps:
 export const Gallery8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
   if (t < g0 - 0.05 || t > ge + 0.9) return null;
   // the opening: inside #2's fan → its gallery placement
-  const pull = ease.settle(range(t, g0, g0 + 0.95));
+  const pull = glideIn(range(t, g0, g0 + 0.95));
   const recede = ease.inOutCubic(range(t, ge - 0.35, ge + 0.6)); // the others sink into darkness
   const items = BUILDS.map((b) => {
     const p = place(b, t);

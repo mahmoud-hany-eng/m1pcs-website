@@ -21,7 +21,7 @@ FIX = [
     ("kˈæɾɑːɹ", "kˈʌtɑːɹ"),            # Qatar → "KUH-tar"
     ("wʌts ˈæp", "wˈɑtsæp"),           # WhatsApp as one word
     ("jˈuː.ˈɛs.", "ðə jˌuːˈɛs."),       # the U.S. (no dotted pauses) — "the" re-added below
-    ("mˈoʊnəpks.kˈɑː.", "ˈɛm wˈʌn pˌiːsˈiːz dˈɑːt kjˌuː ˈeɪ."),  # monepcs.qa → "M-one P-Cs dot Q-A"
+    ("mˈoʊnəpks.kˈɑː.", "ˈɛm wˈʌn pˈiː sˈiːs dˈɑːt kjˈuː ˈeɪ."),  # /s/ (not /z/): measurably clearer fricative  # monepcs.qa → "M-one P-Cs dot Q-A"
 ]
 meta = []
 for line in json.load(open(os.path.join(HERE, "lines.json"))):
@@ -32,7 +32,7 @@ for line in json.load(open(os.path.join(HERE, "lines.json"))):
     speed = speed_override or line.get("speed", 0.95)
 
     def say(p):
-        a, r = k.create(p, voice=voice, speed=speed, is_phonemes=True, clause_pause=0.14)
+        a, r = k.create(p, voice=voice, speed=speed, is_phonemes=True, clause_pause=float(os.environ.get("CLAUSE", "0.14")))
         return a, r
 
     audio, sr = say(ph)

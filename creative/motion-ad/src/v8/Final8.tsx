@@ -14,7 +14,8 @@ import { Route8, routeSamples8 } from "./Route8";
 import { Gallery8, GalleryText, gallerySamples } from "./Gallery8";
 import { HERO, PC8, heroPlace, pcSamples8 } from "./PC8";
 import { End8, endSamples8 } from "./End8";
-import { Line } from "./Kinetic";
+import { Line, arrive } from "./Kinetic";
+import { makeSplineCam, smoothCam } from "./spline";
 import { CLOG, D, DURATION, FPS, SH, SW, TAP, V, cIndex } from "./time";
 
 /**
@@ -30,7 +31,7 @@ import { CLOG, D, DURATION, FPS, SH, SW, TAP, V, cIndex } from "./time";
 export { DURATION };
 
 const I = V.intro, HM = V.home, Q = V.quote, TP = V.toPhone, CH = V.chat, RT = V.route, RET = V.ret, FLY = V.fly, ST = V.starts, GA = V.gallery, PT = V.parts;
-const settle = ease.settle;
+const settle = arrive;
 
 // ------------------------------------------------------------------ helpers
 /** camera-space ray through a frame point, intersected with the plane z = zp (world) */
@@ -84,7 +85,6 @@ const KEYS: CamKey[] = [
   { t: Q.settle[1], cam: onScreen(330, 560, 1420, 2, -10), e: settle },
   // choice 1 — "what you play": slight left → centre
   { t: Q.gaming.path[0], cam: onScreen(360, 470, 1260, -6, 0), e: ease.inOutCubic },
-  { t: Q.games.type[1], cam: onScreen(330, 520, 1180, -1, 0), e: ease.inOutCubic },
   // choice 2 — "the performance": the monitor turns a few degrees
   { t: Q.res.press, cam: onScreen(300, 715, 1170, 5, 40), e: ease.inOutCubic },
   { t: Q.fps.release + 0.25, cam: onScreen(300, 740, 1150, 4, 30), e: ease.inOutCubic },
@@ -107,9 +107,11 @@ const KEYS: CamKey[] = [
   { t: CH.front[1], cam: phoneCamA(800, 84, 0), e: settle },
   { t: CH.push, cam: phoneCamA(790, 85, 0), e: (x: number) => x },
 ];
+export const KEYS_EXPORT = KEYS;
+export const splineCam = smoothCam(makeSplineCam(KEYS), 0.3);
 /** small physical responses to the important messages */
 const BUMPS = [CH.proceed, CH.reply, CH.collapse[1], CH.order, CH.paid, CH.done];
-const bump = (t: number) => BUMPS.reduce((s, a) => s + Math.sin(Math.PI * range(t, a, a + 0.5)) * (t >= a ? 1 : 0), 0);
+const bump = (t: number) => BUMPS.reduce((s, a) => s + Math.sin(Math.PI * range(t, a, a + 0.6)) ** 2, 0); // sin²: starts and ends at rest
 const PUSH = [CH.payoff[1], RT.stroke[0] + 0.3];
 function pushIntoCheck(t: number, base: Camera): Camera {
   const k = ease.inCubic(range(t, PUSH[0], PUSH[1]));
@@ -121,9 +123,9 @@ function pushIntoCheck(t: number, base: Camera): Camera {
   const end = add(target, v3(-fwd.x * dist * 0.45, -fwd.y * dist * 0.45, -fwd.z * dist * 0.45));
   return { ...base, pos: lerp3(base.pos, end, k) };
 }
-function camAt(t: number): Camera {
+export function camAt(t: number): Camera {
   if (t < RT.stroke[0] + 0.45) {
-    let base = keyCam(KEYS, Math.min(t, CH.push));
+    let base = splineCam(Math.min(t, CH.push));
     if (t > TP.wake && t < CH.push) {
       // message bumps: a few px of push toward the glass
       const b = bump(t);
@@ -250,7 +252,7 @@ const Scene: React.FC<{ vo: boolean }> = ({ vo }) => {
   // chosen pills lift 5–15 px off the glass, then lock back
   const lifts = LIFTS.map(({ key, tap }) => {
     const up = settle(range(t, tap.press - 0.02, tap.press + 0.12));
-    const down = ease.outBack(range(t, tap.release + 0.18, tap.release + 0.42), 1.6);
+    const down = ease.inOutCubic(range(t, tap.release + 0.18, tap.release + 0.42));
     const L = 13 * up * (1 - down);
     if (L < 0.2 || t > Q.consolidate[0]) return null;
     const r = pillRect(key, tap.release + 0.05);

@@ -1,18 +1,18 @@
 import React from "react";
 import { AbsoluteFill, Img, staticFile } from "remotion";
 import { clamp01, ease, lerp, range } from "../lib/ease";
-import { BRAND, glide, snap } from "../final/shared";
+import { BRAND, glide } from "../final/shared";
 import { FONT } from "../final/fonts";
 import { V } from "./time";
 import { HERO13, place } from "./Gallery8";
-import { Line } from "./Kinetic";
+import { Line, arrive } from "./Kinetic";
 
 /**
  * The final hero — the newest build, M1's 9800X3D / RTX 5080 flagship
  * (real photo). It is handed over from the gallery exactly where the gallery
  * left it. "Then M1 takes care of the rest": a slow push; the background is
  * gone. BUILT. — GPU, RAM, STORAGE, COOLING, PSU attach to the real parts and
- * snap in. SET UP. — the setup chips. "…ready to use": the RGB drops out, the
+ * click in. SET UP. — the setup chips. "…ready to use": the RGB drops out, the
  * room goes quiet, CLICK — it all comes on: READY. Then the glow hands back to
  * the workstation (the site's CTA shows this same build).
  */
@@ -75,7 +75,7 @@ export const PC8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
         const s = PT.snaps[i];
         if (t < a || t > s + 0.2) return null;
         const pt = toScreen(p.at);
-        const k = snap(range(t, a, a + 0.24));
+        const k = arrive(range(t, a, a + 0.32));
         const sn = ease.inCubic(range(t, s - 0.1, s + 0.03));
         const lx = p.side < 0 ? 70 : 1010;
         const ly = pt.y + p.dy;
@@ -101,8 +101,8 @@ export const PC8: React.FC<{ t: number; vo: boolean }> = ({ t }) => {
       <div style={{ position: "absolute", inset: 0, opacity: 1 - wordsOut, transform: `translateY(${-80 * wordsOut}px)` }}>
         <Line t={t} x={86} y={260} size={132} words={[{ w: "BUILT.", at: PT.built, gap: 0 }]} />
         <Line t={t} x={86} y={392} size={132} words={[{ w: "SET UP.", at: PT.setup, gap: 0 }]} />
-        <div style={{ position: "absolute", left: 0, top: 0, transformOrigin: "90px 600px", transform: `scale(${1 + 0.07 * Math.sin(Math.PI * range(t, PT.ready + 0.05, PT.ready + 0.32))})` }}>
-          <Line t={t} x={86} y={524} size={160} enterDur={0.3} words={[{ w: "READY.", at: PT.ready, color: BRAND.yellow, gap: 0 }]} style={{ textShadow: `0 0 ${40 * Math.sin(Math.PI * range(t, PT.ready, PT.ready + 0.6))}px rgba(249,194,4,0.55), 0 6px 36px rgba(0,0,0,0.85)` }} />
+        <div style={{ position: "absolute", left: 0, top: 0 }}>
+          <Line t={t} x={86} y={524} size={160} enterDur={0.46} words={[{ w: "READY.", at: PT.ready, color: BRAND.yellow, gap: 0 }]} style={{ textShadow: `0 0 ${40 * Math.sin(Math.PI * range(t, PT.ready, PT.ready + 0.6))}px rgba(249,194,4,0.55), 0 6px 36px rgba(0,0,0,0.85)` }} />
         </div>
         <div style={{ position: "absolute", left: 660, top: 404, display: "flex", flexDirection: "column", gap: 10, fontFamily: FONT.ui, fontWeight: 500, fontSize: 34 }}>
           {["Windows 11 Pro", "Drivers", "Updates"].map((s, i) => (
