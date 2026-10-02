@@ -51,7 +51,7 @@ function mapCam(t: number): MapCam {
   const anchor1 = { x: 300, y: 1180 };
   const settle = ease.inOutCubic(range(t, R.stroke[0] + 0.3, R.stroke[1] + 0.25));
   const ax = lerp(anchor0.x, anchor1.x, settle), ay = lerp(anchor0.y, anchor1.y, settle);
-  const zoom = 0.55;
+  const zoom = 0.55 + 0.07 * ease.inOutCubic(range(t, R.stroke[1], R.travel[1])); // a slow push keeps the map alive under the narration
   // follow the parcel (with a little lead), then frame Qatar
   const u = travelU(t);
   const lead = at(Math.min(1, u + 0.06));

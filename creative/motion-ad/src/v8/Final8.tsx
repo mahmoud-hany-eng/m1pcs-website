@@ -118,7 +118,7 @@ function pushIntoCheck(t: number, base: Camera): Camera {
   const target = phonePoint(c.x / 3, c.y / 3, PHONE.thick + 0.4);
   const fwd = v3(Math.cos(base.pitch) * Math.sin(base.yaw), Math.sin(base.pitch), Math.cos(base.pitch) * Math.cos(base.yaw));
   const dist = Math.hypot(target.x - base.pos.x, target.y - base.pos.y, target.z - base.pos.z);
-  const end = add(target, v3(-fwd.x * dist * 0.22, -fwd.y * dist * 0.22, -fwd.z * dist * 0.22));
+  const end = add(target, v3(-fwd.x * dist * 0.45, -fwd.y * dist * 0.45, -fwd.z * dist * 0.45));
   return { ...base, pos: lerp3(base.pos, end, k) };
 }
 function camAt(t: number): Camera {
@@ -216,7 +216,8 @@ const Scene: React.FC<{ vo: boolean }> = ({ vo }) => {
   const inWorld = t < RT.stroke[0] + 0.45 || (t >= RET.glow[0] - 0.02 && !fullScreen);
   const envO = t < introEnd ? ease.inOutCubic(range(t, I.materialize[0] + 0.05, I.materialize[1] + 0.15)) : t < RET.glow[0] ? 1 - range(t, RT.stroke[0] - 0.1, RT.stroke[0] + 0.3) : ease.inOutCubic(range(t, RET.pull[0] + 0.1, RET.pull[1]));
   const deviceO = t < RET.glow[0] ? 1 - range(t, RT.stroke[0] + 0.2, RT.stroke[0] + 0.42) : 1;
-  const monO = t >= PUSH[0] && t < RET.glow[0] ? 1 - ease.inOutCubic(range(t, PUSH[0], PUSH[0] + 0.25)) : 1;
+  // the monitor leaves the shot once the phone faces us (out of frame, behind the camera) — not drawn at all until the return
+  const monO = t < RET.glow[0] ? 1 - range(t, CH.front[1] - 0.3, CH.front[1]) : 1;
   const look = {
     body: t < introEnd ? ease.inOutCubic(range(t, I.materialize[0], I.materialize[1])) : 1,
     stand: t < introEnd ? ease.inOutCubic(range(t, I.materialize[0] + 0.1, I.materialize[1] + 0.05)) : 1,
@@ -374,7 +375,7 @@ const samplesAt = (frame: number) => {
   const t = frame / FPS;
   let n = Math.max(introSamples(t), routeSamples8(t), gallerySamples(t), pcSamples8(t), endSamples8(t));
   if (t >= TP.camera[0] && t < TP.wake + 0.2) n = Math.max(n, 6);
-  if (t >= PUSH[0] && t < RT.stroke[0] + 0.45) n = 4;
+  if (t >= PUSH[0] && t < RT.stroke[0] + 0.45) n = 3; // the dive: keep it light (huge phone layer)
   if (t >= FLY[0] + 0.3 && t < FLY[1]) n = Math.max(n, 6);
   return n;
 };
