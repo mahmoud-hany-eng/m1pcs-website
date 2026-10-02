@@ -6,3 +6,5 @@ capture/frames/
 public/brand/
 __pycache__/
 public/fonts/
+vo/lines/
+vo/__pycache__/
