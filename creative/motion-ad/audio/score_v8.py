@@ -175,9 +175,15 @@ music.buf *= env[:, None]
 
 # ------------------------------------------------------------------ 1. the question → the brand
 W = I["words"]
-sfx.add(W["qatar"] - 0.02, shimmer(0.4, 0.06, seed=803))  # QATAR lights in DOHA • QATAR
-sfx.add(W["build"] - 0.05, whoosh(0.32, 300, 2600, peak=0.6, level=0.07, seed=805))  # BUILD A PC? lands
-sfx.add(W["pc"], pan(word_hit(0.22, 170, 806), 0.05))
+sfx.add(W["are"], pan(kin(0.12, 1500, 801), -0.1))
+sfx.add(W["qatar"], pan(word_hit(0.4, 120, 802), 0))  # QATAR? lands
+sfx.add(W["qatar"] + 0.02, shimmer(0.5, 0.07, seed=803))
+sfx.add(W["looking"], pan(kin(0.1, 1700, 804), 0.1))
+sfx.add(W["build"] - 0.05, whoosh(0.36, 300, 2600, peak=0.6, level=0.08, seed=805))  # BUILD A PC? out of depth
+sfx.add(W["pc"], pan(word_hit(0.28, 170, 806), 0.05))
+c0, c1 = I["collapse"]
+sfx.add(c0, pan(sweep(1400, 200, c1 - c0) * env_bell(c1 - c0, 0.7) * 0.05, 0))  # letters compress into the halves
+sfx.add(c0 + 0.08, whoosh(c1 - c0, 2400, 400, peak=0.6, level=0.12, seed=807))
 hi0, hi1 = I["halvesIn"]
 sfx.add(hi0 - 0.05, line_zip(hi1 - hi0, 0.09, seed=701, p0=-0.2, p1=-0.75))  # the two halves materialise apart
 sfx.add(hi0 - 0.02, line_zip(hi1 - hi0, 0.085, seed=702, p0=0.2, p1=0.75))
@@ -451,7 +457,12 @@ N = secs(round(DUR * 60) / 60 + 0.03)  # a hair longer than the picture so -shor
 music_b = music.buf[:N] * db(-4)
 fx = (sfx.buf + wet)[:N]
 
-vo, vsr = sf.read(os.path.join(ROOT, "public/audio/vo8.wav"))
+# the narrator: Grady's track once delivered (public/audio/vo8.wav). Until then the bed is ducked by the
+# timing model's envelope (where Grady will speak) and NO voice is mixed — the model is not a deliverable voice.
+VO_PATH = os.path.join(ROOT, "public/audio/vo8.wav")
+HAS_VOICE = os.path.exists(VO_PATH)
+vo, vsr = sf.read(VO_PATH if HAS_VOICE else os.path.join(ROOT, "public/audio/vo8_timing_model.wav"))
+print("voice:", "Grady (vo8.wav)" if HAS_VOICE else "none yet — bed ducked for Grady's slots")
 vo = vo[:N] if vo.ndim == 1 else vo[:N].mean(axis=1)
 vo = np.pad(vo, (0, max(0, N - len(vo))))
 vo = hp(vo, 70)
@@ -480,7 +491,7 @@ lift *= 1 - side  # never while the narrator is talking — the moments step for
 # SFX: −6 dB under the voice (the chat's UI a further −6 dB under the pricing line); at the five key moments the
 # duck is released and the SFX step forward +2.5 dB
 fx_vo = fx * ((1 - (1 - db(-6)) * side * (1 - lift)) * fxenv[:N] * (1 + (db(2.5) - 1) * lift))[:, None]
-voice = pan(vo, 0) * db(7)
+voice = pan(vo, 0) * db(7) * (1.0 if HAS_VOICE else 0.0)
 
 
 def finish(stereo, dest):

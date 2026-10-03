@@ -46,19 +46,28 @@ def open_end_dtw(A, B):
     return int(np.argmin(norm))
 
 
-def main(voice):
+def main(voice, d=None):
+    """voice: the Kokoro voice used to SAY the prefixes; d: the directory of the lines to align (default lines/<voice>).
+    Cross-speaker works too (e.g. prefixes said by the timing-model voice, aligned to Grady's delivered lines)."""
+    d = d or os.path.join(HERE, "lines", voice)
     k = Kokoro("/home/user/tts/kokoro-v1.0.onnx", "/home/user/tts/voices-v1.0.bin")
     lines = json.load(open(os.path.join(HERE, "lines.json")))
     out = {}
     for line in lines:
-        x, sr = sf.read(os.path.join(HERE, "lines", voice, line["id"] + ".wav"))
+        x, sr = sf.read(os.path.join(d, line["id"] + ".wav"))
+        if x.ndim > 1:
+            x = x.mean(1)
         B, eB = feats(x, sr)
         res = {}
         for name, prefix in line.get("kw", {}).items():
             pp = k.tokenizer.phonemize(prefix, "en-us")
             for a, b in FIX:
                 pp = pp.replace(a, b)
-            pa, _ = k.create(pp.rstrip(".?!,"), voice=voice, speed=line["speed"], is_phonemes=True, clause_pause=0.16)
+            pa, psr = k.create(pp.rstrip(".?!,"), voice=voice, speed=line["speed"], is_phonemes=True, clause_pause=0.2)
+            if psr != sr:
+                from scipy.signal import resample_poly
+
+                pa = resample_poly(pa, sr, psr)
             idx = np.where(np.abs(pa) > 0.01)[0]
             pa = pa[: idx[-1] + 1]  # drop the prefix's trailing silence
             A, _ = feats(pa, sr)
@@ -69,8 +78,8 @@ def main(voice):
             res[name] = round(j2 * HOP + 0.012, 3)
         out[line["id"]] = res
         print(line["id"], res, flush=True)
-    json.dump(out, open(os.path.join(HERE, "lines", voice, "align.json"), "w"), indent=1)
+    json.dump(out, open(os.path.join(d, "align.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "am_fenrir")
+    main(sys.argv[1] if len(sys.argv) > 1 else "am_fenrir", sys.argv[2] if len(sys.argv) > 2 else None)

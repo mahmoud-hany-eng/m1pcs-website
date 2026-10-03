@@ -30,7 +30,7 @@ const LS = LOGO_W / LOGO_SRC.w;
 const LOGO = { left: 540 - LOGO_W / 2, top: 400 };
 const BY = 700; // where the button waits before it splits (just under the emblem's apex)
 const logoPt = (p: P): P => ({ x: LOGO.left + p.x * LS, y: LOGO.top + p.y * LS });
-export const END_D0 = 40; // px each half starts from its place before the strike
+export const END_D0 = 60; // px each half starts from its place before the strike
 
 function strips(c: P, w: number, h: number) {
   const r = h / 2;

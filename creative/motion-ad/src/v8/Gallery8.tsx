@@ -26,17 +26,17 @@ const RT = V.route;
 type B = { n: number; src: string; w: number; h: number; bb: [number, number, number, number]; x: number; z: number; hero?: boolean };
 // oldest → newest (src/lib/builds.ts is newest-first); bb = alpha>160 bounds of the real photo (source px)
 export const BUILDS: B[] = [
-  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -300, z: 3400 },
+  { n: 1, src: "ryzen-5-rtx-2060-b450.png", w: 1124, h: 844, bb: [213, 139, 748, 749], x: -270, z: 2610 },
   { n: 2, src: "ryzen-5-gtx-1660-ti.webp", w: 1090, h: 1280, bb: [38, 7, 1033, 1229], x: 270, z: 1350, hero: true },
-  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 600, z: 3240 },
+  { n: 3, src: "ryzen-5-rtx-2060-b550.webp", w: 1280, h: 960, bb: [213, 10, 1005, 882], x: 620, z: 3040 },
   { n: 4, src: "ryzen-7-rtx-4060.webp", w: 720, h: 1280, bb: [20, 242, 701, 1168], x: -350, z: 4110 },
-  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 90, z: 4460, hero: true },
-  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -520, z: 6000 },
-  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 370, z: 6600 },
+  { n: 5, src: "ryzen-7-rtx-2070.webp", w: 960, h: 1280, bb: [198, 175, 855, 892], x: 90, z: 4660, hero: true },
+  { n: 6, src: "ryzen-5-5600gt-rtx-3060.webp", w: 720, h: 1280, bb: [26, 254, 656, 1016], x: -540, z: 6200 },
+  { n: 7, src: "ryzen-7-rtx-3070.webp", w: 960, h: 1280, bb: [124, 5, 942, 1192], x: 350, z: 6800 },
   { n: 8, src: "ryzen-5-rtx-5060-a520m.webp", w: 1052, h: 1280, bb: [58, 100, 963, 1227], x: -160, z: 7150, hero: true },
-  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 320, z: 8290 },
-  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -580, z: 9490 },
-  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 30, z: 10240, hero: true },
+  { n: 9, src: "ryzen-5-rtx-5060-b550m.webp", w: 914, h: 1122, bb: [80, 28, 795, 1051], x: 320, z: 8690 },
+  { n: 10, src: "ryzen-5-rtx-3060-white.webp", w: 960, h: 1280, bb: [83, 122, 791, 1123], x: -560, z: 9690 },
+  { n: 11, src: "ryzen-5-rtx-4060.webp", w: 720, h: 1280, bb: [13, 174, 653, 1155], x: 30, z: 10040, hero: true },
   { n: 12, src: "ryzen-5-rtx-5060-ti.webp", w: 1221, h: 1280, bb: [144, 4, 1095, 1194], x: -440, z: 11250 },
   { n: 13, src: "ryzen-7-9800x3d-rtx-5080.webp", w: 1206, h: 1724, bb: [0, 55, 1205, 1668], x: 0, z: 12000, hero: true },
 ];
