@@ -1,0 +1,82 @@
+{
+ "q": {
+  "next": 0.377,
+  "pc": 0.497,
+  "shouldnt": 1.002,
+  "preset": 1.787,
+  "it": 2.257,
+  "you": 3.532
+ },
+ "show": {
+  "show": 0.567,
+  "properly": 1.207
+ },
+ "starts": {
+  "m1": 0.577,
+  "it": 0.977,
+  "starts": 0.977,
+  "with": 1.287,
+  "you": 1.452
+ },
+ "tell": {
+  "play": 0.707,
+  "performance": 1.207,
+  "budget": 2.887,
+  "look": 3.927
+ },
+ "turn": {
+  "choices": 0.672,
+  "build": 1.297,
+  "around": 2.297
+ },
+ "send": {
+  "quotation": 0.932,
+  "send": 1.717,
+  "WhatsApp": 3.017
+ },
+ "confirm": {
+  "pricing": 1.187,
+  "availability": 1.947,
+  "then": 2.627,
+  "deposit": 3.392,
+  "order": 4.672
+ },
+ "source": {
+  "source": 0.737,
+  "directly": 2.282,
+  "us": 3.057,
+  "ship": 4.642,
+  "Qatar": 5.247
+ },
+ "real": {
+  "real": 0.532,
+  "pcs": 0.792,
+  "built": 2.472,
+  "customers": 2.982
+ },
+ "rest": {
+  "m1": 0.542,
+  "rest": 1.467
+ },
+ "build": {
+  "build": 0.292
+ },
+ "setup": {
+  "set": 0.477
+ },
+ "ready": {
+  "ready": 0.737
+ },
+ "next": {
+  "yours": 0.262,
+  "next": 0.797
+ },
+ "cta": {
+  "to": 0.347,
+  "build": 0.502,
+  "yours": 0.792
+ },
+ "visit": {
+  "mone": 0.447
+ }
+}

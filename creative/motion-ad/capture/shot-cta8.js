@@ -1,6 +1,9 @@
-// v8 capture (720×1280 portrait desktop layout): the REAL closing section ("Ready to build yours?") already
-// settled in view, then a real pointer hover on its "Build Your PC" button at
-// the v6 cue (the button's own hover state answers). 60 fps, deterministic.
+// v8 capture (720×1280 portrait desktop layout): the REAL closing section already settled in view, then a
+// real pointer hover on its "Build Your PC" button at the cue (the button's own hover state answers).
+// 60 fps, deterministic.
+// v12 (ad only): the section's small heading "Ready to build yours?" is hidden IN THIS CAPTURE PAGE ONLY
+// (visibility: hidden — its space is kept, so the paragraph, buttons and photo stay exactly where the site
+// puts them); the ad's own large kinetic READY / TO BUILD / YOURS? takes its place. The site is not changed.
 const path = require("path");
 const { openRig, FPS } = require("./rig");
 const T = require("../timeline.json");
@@ -13,6 +16,11 @@ const total = Math.round((T.v8.sig.split + 0.4 - T.v8.ret.cta0) * FPS);
 (async () => {
   const rig = await openRig({ base: BASE, route: "/", viewport: { width: T.v8.viewport.width, height: T.v8.viewport.height }, dpr: T.v8.viewport.dpr, outDir: OUT });
   const { page } = rig;
+  await page.evaluate(() => {
+    const h = Array.from(document.querySelectorAll("h2")).find((e) => e.textContent.includes("Ready to build"));
+    h.setAttribute("data-ad-hidden", "");
+    h.style.setProperty("visibility", "hidden", "important"); // ad composition only — avoids a duplicate of the kinetic CTA
+  });
   const sec = await page.evaluate(() => {
     const h = Array.from(document.querySelectorAll("h2")).find((e) => e.textContent.includes("Ready to build"));
     const b = h.closest("section").getBoundingClientRect();
@@ -58,7 +66,7 @@ const total = Math.round((T.v8.sig.split + 0.4 - T.v8.ret.cta0) * FPS);
       }
     }
     const cs = getComputedStyle(h2);
-    return { h2: r(h2), words, font: { family: cs.fontFamily, size: cs.fontSize, weight: cs.fontWeight, ls: cs.letterSpacing, color: cs.color }, btn: r(a), btnBg: getComputedStyle(a).backgroundColor, wa: r(wa), img: r(s.querySelector("img")), headerLogo: r(document.querySelector("header img")) };
+    return { h2: r(h2), h2Visibility: getComputedStyle(h2).visibility, lead: r(s.querySelector("p")), words, font: { family: cs.fontFamily, size: cs.fontSize, weight: cs.fontWeight, ls: cs.letterSpacing, color: cs.color }, btn: r(a), btnBg: getComputedStyle(a).backgroundColor, wa: r(wa), img: r(s.querySelector("img")), headerLogo: r(document.querySelector("header img")) };
   };
   let hovered = false;
   for (let i = 0; i < total; i++) {

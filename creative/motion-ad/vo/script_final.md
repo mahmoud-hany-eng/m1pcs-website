@@ -1,29 +1,29 @@
-# M1 Gaming PCs — final voiceover script + Grady timing sheet (v11)
+# M1 Gaming PCs — final voiceover script (v12)
 
-Narrator: **Grady** (Higgsfield preset). Status: **Grady still to be generated and inserted** — Higgsfield cannot be reached from the build environment, and no other voice is used in any deliverable.
+Narrator: mature male (Kokoro-82M v1.0, style blend 60 % am_fenrir + 40 % am_onyx), performed on the **female v8 read** (Kokoro af_heart) as the master: each line has her length (±2 %) and her pauses (vo/match_female.py), and the lines sit with her gaps between them. Only the opening line is new; the rest is her script word for word.
 
-The edit is timed to a natural presenter read of this script: 124 words, ~4.1 syllables/s inside sentences (≈182 wpm), a ~0.3 s beat between sentences (≈166 wpm as continuous narration), 143 wpm averaged over the 51.9 s film.
-Generate Grady at his natural, unhurried speed (the target is ~140 wpm as heard), one file per line, named as in the first column.
+139 words · film 60.56 s.
 
-| File | Slot in | Slot out | Line | Picture cues (word → time) |
-|---|---|---|---|---|
-| `q.wav` | 0.25 s | 3.19 s | Are you in Qatar and looking to build a PC? | Qatar 0.95, build 2.15, PC 2.48 |
-| `show.wav` | 4.24 s | 6.42 s | Let us show you how it's properly done. | properly 5.34 |
-| `starts.wav` | 6.72 s | 8.63 s | At M1, your build starts with you. | starts 7.95, you 8.41 |
-| `tell.wav` | 9.33 s | 14.21 s | Tell us what you play, the performance you want, your budget, and the style you're going for. | play 10.12, performance 10.79, budget 12.27, style 13.00 |
-| `turn.wav` | 14.51 s | 17.41 s | We turn your choices into a custom quotation. | custom 16.04 |
-| `send.wav` | 17.70 s | 19.92 s | When you're ready, send it through WhatsApp. | send 18.60, WhatsApp 19.29 |
-| `confirm.wav` | 20.22 s | 25.63 s | We confirm the latest price and availability, and your deposit confirms the order. | price 21.60, availability 22.32, deposit 23.78, order 25.20 |
-| `source.wav` | 26.28 s | 31.35 s | Then we source your requested parts directly from the U.S. and ship them to Qatar. | source 26.71, us 29.21, Qatar 30.85 |
-| `rest.wav` | 31.85 s | 33.84 s | From there, M1 handles the rest. | rest 33.47 |
-| `real.wav` | 34.14 s | 37.69 s | These are real PCs we've already built for our customers. | real 34.62, pcs 35.09 |
-| `next.wav` | 37.99 s | 39.21 s | And yours could be next. | next 38.78 |
-| `bsr.wav` | 39.85 s | 43.09 s | We build it, set it up, and get it ready to use. | build 40.08, set 40.77, ready 41.93 |
-| `cta.wav` | 45.49 s | 46.72 s | Ready to build yours? | ready 45.49, to 45.74, yours 46.23 |
-| `visit.wav` | 47.07 s | 49.25 s | Visit monepcs.qa. | mone 47.44 |
+| # | Line | Her length | His length | Her gap before | His gap before | Timing deviation (median / p90) |
+|---|---|---|---|---|---|---|
+| 1 | Your next PC shouldn't start with a preset. It should start with you. | 3.88 s | 3.93 s |  |  | 0.03 / 0.05 s |
+| 2 | Then let us show you how it's properly done. | 2.04 s | 2.07 s | 0.79 s | 1.37 s — +0.58 s (the clash plays clean before he speaks) | 0.01 / 0.01 s |
+| 3 | At M1, it starts with you. | 1.79 s | 1.81 s | 1.19 s | 1.19 s | 0.03 / 0.08 s |
+| 4 | Tell us what you play, the performance you want, your budget, and the look you're going for. | 5.65 s | 5.75 s | 1.28 s | 1.28 s | 0.06 / 0.10 s |
+| 5 | We'll turn those choices into a build made around you. | 2.91 s | 2.91 s | 0.34 s | 0.34 s | 0.04 / 0.14 s |
+| 6 | Once you're happy with the quotation, send it to us through WhatsApp. | 3.55 s | 3.62 s | 0.34 s | 0.34 s | 0.02 / 0.08 s |
+| 7 | We'll confirm the latest pricing and availability, then your deposit confirms the order. | 5.06 s | 5.10 s | 0.52 s | 0.52 s | 0.03 / 0.05 s |
+| 8 | From there, we source the requested parts directly from the U.S. and ship them to Qatar. | 5.69 s | 5.80 s | 1.02 s | 1.02 s | 0.09 / 0.16 s |
+| 9 | These are real PCs we've already built for our customers. | 3.68 s | 3.72 s | 1.83 s | 1.83 s | 0.04 / 0.10 s |
+| 10 | Then M1 takes care of the rest. | 1.96 s | 1.95 s | 0.81 s | 0.81 s | 0.02 / 0.07 s |
+| 11 | We build it. | 0.95 s | 0.95 s | 0.40 s | 0.40 s | 0.02 / 0.03 s |
+| 12 | We set it up. | 0.95 s | 0.95 s | 0.48 s | 0.48 s | 0.01 / 0.05 s |
+| 13 | And we make sure it's ready to use. | 1.73 s | 1.76 s | 0.51 s | 0.51 s | 0.02 / 0.03 s |
+| 14 | And yours could be next. | 1.33 s | 1.35 s | 1.72 s | 1.72 s | 0.03 / 0.04 s |
+| 15 | Ready to build yours? | 1.32 s | 1.34 s | 0.85 s | 0.85 s | 0.01 / 0.03 s |
+| 16 | Visit monepcs.qa. | 2.24 s | 2.21 s | 0.34 s | 0.34 s | 0.09 / 0.14 s |
 
-Order note: “These are real PCs…” and “And yours could be next.” play over the 13-build flight and “We build it, set it up, and get it ready to use.” over the hero PC that follows it — the picture's order (builds → hero → BUILT / SET UP / READY).
+Timing deviation: his line DTW-aligned to hers — how far each of his sounds falls from the same sound in her read.
+A gap longer than hers is a local picture need (named in the row); no line is sped up or slowed down globally.
 
-Deliberate breaths (music / SFX, no voice): the logo clash between the first two lines; after ORDER CONFIRMED.; Qatar → RGB fan; after READY.; the return to the workstation.
-
-Pronunciation to check in Grady's read: Qatar = “KUH-tar” · M1 = “em one” · WhatsApp = one word · U.S. = “the you-ess” · monepcs.qa = “M-one P-Cs dot Q-A”.
+Pronunciation: Qatar = “KUH-tar” · M1 = “em one” · WhatsApp = one word · the U.S. = “the you-ess” · monepcs.qa = “M-one P-Cs dot Q-A”.

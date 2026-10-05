@@ -173,14 +173,15 @@ duck(FLY[0], FLY[1], 0.45, fade=0.12)
 duck(SG["fade"][0], SG["lock"], 0.8, fade=0.3)
 music.buf *= env[:, None]
 
-# ------------------------------------------------------------------ 1. the question → the brand
+# ------------------------------------------------------------------ 1. the hook → YOU → the brand
 W = I["words"]
-sfx.add(W["are"], pan(kin(0.12, 1500, 801), -0.1))
-sfx.add(W["qatar"], pan(word_hit(0.4, 120, 802), 0))  # QATAR? lands
-sfx.add(W["qatar"] + 0.02, shimmer(0.5, 0.07, seed=803))
-sfx.add(W["looking"], pan(kin(0.1, 1700, 804), 0.1))
-sfx.add(W["build"] - 0.05, whoosh(0.36, 300, 2600, peak=0.6, level=0.08, seed=805))  # BUILD A PC? out of depth
-sfx.add(W["pc"], pan(word_hit(0.28, 170, 806), 0.05))
+sfx.add(W["your"], pan(kin(0.12, 1500, 801), -0.1))  # YOUR NEXT PC
+sfx.add(W["shouldnt"], pan(kin(0.12, 1800, 804), 0.1))  # SHOULDN'T START
+sfx.add(W["preset"], pan(word_hit(0.26, 170, 806), 0.05))  # PRESET. — the brief emphasis
+sfx.add(W["it"] - 0.2, whoosh(0.34, 2400, 500, peak=0.5, level=0.06, seed=805))  # phase A clears
+sfx.add(W["it"], pan(kin(0.1, 1700, 809), -0.05))  # IT SHOULD START
+sfx.add(W["you"], pan(word_hit(0.4, 120, 802), 0))  # YOU. lands
+sfx.add(W["you"] + 0.02, shimmer(0.5, 0.07, seed=803))
 c0, c1 = I["collapse"]
 sfx.add(c0, pan(sweep(1400, 200, c1 - c0) * env_bell(c1 - c0, 0.7) * 0.05, 0))  # letters compress into the halves
 sfx.add(c0 + 0.08, whoosh(c1 - c0, 2400, 400, peak=0.6, level=0.12, seed=807))
@@ -247,7 +248,7 @@ bt0, bt1 = Q["budget"]["type"]
 for k in range(len(Q["budget"]["text"])):
     sfx.add(bt0 + k * (bt1 - bt0) / len(Q["budget"]["text"]), pan(tick(2800 + 150 * k, 0.06, 0.02, seed=860 + k), -0.1))
 sfx.add(Q["colour"]["path"][0] + 0.05, whoosh(0.4, 400, 2400, peak=0.4, level=0.06, seed=735))
-sfx.add(tl["style"], pan(kin(0.12, 2500, 816), 0))
+sfx.add(tl["look"], pan(kin(0.12, 2500, 816), 0))  # THE LOOK
 click(*COLOUR, -0.05)
 sfx.add(COLOUR[1], shimmer(0.6, 0.11, seed=736))
 for k in ["gaming", "res", "fps", "colour"]:  # the chosen pill lifts off the glass

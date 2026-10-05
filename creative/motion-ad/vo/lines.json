@@ -1,107 +1,102 @@
 [
  {
   "id": "q",
-  "text": "Are you in Qatar and looking to build a PC?",
-  "speed": 0.804,
+  "text": "Your next PC shouldn't start with a preset. It should start with you.",
+  "speed": 0.95,
   "kw": {
-   "you": "Are",
-   "in": "Are you",
-   "Qatar": "Are you in",
-   "and": "Are you in Qatar",
-   "looking": "Are you in Qatar and",
-   "build": "Are you in Qatar and looking to",
-   "PC": "Are you in Qatar and looking to build a"
+   "next": "Your",
+   "pc": "Your next",
+   "shouldnt": "Your next PC",
+   "preset": "Your next PC shouldn't start with a",
+   "it": "Your next PC shouldn't start with a preset.",
+   "you": "Your next PC shouldn't start with a preset. It should start with",
+   "start1": "Your next PC shouldn't",
+   "with1": "Your next PC shouldn't start",
+   "should2": "Your next PC shouldn't start with a preset. It",
+   "start2": "Your next PC shouldn't start with a preset. It should",
+   "with2": "Your next PC shouldn't start with a preset. It should start"
   }
  },
  {
   "id": "show",
-  "text": "Let us show you how it's properly done.",
-  "speed": 0.766,
+  "text": "Then let us show you how it's properly done.",
+  "speed": 0.95,
   "kw": {
-   "show": "Let us",
-   "properly": "Let us show you how it's"
+   "show": "Then let us",
+   "properly": "Then let us show you how it's"
   }
  },
  {
   "id": "starts",
-  "text": "At M1, your build starts with you.",
-  "speed": 0.891,
+  "text": "At M1, it starts with you.",
+  "speed": 0.95,
   "kw": {
    "m1": "At",
-   "build": "At M1, your",
-   "starts": "At M1, your build",
-   "with": "At M1, your build starts",
-   "you": "At M1, your build starts with"
+   "it": "At M1,",
+   "starts": "At M1, it",
+   "with": "At M1, it starts",
+   "you": "At M1, it starts with"
   }
  },
  {
   "id": "tell",
-  "text": "Tell us what you play, the performance you want, your budget, and the style you're going for.",
-  "speed": 0.903,
+  "text": "Tell us what you play, the performance you want, your budget, and the look you're going for.",
+  "speed": 0.95,
   "kw": {
    "play": "Tell us what you",
    "performance": "Tell us what you play, the",
    "budget": "Tell us what you play, the performance you want, your",
-   "style": "Tell us what you play, the performance you want, your budget, and the"
+   "look": "Tell us what you play, the performance you want, your budget, and the"
   }
  },
  {
   "id": "turn",
-  "text": "We turn your choices into a custom quotation.",
-  "speed": 0.813,
+  "text": "We'll turn those choices into a build made around you.",
+  "speed": 0.95,
   "kw": {
-   "choices": "We turn your",
-   "custom": "We turn your choices into a",
-   "quotation": "We turn your choices into a custom"
+   "choices": "We'll turn those",
+   "build": "We'll turn those choices into a",
+   "around": "We'll turn those choices into a build made"
   }
  },
  {
   "id": "send",
-  "text": "When you're ready, send it through WhatsApp.",
-  "speed": 0.784,
+  "text": "Once you're happy with the quotation, send it to us through WhatsApp.",
+  "speed": 0.95,
   "kw": {
-   "ready": "When you're",
-   "send": "When you're ready,",
-   "WhatsApp": "When you're ready, send it through"
+   "quotation": "Once you're happy with the",
+   "send": "Once you're happy with the quotation,",
+   "WhatsApp": "Once you're happy with the quotation, send it to us through"
   }
  },
  {
   "id": "confirm",
-  "text": "We confirm the latest price and availability, and your deposit confirms the order.",
-  "speed": 0.857,
+  "text": "We'll confirm the latest pricing and availability, then your deposit confirms the order.",
+  "speed": 0.95,
   "kw": {
-   "price": "We confirm the latest",
-   "availability": "We confirm the latest price and",
-   "deposit": "We confirm the latest price and availability, and your",
-   "confirms": "We confirm the latest price and availability, and your deposit",
-   "order": "We confirm the latest price and availability, and your deposit confirms the"
+   "pricing": "We'll confirm the latest",
+   "availability": "We'll confirm the latest pricing and",
+   "then": "We'll confirm the latest pricing and availability,",
+   "deposit": "We'll confirm the latest pricing and availability, then your",
+   "order": "We'll confirm the latest pricing and availability, then your deposit confirms the"
   }
  },
  {
   "id": "source",
-  "text": "Then we source your requested parts directly from the U.S. and ship them to Qatar.",
-  "speed": 0.869,
+  "text": "From there, we source the requested parts directly from the U.S. and ship them to Qatar.",
+  "speed": 0.95,
   "kw": {
-   "source": "Then we",
-   "directly": "Then we source your requested parts",
-   "us": "Then we source your requested parts directly from",
-   "ship": "Then we source your requested parts directly from the U.S. and",
-   "Qatar": "Then we source your requested parts directly from the U.S. and ship them to"
-  }
- },
- {
-  "id": "rest",
-  "text": "From there, M1 handles the rest.",
-  "speed": 0.925,
-  "kw": {
-   "m1": "From there,",
-   "rest": "From there, M1 handles the"
+   "source": "From there, we",
+   "directly": "From there, we source the requested parts",
+   "us": "From there, we source the requested parts directly from",
+   "ship": "From there, we source the requested parts directly from the U.S. and",
+   "Qatar": "From there, we source the requested parts directly from the U.S. and ship them to"
   }
  },
  {
   "id": "real",
   "text": "These are real PCs we've already built for our customers.",
-  "speed": 0.878,
+  "speed": 0.95,
   "kw": {
    "real": "These are",
    "pcs": "These are real",
@@ -110,28 +105,51 @@
   }
  },
  {
+  "id": "rest",
+  "text": "Then M1 takes care of the rest.",
+  "speed": 0.95,
+  "kw": {
+   "m1": "Then",
+   "rest": "Then M1 takes care of the"
+  }
+ },
+ {
+  "id": "build",
+  "text": "We build it.",
+  "speed": 0.95,
+  "kw": {
+   "build": "We"
+  }
+ },
+ {
+  "id": "setup",
+  "text": "We set it up.",
+  "speed": 0.95,
+  "kw": {
+   "set": "We"
+  }
+ },
+ {
+  "id": "ready",
+  "text": "And we make sure it's ready to use.",
+  "speed": 0.95,
+  "kw": {
+   "ready": "And we make sure it's"
+  }
+ },
+ {
   "id": "next",
   "text": "And yours could be next.",
-  "speed": 0.893,
+  "speed": 0.95,
   "kw": {
    "yours": "And",
    "next": "And yours could be"
   }
  },
  {
-  "id": "bsr",
-  "text": "We build it, set it up, and get it ready to use.",
-  "speed": 0.76,
-  "kw": {
-   "build": "We",
-   "set": "We build it,",
-   "ready": "We build it, set it up, and get it"
-  }
- },
- {
   "id": "cta",
   "text": "Ready to build yours?",
-  "speed": 0.852,
+  "speed": 0.95,
   "kw": {
    "to": "Ready",
    "build": "Ready to",
@@ -141,7 +159,7 @@
  {
   "id": "visit",
   "text": "Visit monepcs.qa.",
-  "speed": 0.838,
+  "speed": 0.95,
   "kw": {
    "mone": "Visit"
   }

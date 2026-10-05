@@ -1,0 +1,211 @@
+{
+ "voice": "am_fenrir:3+am_onyx:2",
+ "lines": {
+  "q": {
+   "speed": 1.022,
+   "female_s": 3.88,
+   "male_s": 3.93,
+   "female_pauses": [
+    0.46
+   ],
+   "male_pauses": [
+    0.06,
+    0.46
+   ],
+   "timing_dev_median_s": 0.03,
+   "timing_dev_p90_s": 0.05
+  },
+  "show": {
+   "speed": 0.973,
+   "female_s": 2.04,
+   "male_s": 2.07,
+   "female_pauses": [
+    0.06
+   ],
+   "male_pauses": [
+    0.06
+   ],
+   "timing_dev_median_s": 0.01,
+   "timing_dev_p90_s": 0.01
+  },
+  "starts": {
+   "speed": 0.918,
+   "female_s": 1.79,
+   "male_s": 1.81,
+   "female_pauses": [
+    0.08
+   ],
+   "male_pauses": [],
+   "timing_dev_median_s": 0.03,
+   "timing_dev_p90_s": 0.08
+  },
+  "tell": {
+   "speed": 1.066,
+   "female_s": 5.65,
+   "male_s": 5.75,
+   "female_pauses": [
+    0.61,
+    0.44,
+    0.61
+   ],
+   "male_pauses": [
+    0.61,
+    0.44,
+    0.61
+   ],
+   "timing_dev_median_s": 0.06,
+   "timing_dev_p90_s": 0.1
+  },
+  "turn": {
+   "speed": 1.077,
+   "female_s": 2.91,
+   "male_s": 2.91,
+   "female_pauses": [
+    0.21
+   ],
+   "male_pauses": [
+    0.22
+   ],
+   "timing_dev_median_s": 0.04,
+   "timing_dev_p90_s": 0.14
+  },
+  "send": {
+   "speed": 1.006,
+   "female_s": 3.55,
+   "male_s": 3.62,
+   "female_pauses": [
+    0.31,
+    0.06
+   ],
+   "male_pauses": [
+    0.31,
+    0.06
+   ],
+   "timing_dev_median_s": 0.02,
+   "timing_dev_p90_s": 0.08
+  },
+  "confirm": {
+   "speed": 1.041,
+   "female_s": 5.06,
+   "male_s": 5.1,
+   "female_pauses": [
+    0.06,
+    0.41,
+    0.08
+   ],
+   "male_pauses": [
+    0.06,
+    0.41,
+    0.08
+   ],
+   "timing_dev_median_s": 0.03,
+   "timing_dev_p90_s": 0.05
+  },
+  "source": {
+   "speed": 1.016,
+   "female_s": 5.69,
+   "male_s": 5.8,
+   "female_pauses": [
+    0.16,
+    0.06,
+    0.82,
+    0.06
+   ],
+   "male_pauses": [
+    0.16,
+    0.06,
+    0.82,
+    0.06
+   ],
+   "timing_dev_median_s": 0.09,
+   "timing_dev_p90_s": 0.16
+  },
+  "real": {
+   "speed": 0.95,
+   "female_s": 3.68,
+   "male_s": 3.72,
+   "female_pauses": [
+    0.32
+   ],
+   "male_pauses": [
+    0.37
+   ],
+   "timing_dev_median_s": 0.04,
+   "timing_dev_p90_s": 0.1
+  },
+  "rest": {
+   "speed": 0.979,
+   "female_s": 1.96,
+   "male_s": 1.95,
+   "female_pauses": [],
+   "male_pauses": [],
+   "timing_dev_median_s": 0.02,
+   "timing_dev_p90_s": 0.07
+  },
+  "build": {
+   "speed": 0.93,
+   "female_s": 0.95,
+   "male_s": 0.95,
+   "female_pauses": [],
+   "male_pauses": [],
+   "timing_dev_median_s": 0.02,
+   "timing_dev_p90_s": 0.03
+  },
+  "setup": {
+   "speed": 1.011,
+   "female_s": 0.95,
+   "male_s": 0.95,
+   "female_pauses": [
+    0.07
+   ],
+   "male_pauses": [
+    0.07
+   ],
+   "timing_dev_median_s": 0.01,
+   "timing_dev_p90_s": 0.05
+  },
+  "ready": {
+   "speed": 0.977,
+   "female_s": 1.73,
+   "male_s": 1.76,
+   "female_pauses": [],
+   "male_pauses": [],
+   "timing_dev_median_s": 0.02,
+   "timing_dev_p90_s": 0.03
+  },
+  "next": {
+   "speed": 1.021,
+   "female_s": 1.33,
+   "male_s": 1.35,
+   "female_pauses": [],
+   "male_pauses": [
+    0.06
+   ],
+   "timing_dev_median_s": 0.03,
+   "timing_dev_p90_s": 0.04
+  },
+  "cta": {
+   "speed": 0.928,
+   "female_s": 1.32,
+   "male_s": 1.34,
+   "female_pauses": [],
+   "male_pauses": [],
+   "timing_dev_median_s": 0.01,
+   "timing_dev_p90_s": 0.03
+  },
+  "visit": {
+   "speed": 0.95,
+   "female_s": 2.24,
+   "male_s": 2.21,
+   "female_pauses": [
+    0.07
+   ],
+   "male_pauses": [
+    0.07,
+    0.07
+   ],
+   "timing_dev_median_s": 0.09,
+   "timing_dev_p90_s": 0.14
+  }
+ }
+}

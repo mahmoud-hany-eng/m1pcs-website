@@ -52,6 +52,13 @@ def main(voice, d=None):
     d = d or os.path.join(HERE, "lines", voice)
     k = Kokoro("/home/user/tts/kokoro-v1.0.onnx", "/home/user/tts/voices-v1.0.bin")
     lines = json.load(open(os.path.join(HERE, "lines.json")))
+    sty = voice
+    if ":" in voice:  # a style blend, e.g. "am_fenrir:3+am_onyx:2" (vo/match_female.py)
+        V = np.load("/home/user/tts/voices-v1.0.bin")
+        parts = [(n, float(w)) for n, w in (p.split(":") for p in voice.split("+"))]
+        sty = sum(V[n] * w for n, w in parts) / sum(w for _, w in parts)
+    rep = os.path.join(d, "report.json")
+    speeds = {lid: r["speed"] for lid, r in json.load(open(rep))["lines"].items()} if os.path.exists(rep) else {}
     out = {}
     for line in lines:
         x, sr = sf.read(os.path.join(d, line["id"] + ".wav"))
@@ -63,7 +70,7 @@ def main(voice, d=None):
             pp = k.tokenizer.phonemize(prefix, "en-us")
             for a, b in FIX:
                 pp = pp.replace(a, b)
-            pa, psr = k.create(pp.rstrip(".?!,"), voice=voice, speed=line["speed"], is_phonemes=True, clause_pause=0.2)
+            pa, psr = k.create(pp.rstrip(".?!,"), voice=sty, speed=speeds.get(line["id"], line["speed"]), is_phonemes=True, clause_pause=0.2)
             if psr != sr:
                 from scipy.signal import resample_poly
 

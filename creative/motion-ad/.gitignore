@@ -6,5 +6,7 @@ capture/frames/
 public/brand/
 __pycache__/
 public/fonts/
-vo/lines/
+vo/lines/*
+!vo/lines/male_mature/
+vo/lines/male_mature/*.wav
 vo/__pycache__/

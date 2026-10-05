@@ -49,6 +49,10 @@ function strips(c: P, w: number, h: number) {
 
 const BTN = CLOG[0].meta.btn;
 const HL = CLOG[0].meta.headerLogo ?? { x: 24, y: 20, w: 32, h: 40 };
+// the kinetic CTA's lines: YOURS? ends just above the site's lead paragraph (its heading is hidden in the ad capture)
+const LEAD_Y = css((CLOG[0].meta.lead ?? { x: 24, y: 632, w: 448, h: 56 }).y);
+const KL = 152; // line pitch (frame px)
+const KY = Math.round(LEAD_Y - 36 - 168); // top of the YOURS? line
 
 export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, from }) => {
   if (t < from) return null;
@@ -107,10 +111,9 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
   const sweep = range(t, SG.sweep[0], SG.sweep[1]);
   const dq = glideIn(range(t, SG.doha, SG.doha + 0.36));
   const url = glideIn(range(t, SG.url, SG.url + 0.36));
-  // kinetic CTA (in the site's empty band above its own heading) and the address
+  // kinetic CTA — in the place of the site's own heading (hidden in the ad's capture), just above
+  // "Tell us what you need. We'll help you build it." — and then the address in the same place
   const CW = V.cta.words;
-  const yoursTint = range(t, CW.yours + 0.05, CW.yours + 0.3) * (1 - fade);
-  const YW = CLOG[0].meta.words.find((w) => w.w.startsWith("yours")) ?? { x: 24, y: 542, wd: 160, h: 65, w: "yours?" };
   const pct = (y: number) => (y / LOGO_SRC.h) * 100;
   const xpct = (x: number) => (x / LOGO_SRC.w) * 100;
   const wmClip = (y0: number, y1: number, k: number) => `inset(${pct(y0 - 40)}% ${100 - (xpct(500) + k * (xpct(4450) - xpct(500)))}% ${100 - pct(y1 + 40)}% 0)`;
@@ -128,29 +131,13 @@ export const End8: React.FC<{ t: number; from: number; vo: boolean }> = ({ t, fr
           <path d="M2 1 L2 23 L7.5 17.5 L11.5 27 L15 25.5 L11 16.5 L19 16.5 Z" fill="#fff" stroke="#0a0a0b" strokeWidth={1.6} strokeLinejoin="round" />
         </svg>
       )}
-      {/* "yours?" on the real heading takes the M1 yellow as the narrator lands on it */}
-      {yoursTint > 0 && (() => {
-        const a = zoomAbout({ x: css(YW.x), y: css(YW.y) });
-        const w = css(YW.wd) * calm, h = css(YW.h) * calm;
-        const pad = 6;
-        return (
-          <svg width={w + 2 * pad} height={h + 2 * pad} style={{ position: "absolute", left: a.x - pad, top: a.y - pad, opacity: yoursTint }}>
-            <defs>
-              <mask id="yoursMask" maskUnits="userSpaceOnUse" x={0} y={0} width={w + 2 * pad} height={h + 2 * pad}>
-                <image href={frameSrc(idx)} x={-css(YW.x) * calm + pad - (a.x - zoomAbout({ x: css(YW.x), y: css(YW.y) }).x)} y={-css(YW.y) * calm + pad} width={SW * FS * calm} height={SH * FS * calm} preserveAspectRatio="none" style={{ filter: "contrast(3) brightness(1.4)" }} />
-              </mask>
-            </defs>
-            <rect x={0} y={0} width={w + 2 * pad} height={h + 2 * pad} fill={BRAND.yellow} mask="url(#yoursMask)" />
-          </svg>
-        );
-      })()}
       <div style={{ position: "absolute", inset: 0, opacity: 1 - fade }}>
-        <Line t={t} x={56} y={300} size={150} out={V.vo.visit.start + 0.05} outDur={0.28} outMode="blur" words={[{ w: "READY", at: CW.ready, gap: 0 }]} />
-        <Line t={t} x={56} y={455} size={150} out={V.vo.visit.start + 0.1} outDur={0.28} outMode="blur" words={[{ w: "TO", at: CW.to }, { w: "BUILD", at: CW.to + 0.1, gap: 0 }]} />
-        <Line t={t} x={56} y={610} size={150} out={V.vo.visit.start + 0.15} outDur={0.28} outMode="blur" words={[{ w: "YOURS?", at: CW.yours, color: BRAND.yellow, gap: 0 }]} />
-        {/* monepcs.qa — said, and written large */}
-        <Line t={t} x={540} y={430} size={118} align="center" weight={700} track={0.0} out={SG.fade[0] + 0.05} outDur={0.3} outMode="blur" words={[{ w: "monepcs.qa", at: V.cta.url, gap: 0 }]} />
-        {t >= V.cta.url + 0.25 && <div style={{ position: "absolute", left: 540 - 300, top: 572, width: 600 * glide(range(t, V.cta.url + 0.25, V.cta.url + 0.65)), height: 7, borderRadius: 4, background: BRAND.yellow, boxShadow: "0 0 18px rgba(249,194,4,0.7)", opacity: 1 - range(t, SG.fade[0] + 0.05, SG.fade[0] + 0.3) }} />}
+        <Line t={t} x={56} y={KY - 2 * KL} size={150} out={V.vo.visit.start + 0.05} outDur={0.28} outMode="blur" words={[{ w: "READY", at: CW.ready, gap: 0 }]} />
+        <Line t={t} x={56} y={KY - KL} size={150} out={V.vo.visit.start + 0.1} outDur={0.28} outMode="blur" words={[{ w: "TO", at: CW.to }, { w: "BUILD", at: CW.to + 0.1, gap: 0 }]} />
+        <Line t={t} x={56} y={KY} size={150} out={V.vo.visit.start + 0.15} outDur={0.28} outMode="blur" words={[{ w: "YOURS?", at: CW.yours, color: BRAND.yellow, gap: 0 }]} />
+        {/* monepcs.qa — said, and written large, where the CTA was */}
+        <Line t={t} x={56} y={KY - KL + 40} size={118} weight={700} track={0.0} out={SG.fade[0] + 0.05} outDur={0.3} outMode="blur" words={[{ w: "monepcs.qa", at: V.cta.url, gap: 0 }]} />
+        {t >= V.cta.url + 0.25 && <div style={{ position: "absolute", left: 60, top: KY - KL + 40 + 142, width: 600 * glide(range(t, V.cta.url + 0.25, V.cta.url + 0.65)), height: 7, borderRadius: 4, background: BRAND.yellow, boxShadow: "0 0 18px rgba(249,194,4,0.7)", opacity: 1 - range(t, SG.fade[0] + 0.05, SG.fade[0] + 0.3) }} />}
       </div>
       {/* the button alone survives the fade and moves to centre */}
       {t >= SG.fade[0] && !split && (

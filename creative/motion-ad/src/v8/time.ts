@@ -59,7 +59,7 @@ export type CWord = { w: string; x: number; y: number; wd: number; h: number };
 export type CEntry = {
   frame: number;
   mouse: { x: number; y: number; down: boolean };
-  meta: { h2: Rect; words: CWord[]; font: { family: string; size: string; weight: string; ls: string; color: string }; btn: Rect; btnBg: string; wa: Rect; img: Rect; headerLogo: Rect | null };
+  meta: { h2: Rect; h2Visibility?: string; lead?: Rect; words: CWord[]; font: { family: string; size: string; weight: string; ls: string; color: string }; btn: Rect; btnBg: string; wa: Rect; img: Rect; headerLogo: Rect | null };
 };
 export const CLOG = CTA_RAW as unknown as CEntry[];
 export const cIndex = (t: number) => Math.max(0, Math.min(CLOG.length - 1, Math.round((t - V.ret.cta0) * FPS)));

@@ -204,9 +204,9 @@ function worldWords(vo: boolean): WK[] {
     { at: ST.words.starts, out: ST.out, sx: 540, sy: 330, z: 0, size: 100, lines: s1 },
     { at: tl.play - 0.04, out: tl.performance + 0.5, sx: 540, sy: 300, z: -320, size: 112, lines: vo ? [{ words: [{ w: "WHAT", dt: 0 }, { w: "YOU", dt: 0.12 }, { w: "PLAY", dt: 0.26, color: Y }], dy: 0 }] : one("GAMES.", null, Y) },
     { at: tl.performance, out: tl.budget + 0.2, sx: 540, sy: 1250, z: -320, size: 118, lines: one("PERFORMANCE.", null).map((l) => ({ ...l, words: l.words.map((w) => (w.w === "PERFORMANCE." && vo ? { ...w, w: "PERFORMANCE" } : w)) })) },
-    { at: tl.budget, out: tl.style + 0.5, sx: 540, sy: 300, z: -320, size: 150, lines: one(vo ? "BUDGET" : "BUDGET.", null, Y) },
-    { at: tl.style, out: V.vo.tell.end + 0.35, sx: 540, sy: 1250, z: -320, size: 118, lines: [{ words: [{ w: "YOUR", dt: 0 }, { w: vo ? "STYLE" : "STYLE.", dt: 0.12, color: Y }], dy: 0 }] },
-    { at: TU.custom - 0.04, out: Q.attach[0] + 0.05, sx: 540, sy: 250, z: -360, size: 112, lines: [{ words: [{ w: "CUSTOM", dt: 0 }, { w: "QUOTE.", dt: TU.quotation - TU.custom, color: Y }], dy: 0 }] },
+    { at: tl.budget, out: tl.look + 0.5, sx: 540, sy: 300, z: -320, size: 150, lines: one(vo ? "BUDGET" : "BUDGET.", null, Y) },
+    { at: tl.look, out: V.vo.tell.end + 0.35, sx: 540, sy: 1250, z: -320, size: 118, lines: vo ? [{ words: [{ w: "THE", dt: 0 }, { w: "LOOK", dt: 0.16, color: Y }], dy: 0 }] : [{ words: [{ w: "YOUR", dt: 0 }, { w: "STYLE.", dt: 0.12, color: Y }], dy: 0 }] },
+    { at: TU.build - 0.04, out: Q.attach[0] + 0.05, sx: 540, sy: 250, z: -360, size: 112, lines: [{ words: [{ w: "CUSTOM", dt: 0 }, { w: "QUOTE.", dt: TU.around - TU.build, color: Y }], dy: 0 }] },
     { at: SE.WhatsApp - 0.03, out: TP.wake - 0.05, sx: 540, sy: 270, z: -360, size: 104, lines: [{ words: [{ w: "WHATSAPP", dt: 0, color: WA.green }], dy: 0 }] },
   ];
   return out;
@@ -361,9 +361,9 @@ const Scene: React.FC<{ vo: boolean }> = ({ vo }) => {
       {t >= GA.start && t < GA.textOut + 0.5 && <GalleryText t={t} vo={vo} />}
       {!vo && (
         <>
-          <Line t={t} x={86} y={250} size={92} out={V.vo.real.kw.real - 0.25} outDur={0.25} outMode="up" words={[{ w: "M1", at: V.vo.rest.kw.m1, color: BRAND.red }, { w: "HANDLES", at: V.vo.rest.kw.m1 + 0.18, gap: 0 }]} />
-          <Line t={t} x={86} y={352} size={92} out={V.vo.real.kw.real - 0.2} outDur={0.25} outMode="up" words={[{ w: "THE", at: V.vo.rest.kw.rest - 0.12 }, { w: "REST.", at: V.vo.rest.kw.rest, color: Y, gap: 0 }]} />
-          <Line t={t} x={540} y={1560} size={84} align="center" out={PT.closer[0] + 0.1} outDur={0.25} outMode="up" words={[{ w: "YOURS", at: V.vo.next.kw.yours }, { w: "COULD", at: V.vo.next.kw.yours + 0.15 }, { w: "BE", at: V.vo.next.kw.yours + 0.28 }, { w: "NEXT.", at: V.vo.next.kw.next, color: Y, gap: 0 }]} />
+          <Line t={t} x={86} y={250} size={92} out={PT.labels[0] - 0.2} outDur={0.25} outMode="up" words={[{ w: "M1", at: V.vo.rest.kw.m1, color: BRAND.red }, { w: "HANDLES", at: V.vo.rest.kw.m1 + 0.18, gap: 0 }]} />
+          <Line t={t} x={86} y={352} size={92} out={PT.labels[0] - 0.15} outDur={0.25} outMode="up" words={[{ w: "THE", at: V.vo.rest.kw.rest - 0.12 }, { w: "REST.", at: V.vo.rest.kw.rest, color: Y, gap: 0 }]} />
+          <Line t={t} x={540} y={300} size={96} align="center" out={FLY[0] + 0.1} outDur={0.3} outMode="blur" words={[{ w: "YOURS", at: V.vo.next.kw.yours }, { w: "COULD", at: V.vo.next.kw.yours + 0.15 }, { w: "BE", at: V.vo.next.kw.yours + 0.28 }, { w: "NEXT.", at: V.vo.next.kw.next, color: Y, gap: 0 }]} />
         </>
       )}
       {fullScreen && <End8 t={t} from={FLY[1]} vo={vo} />}
