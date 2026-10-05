@@ -458,12 +458,12 @@ N = secs(round(DUR * 60) / 60 + 0.03)  # a hair longer than the picture so -shor
 music_b = music.buf[:N] * db(-4)
 fx = (sfx.buf + wet)[:N]
 
-# the narrator: Grady's track once delivered (public/audio/vo8.wav). Until then the bed is ducked by the
-# timing model's envelope (where Grady will speak) and NO voice is mixed — the model is not a deliverable voice.
+# the narrator (public/audio/vo8.wav, written by vo/build8.py). Without it the bed is ducked by the timing
+# model's envelope and no voice is mixed.
 VO_PATH = os.path.join(ROOT, "public/audio/vo8.wav")
 HAS_VOICE = os.path.exists(VO_PATH)
 vo, vsr = sf.read(VO_PATH if HAS_VOICE else os.path.join(ROOT, "public/audio/vo8_timing_model.wav"))
-print("voice:", "Grady (vo8.wav)" if HAS_VOICE else "none yet — bed ducked for Grady's slots")
+print("voice:", "male VO (vo8.wav)" if HAS_VOICE else "none — bed ducked by the timing model")
 vo = vo[:N] if vo.ndim == 1 else vo[:N].mean(axis=1)
 vo = np.pad(vo, (0, max(0, N - len(vo))))
 vo = hp(vo, 70)
