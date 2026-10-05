@@ -1,6 +1,6 @@
 {
  "q": {
-  "next": 0.562,
+  "next": 0.442,
   "pc": 0.682,
   "shouldnt": 1.182,
   "preset": 1.972,
@@ -8,7 +8,7 @@
   "you": 3.732,
   "start1": 1.432,
   "with1": 1.737,
-  "should2": 3.027,
+  "should2": 3.03,
   "start2": 3.227,
   "with2": 3.597
  },
@@ -17,21 +17,21 @@
   "done": 1.372
  },
  "starts": {
-  "m1": 0.442,
-  "it": 1.162,
-  "starts": 1.162,
+  "m1": 0.34,
+  "it": 0.97,
+  "starts": 1.04,
   "with": 1.472,
-  "you": 1.592
+  "you": 1.575
  },
  "tell": {
   "play": 0.957,
   "performance": 1.602,
   "budget": 3.007,
-  "look": 3.477
+  "look": 3.96
  },
  "turn": {
   "choices": 0.877,
-  "build": 1.602,
+  "build": 1.762,
   "around": 2.422
  },
  "send": {
@@ -49,8 +49,8 @@
  "source": {
   "source": 0.977,
   "directly": 2.372,
-  "us": 3.147,
-  "ship": 4.717,
+  "us": 3.12,
+  "ship": 4.645,
   "Qatar": 5.372
  },
  "real": {
@@ -67,21 +67,21 @@
   "build": 0.492
  },
  "setup": {
-  "set": 0.677
+  "set": 0.337
  },
  "ready": {
-  "ready": 0.942
+  "ready": 1.002
  },
  "next": {
-  "yours": 0.467,
+  "yours": 0.327,
   "next": 0.997
  },
  "cta": {
   "to": 0.512,
   "build": 0.657,
-  "yours": 1.037
+  "yours": 0.837
  },
  "visit": {
-  "mone": 0.642
+  "mone": 0.422
  }
 }

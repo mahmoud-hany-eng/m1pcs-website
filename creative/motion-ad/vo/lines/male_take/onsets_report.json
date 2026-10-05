@@ -1,0 +1,458 @@
+{
+ "q:next": {
+  "dtw": 0.562,
+  "valid": [
+   0.442,
+   0.442
+  ],
+  "used": 0.442,
+  "status": "moved from 0.562"
+ },
+ "q:pc": {
+  "dtw": 0.682,
+  "valid": [
+   0.522,
+   0.742
+  ],
+  "used": 0.682,
+  "status": "dtw ok"
+ },
+ "q:shouldnt": {
+  "dtw": 1.182,
+  "valid": [
+   1.042,
+   1.142
+  ],
+  "used": 1.182,
+  "status": "dtw ok"
+ },
+ "q:preset": {
+  "dtw": 1.972,
+  "valid": [
+   1.872,
+   2.012
+  ],
+  "used": 1.972,
+  "status": "dtw ok"
+ },
+ "q:it": {
+  "dtw": 2.467,
+  "valid": [
+   2.127,
+   2.727
+  ],
+  "used": 2.467,
+  "status": "dtw ok"
+ },
+ "q:you": {
+  "dtw": 3.732,
+  "valid": [
+   3.692,
+   3.732
+  ],
+  "used": 3.732,
+  "status": "dtw ok"
+ },
+ "q:start1": {
+  "dtw": 1.432,
+  "valid": [
+   1.292,
+   1.552
+  ],
+  "used": 1.432,
+  "status": "dtw ok"
+ },
+ "q:with1": {
+  "dtw": 1.737,
+  "valid": [
+   1.657,
+   1.717
+  ],
+  "used": 1.737,
+  "status": "dtw ok"
+ },
+ "q:should2": {
+  "dtw": 3.027,
+  "valid": null,
+  "used": 3.03,
+  "status": "manual (cut-check transcripts)"
+ },
+ "q:start2": {
+  "dtw": 3.227,
+  "valid": [
+   3.147,
+   3.247
+  ],
+  "used": 3.227,
+  "status": "dtw ok"
+ },
+ "q:with2": {
+  "dtw": 3.597,
+  "valid": [
+   3.477,
+   3.557
+  ],
+  "used": 3.597,
+  "status": "dtw ok"
+ },
+ "show:show": {
+  "dtw": 0.567,
+  "valid": [
+   0.367,
+   0.547
+  ],
+  "used": 0.567,
+  "status": "dtw ok"
+ },
+ "show:done": {
+  "dtw": 1.372,
+  "valid": [
+   1.252,
+   1.412
+  ],
+  "used": 1.372,
+  "status": "dtw ok"
+ },
+ "starts:m1": {
+  "dtw": 0.442,
+  "valid": null,
+  "used": 0.34,
+  "status": "manual (cut-check transcripts)"
+ },
+ "starts:it": {
+  "dtw": 1.162,
+  "valid": [
+   0.762,
+   1.022
+  ],
+  "used": 0.97,
+  "status": "manual (cut-check transcripts)"
+ },
+ "starts:starts": {
+  "dtw": 1.162,
+  "valid": null,
+  "used": 1.04,
+  "status": "manual (cut-check transcripts)"
+ },
+ "starts:with": {
+  "dtw": 1.472,
+  "valid": [
+   1.312,
+   1.472
+  ],
+  "used": 1.472,
+  "status": "dtw ok"
+ },
+ "starts:you": {
+  "dtw": 1.592,
+  "valid": null,
+  "used": 1.575,
+  "status": "manual (cut-check transcripts)"
+ },
+ "tell:play": {
+  "dtw": 0.957,
+  "valid": [
+   0.837,
+   0.997
+  ],
+  "used": 0.957,
+  "status": "dtw ok"
+ },
+ "tell:performance": {
+  "dtw": 1.602,
+  "valid": [
+   1.502,
+   1.622
+  ],
+  "used": 1.602,
+  "status": "dtw ok"
+ },
+ "tell:budget": {
+  "dtw": 3.007,
+  "valid": [
+   2.927,
+   3.047
+  ],
+  "used": 3.007,
+  "status": "dtw ok"
+ },
+ "tell:look": {
+  "dtw": 3.477,
+  "valid": null,
+  "used": 3.96,
+  "status": "manual (cut-check transcripts)"
+ },
+ "turn:choices": {
+  "dtw": 0.877,
+  "valid": [
+   0.757,
+   0.917
+  ],
+  "used": 0.877,
+  "status": "dtw ok"
+ },
+ "turn:build": {
+  "dtw": 1.602,
+  "valid": [
+   1.702,
+   1.862
+  ],
+  "used": 1.762,
+  "status": "moved from 1.602"
+ },
+ "turn:around": {
+  "dtw": 2.422,
+  "valid": [
+   2.342,
+   2.402
+  ],
+  "used": 2.422,
+  "status": "dtw ok"
+ },
+ "send:quotation": {
+  "dtw": 1.142,
+  "valid": [
+   1.102,
+   1.122
+  ],
+  "used": 1.142,
+  "status": "dtw ok"
+ },
+ "send:send": {
+  "dtw": 1.942,
+  "valid": [
+   1.542,
+   2.202
+  ],
+  "used": 1.942,
+  "status": "dtw ok"
+ },
+ "send:WhatsApp": {
+  "dtw": 3.217,
+  "valid": [
+   3.097,
+   3.257
+  ],
+  "used": 3.217,
+  "status": "dtw ok"
+ },
+ "confirm:pricing": {
+  "dtw": 1.362,
+  "valid": [
+   1.282,
+   1.502
+  ],
+  "used": 1.362,
+  "status": "dtw ok"
+ },
+ "confirm:availability": {
+  "dtw": 2.157,
+  "valid": [
+   2.177,
+   2.177
+  ],
+  "used": 2.157,
+  "status": "dtw ok"
+ },
+ "confirm:then": {
+  "dtw": 2.857,
+  "valid": [
+   2.457,
+   3.097
+  ],
+  "used": 2.857,
+  "status": "dtw ok"
+ },
+ "confirm:deposit": {
+  "dtw": 3.692,
+  "valid": [
+   3.632,
+   3.812
+  ],
+  "used": 3.692,
+  "status": "dtw ok"
+ },
+ "confirm:order": {
+  "dtw": 4.992,
+  "valid": [
+   4.892,
+   4.992
+  ],
+  "used": 4.992,
+  "status": "dtw ok"
+ },
+ "source:source": {
+  "dtw": 0.977,
+  "valid": [
+   0.917,
+   1.077
+  ],
+  "used": 0.977,
+  "status": "dtw ok"
+ },
+ "source:directly": {
+  "dtw": 2.372,
+  "valid": [
+   2.112,
+   2.412
+  ],
+  "used": 2.372,
+  "status": "dtw ok"
+ },
+ "source:us": {
+  "dtw": 3.147,
+  "valid": null,
+  "used": 3.12,
+  "status": "manual (cut-check transcripts)"
+ },
+ "source:ship": {
+  "dtw": 4.717,
+  "valid": null,
+  "used": 4.645,
+  "status": "manual (cut-check transcripts)"
+ },
+ "source:Qatar": {
+  "dtw": 5.372,
+  "valid": [
+   5.272,
+   5.372
+  ],
+  "used": 5.372,
+  "status": "dtw ok"
+ },
+ "real:real": {
+  "dtw": 0.752,
+  "valid": [
+   0.572,
+   0.792
+  ],
+  "used": 0.752,
+  "status": "dtw ok"
+ },
+ "real:pcs": {
+  "dtw": 1.082,
+  "valid": [
+   0.882,
+   1.122
+  ],
+  "used": 1.082,
+  "status": "dtw ok"
+ },
+ "real:built": {
+  "dtw": 2.497,
+  "valid": [
+   2.277,
+   2.497
+  ],
+  "used": 2.497,
+  "status": "dtw ok"
+ },
+ "real:customers": {
+  "dtw": 3.027,
+  "valid": [
+   2.927,
+   3.087
+  ],
+  "used": 3.027,
+  "status": "dtw ok"
+ },
+ "rest:m1": {
+  "dtw": 0.437,
+  "valid": [
+   0.337,
+   0.517
+  ],
+  "used": 0.437,
+  "status": "dtw ok"
+ },
+ "rest:rest": {
+  "dtw": 1.637,
+  "valid": [
+   1.557,
+   1.637
+  ],
+  "used": 1.637,
+  "status": "dtw ok"
+ },
+ "build:build": {
+  "dtw": 0.492,
+  "valid": [
+   0.352,
+   0.472
+  ],
+  "used": 0.492,
+  "status": "dtw ok"
+ },
+ "setup:set": {
+  "dtw": 0.677,
+  "valid": [
+   0.297,
+   0.437
+  ],
+  "used": 0.337,
+  "status": "moved from 0.677"
+ },
+ "ready:ready": {
+  "dtw": 0.942,
+  "valid": [
+   1.002,
+   1.102
+  ],
+  "used": 1.002,
+  "status": "moved from 0.942"
+ },
+ "next:yours": {
+  "dtw": 0.467,
+  "valid": [
+   0.327,
+   0.347
+  ],
+  "used": 0.327,
+  "status": "moved from 0.467"
+ },
+ "next:next": {
+  "dtw": 0.997,
+  "valid": [
+   0.917,
+   1.077
+  ],
+  "used": 0.997,
+  "status": "dtw ok"
+ },
+ "cta:to": {
+  "dtw": 0.512,
+  "valid": [
+   0.392,
+   0.512
+  ],
+  "used": 0.512,
+  "status": "dtw ok"
+ },
+ "cta:build": {
+  "dtw": 0.657,
+  "valid": [
+   0.537,
+   0.657
+  ],
+  "used": 0.657,
+  "status": "dtw ok"
+ },
+ "cta:yours": {
+  "dtw": 1.037,
+  "valid": [
+   0.837,
+   0.917
+  ],
+  "used": 0.837,
+  "status": "moved from 1.037"
+ },
+ "visit:mone": {
+  "dtw": 0.642,
+  "valid": [
+   0.422,
+   0.422
+  ],
+  "used": 0.422,
+  "status": "moved from 0.642"
+ }
+}

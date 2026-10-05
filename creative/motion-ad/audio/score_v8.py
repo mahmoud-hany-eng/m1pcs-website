@@ -481,7 +481,7 @@ def peaking(x, f0, gain_db, q):
 
 
 vo = peaking(vo, 3000, 1.5, 0.8)
-# side-chain: WHETHER he is speaking (10 ms blocks above −40 dB of his speech level), held through the short
+# side-chain: WHETHER he is speaking (10 ms blocks above −40 dB of his speech level), bridged across silences < 1.1 s, held
 # gaps inside a line (0.45 s), opened 0.15 s early, smoothed with a 0.3 s raised cosine — the music glides
 # down just before he speaks and back up ~0.5 s after he stops; it never steps (a step reads as a drop-out)
 blk = secs(0.01)
@@ -489,10 +489,21 @@ nb = len(vo) // blk + 1
 rb = np.array([np.sqrt(np.mean(vo[i * blk : (i + 1) * blk] ** 2)) if i * blk < len(vo) else 0.0 for i in range(nb)])
 vref = np.percentile(rb[rb > 1e-6], 90) if (rb > 1e-6).any() else 1.0
 act = (20 * np.log10(rb / vref + 1e-12) > -40).astype(float)
+# a silence shorter than 1.1 s (a pause inside a line, or a quick hand-off to the next line) stays ducked —
+# the music only rises in the real breaths, never a quick up-and-down that would read as a drop-out
+act_now = maximum_filter1d(act.copy(), size=5 + 20 + 1, origin=(5 - 20) // 2)  # "speaking now" (no bridging) — for the SFX moments
+on_ = np.flatnonzero(act)
+if len(on_):
+    for g0, g1 in zip(on_[:-1], on_[1:]):
+        if 1 < g1 - g0 <= 110:
+            act[g0:g1] = 1
 act = maximum_filter1d(act, size=15 + 45 + 1, origin=(15 - 45) // 2)  # 0.15 s ahead, 0.45 s hold after
 kern = np.hanning(31)
 sm = np.clip(np.convolve(act, kern / kern.sum(), mode="same"), 0, 1)
 side = np.repeat(sm, blk)[:N]
+side_now = np.repeat(np.clip(np.convolve(act_now, np.hanning(21) / np.hanning(21).sum(), mode="same"), 0, 1), blk)[:N]
+os.makedirs(os.path.join(ROOT, "qa", "out"), exist_ok=True)
+np.save(os.path.join(ROOT, "qa", "out", "duck_side.npy"), sm.astype(np.float32))  # 10 ms blocks, for the QA plot
 music_vo = music_b * (1 - (1 - db(-10)) * side)[:, None]
 # the moments where the SFX may step forward (no narration on top, or only its onset)
 lift = np.zeros(N)
@@ -503,7 +514,7 @@ for t0_, t1_, amt in [(I["contact"] - 0.05, I["contact"] + 0.7, 1.0), (CH["order
     w_[i0_:i1_] = amt
     w_[i1_ : i1_ + f_] = np.linspace(amt, 0, len(w_[i1_ : i1_ + f_]))
     lift = np.maximum(lift, w_)
-lift *= 1 - side  # never while the narrator is talking — the moments step forward only into the gaps
+lift *= 1 - side_now  # never while the narrator is talking — the moments step forward only into the gaps
 # SFX: −6 dB under the voice (the chat's UI a further −6 dB under the pricing line); at the five key moments the
 # duck is released and the SFX step forward +2.5 dB
 fx_vo = fx * ((1 - (1 - db(-6)) * side * (1 - lift)) * fxenv[:N] * (1 + (db(2.5) - 1) * lift))[:, None]
