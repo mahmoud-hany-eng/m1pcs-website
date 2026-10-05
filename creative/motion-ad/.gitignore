@@ -9,4 +9,6 @@ public/fonts/
 vo/lines/*
 !vo/lines/male_mature/
 vo/lines/male_mature/*.wav
+!vo/lines/male_take/
+vo/lines/male_take/*.wav
 vo/__pycache__/

@@ -1,0 +1,87 @@
+{
+ "q": {
+  "next": 0.562,
+  "pc": 0.682,
+  "shouldnt": 1.182,
+  "preset": 1.972,
+  "it": 2.467,
+  "you": 3.732,
+  "start1": 1.432,
+  "with1": 1.737,
+  "should2": 3.027,
+  "start2": 3.227,
+  "with2": 3.597
+ },
+ "show": {
+  "show": 0.567,
+  "done": 1.372
+ },
+ "starts": {
+  "m1": 0.442,
+  "it": 1.162,
+  "starts": 1.162,
+  "with": 1.472,
+  "you": 1.592
+ },
+ "tell": {
+  "play": 0.957,
+  "performance": 1.602,
+  "budget": 3.007,
+  "look": 3.477
+ },
+ "turn": {
+  "choices": 0.877,
+  "build": 1.602,
+  "around": 2.422
+ },
+ "send": {
+  "quotation": 1.142,
+  "send": 1.942,
+  "WhatsApp": 3.217
+ },
+ "confirm": {
+  "pricing": 1.362,
+  "availability": 2.157,
+  "then": 2.857,
+  "deposit": 3.692,
+  "order": 4.992
+ },
+ "source": {
+  "source": 0.977,
+  "directly": 2.372,
+  "us": 3.147,
+  "ship": 4.717,
+  "Qatar": 5.372
+ },
+ "real": {
+  "real": 0.752,
+  "pcs": 1.082,
+  "built": 2.497,
+  "customers": 3.027
+ },
+ "rest": {
+  "m1": 0.437,
+  "rest": 1.637
+ },
+ "build": {
+  "build": 0.492
+ },
+ "setup": {
+  "set": 0.677
+ },
+ "ready": {
+  "ready": 0.942
+ },
+ "next": {
+  "yours": 0.467,
+  "next": 0.997
+ },
+ "cta": {
+  "to": 0.512,
+  "build": 0.657,
+  "yours": 1.037
+ },
+ "visit": {
+  "mone": 0.642
+ }
+}

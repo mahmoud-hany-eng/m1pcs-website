@@ -1,0 +1,249 @@
+{
+ "voice": "am_fenrir:3+am_onyx:2",
+ "sample_rate": 48000,
+ "lines": {
+  "q": {
+   "speed": 1.053,
+   "speech_s": 3.82,
+   "female_s": 3.8,
+   "lead_s": 0.225,
+   "tail_s": 0.565,
+   "pauses_set_to_hers": [
+    [
+     0.155,
+     0.435
+    ]
+   ],
+   "her_pauses": 1,
+   "his_pauses": 2,
+   "gain_db": -2.71,
+   "loudness": -23.0
+  },
+  "show": {
+   "speed": 1.0,
+   "speech_s": 1.495,
+   "female_s": null,
+   "lead_s": 0.225,
+   "tail_s": 0.53,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 1,
+   "gain_db": -3.81,
+   "loudness": -23.0
+  },
+  "starts": {
+   "speed": 0.939,
+   "speech_s": 1.685,
+   "female_s": 1.715,
+   "lead_s": 0.23,
+   "tail_s": 0.56,
+   "pauses_set_to_hers": [],
+   "her_pauses": 1,
+   "his_pauses": 0,
+   "gain_db": -3.42,
+   "loudness": -23.0
+  },
+  "tell": {
+   "speed": 0.9,
+   "speech_s": 4.885,
+   "female_s": 5.575,
+   "lead_s": 0.25,
+   "tail_s": 0.68,
+   "pauses_set_to_hers": [
+    [
+     0.05,
+     0.38
+    ],
+    [
+     0.19,
+     0.055
+    ]
+   ],
+   "her_pauses": 4,
+   "his_pauses": 4,
+   "gain_db": -2.64,
+   "loudness": -23.0
+  },
+  "turn": {
+   "speed": 1.0,
+   "speech_s": 2.785,
+   "female_s": 2.84,
+   "lead_s": 0.23,
+   "tail_s": 0.61,
+   "pauses_set_to_hers": [],
+   "her_pauses": 1,
+   "his_pauses": 0,
+   "gain_db": -2.97,
+   "loudness": -23.0
+  },
+  "send": {
+   "speed": 1.0,
+   "speech_s": 3.525,
+   "female_s": 3.475,
+   "lead_s": 0.235,
+   "tail_s": 0.565,
+   "pauses_set_to_hers": [
+    [
+     0.06,
+     0.295
+    ],
+    [
+     0.055,
+     0.05
+    ]
+   ],
+   "her_pauses": 2,
+   "his_pauses": 2,
+   "gain_db": -2.99,
+   "loudness": -23.0
+  },
+  "confirm": {
+   "speed": 1.0,
+   "speech_s": 5.125,
+   "female_s": 4.985,
+   "lead_s": 0.245,
+   "tail_s": 0.63,
+   "pauses_set_to_hers": [
+    [
+     0.07,
+     0.055
+    ],
+    [
+     0.155,
+     0.395
+    ],
+    [
+     0.085,
+     0.05
+    ]
+   ],
+   "her_pauses": 3,
+   "his_pauses": 4,
+   "gain_db": -2.78,
+   "loudness": -23.0
+  },
+  "source": {
+   "speed": 1.0,
+   "speech_s": 5.64,
+   "female_s": 5.625,
+   "lead_s": 0.245,
+   "tail_s": 0.66,
+   "pauses_set_to_hers": [
+    [
+     0.09,
+     0.805
+    ]
+   ],
+   "her_pauses": 2,
+   "his_pauses": 4,
+   "gain_db": -2.68,
+   "loudness": -23.0
+  },
+  "real": {
+   "speed": 0.9,
+   "speech_s": 3.495,
+   "female_s": 3.61,
+   "lead_s": 0.235,
+   "tail_s": 0.645,
+   "pauses_set_to_hers": [],
+   "her_pauses": 2,
+   "his_pauses": 2,
+   "gain_db": -3.27,
+   "loudness": -23.0
+  },
+  "rest": {
+   "speed": 1.0,
+   "speech_s": 1.84,
+   "female_s": 1.89,
+   "lead_s": 0.23,
+   "tail_s": 0.505,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 0,
+   "gain_db": -2.82,
+   "loudness": -23.0
+  },
+  "build": {
+   "speed": 0.96,
+   "speech_s": 0.87,
+   "female_s": 0.875,
+   "lead_s": 0.225,
+   "tail_s": 0.43,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 0,
+   "gain_db": -5.37,
+   "loudness": -23.0
+  },
+  "setup": {
+   "speed": 1.0,
+   "speech_s": 0.87,
+   "female_s": 0.885,
+   "lead_s": 0.22,
+   "tail_s": 0.405,
+   "pauses_set_to_hers": [
+    [
+     0.07,
+     0.05
+    ]
+   ],
+   "her_pauses": 1,
+   "his_pauses": 1,
+   "gain_db": -4.27,
+   "loudness": -23.0
+  },
+  "ready": {
+   "speed": 1.0,
+   "speech_s": 1.67,
+   "female_s": 1.65,
+   "lead_s": 0.225,
+   "tail_s": 0.53,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 0,
+   "gain_db": -3.86,
+   "loudness": -23.0
+  },
+  "next": {
+   "speed": 1.0,
+   "speech_s": 1.295,
+   "female_s": 1.265,
+   "lead_s": 0.225,
+   "tail_s": 0.48,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 1,
+   "gain_db": -4.79,
+   "loudness": -23.0
+  },
+  "cta": {
+   "speed": 1.0,
+   "speech_s": 1.21,
+   "female_s": 1.245,
+   "lead_s": 0.225,
+   "tail_s": 0.515,
+   "pauses_set_to_hers": [],
+   "her_pauses": 0,
+   "his_pauses": 0,
+   "gain_db": -4.26,
+   "loudness": -23.0
+  },
+  "visit": {
+   "speed": 0.956,
+   "speech_s": 2.13,
+   "female_s": 2.165,
+   "lead_s": 0.23,
+   "tail_s": 0.615,
+   "pauses_set_to_hers": [
+    [
+     0.085,
+     0.07
+    ]
+   ],
+   "her_pauses": 1,
+   "his_pauses": 2,
+   "gain_db": -3.62,
+   "loudness": -23.0
+  }
+ }
+}

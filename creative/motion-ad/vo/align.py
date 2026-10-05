@@ -12,7 +12,8 @@ from scipy.signal import stft
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOP = 0.005
-FIX = [("kˈæɾɑːɹ", "kˈʌtɑːɹ"), ("wʌts ˈæp", "wˈɑtsæp"), ("jˈuː.ˈɛs.", "ðə jˌuːˈɛs."), ("mˈoʊnəpks.kˈɑː.", "ˈɛm wˈʌn pˈiː sˈiːs dˈɑːt kjˈuː ˈeɪ.")]
+FIX = [("kˈæɾɑːɹ", "kˈʌtɑːɹ"), ("wʌts ˈæp", "wˈɑtsæp"), ("jˈuː.ˈɛs.", "ðə jˌuːˈɛs."), ("mˈoʊnəpks.kˈɑː.", "ˈɛm wˈʌn pˈiː sˈiːs dˈɑːt kjˈuː ˈeɪ."),
+       ("ʃˌʊdənt", "ʃˈʊdənt")]
 
 
 def feats(x, sr):

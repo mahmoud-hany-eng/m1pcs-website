@@ -10,6 +10,11 @@ the FEMALE v8 read: every line has her length (±2 %) and her pause pattern, and
 her gaps between sentences (FEMALE_GAP, measured from the v8 cut). The picture follows the voice; where
 the picture needs a minimum (a choice must read before the next one, the 13-build flight is 7.0 s, …)
 that is a max() and the deviation from her gap is reported.
+
+v13: the takes are vo/lines/male_take (vo/male_take.py) — complete and untrimmed. Each file is placed WHOLE
+(with its own ≥ 0.2 s lead-in and ≥ 0.3 s tail of silence); nothing is cut to fit a slot. A line's "start" /
+"end" are its first / last sound; if a line would run into the next one, the next one (and the picture
+after it) moves later — the voice is never shortened.
 """
 import json
 import os
@@ -20,30 +25,34 @@ from scipy.signal import lfilter, resample_poly
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
-VO_DIR = os.path.join(HERE, os.environ.get("VO_DIR", "lines/male_mature"))
+VO_DIR = os.path.join(HERE, os.environ.get("VO_DIR", "lines/male_take"))
 IS_MODEL = "model" in os.path.basename(VO_DIR)
-VOICE = "Kokoro-82M v1.0 style blend am_fenrir:3+am_onyx:2 (mature male), performed on the v8 female read"
+VOICE = "Kokoro-82M v1.0 style blend am_fenrir:3+am_onyx:2 (mature male), on the v8 female timing — untrimmed takes"
 SR = 48000
 
 
 def line_audio(lid):
+    """the WHOLE take (never trimmed) and where its first / last sound is (s into the file)"""
     x, sr = sf.read(os.path.join(VO_DIR, lid + ".wav"))
     if x.ndim > 1:
         x = x.mean(1)
     x = resample_poly(x, SR, sr) if sr != SR else x
-    idx = np.where(np.abs(x) > 0.01 * max(1e-6, np.abs(x).max()) / 0.3)[0]
-    a = max(0, idx[0] - int(0.03 * SR))
-    return x[a : idx[-1] + int(0.08 * SR)], a / SR  # (audio from 30 ms before the first sound, where that is in the file)
+    h = int(0.005 * SR)
+    n = len(x) // h
+    db = 20 * np.log10(np.sqrt((x[: n * h].reshape(n, h) ** 2).mean(1) + 1e-20) / np.abs(x).max())
+    on = np.where(db > -45)[0]
+    return x, on[0] * 0.005, (on[-1] + 1) * 0.005
 
 
 # keyword onsets (s into each line file): DTW of each spoken prefix against the line (vo/align.py), every
 # value checked by cutting the line there and transcribing both halves (offline Whisper); the few where
 # DTW slipped by a word were re-found at the word boundary the transcription confirms. → onsets.json
 LEAD = {}
+TAIL = {}
 AUDIO = {}
 ONSETS = json.load(open(os.path.join(VO_DIR, "onsets.json")))
 for lid in ONSETS:
-    AUDIO[lid], LEAD[lid] = line_audio(lid)
+    AUDIO[lid], LEAD[lid], TAIL[lid] = line_audio(lid)
 
 VO = {}
 START = {}
@@ -57,9 +66,8 @@ GAP_NOTE = {}
 
 def put(lid, st):
     """place a narration line so its first sound is at st (s)"""
-    y = AUDIO[lid]
     START[lid] = round(st, 3)
-    VO[lid] = {"start": round(st, 3), "end": round(st + len(y) / SR - 0.08, 3),
+    VO[lid] = {"start": round(st, 3), "end": round(st + TAIL[lid] - LEAD[lid], 3),
                "kw": {w: round(st + x - LEAD[lid], 3) for w, x in ONSETS[lid].items()}}  # onsets are file-relative
 
 
@@ -247,11 +255,18 @@ T["v8"] = V8
 json.dump(T, open(tl_path, "w"), indent=2)
 
 # ------------------------------------------------------------------ the voice track
-track = np.zeros(int((duration + 0.5) * SR))
-for lid, st in START.items():
+track = np.zeros(int((duration + 1.0) * SR))
+order_ = sorted(START, key=START.get)
+for n_, lid in enumerate(order_):
     y = AUDIO[lid]
-    i = int(st * SR)
-    track[i : i + len(y)] += y[: max(0, len(track) - i)]
+    i = int(round((START[lid] - LEAD[lid]) * SR))  # the whole file, its lead-in before the first sound
+    assert i >= 0, f"{lid}: lead-in would start before 0 s"
+    assert i + len(y) <= len(track), f"{lid}: runs past the end of the film"
+    track[i : i + len(y)] += y
+    if n_:
+        gap = VO[lid]["start"] - VO[order_[n_ - 1]]["end"]
+        assert gap >= 0.3, f"{lid} starts {gap:.2f} s after the previous line ends"
+assert np.abs(track[int(duration * SR) :]).max() < 1e-4, "narration would be cut by the end of the film"
 track = track[: int(duration * SR)]
 os.makedirs(os.path.join(ROOT, "public", "audio"), exist_ok=True)
 sf.write(os.path.join(ROOT, "public", "audio", "vo8.wav"), track, SR, subtype="PCM_24")
@@ -268,25 +283,25 @@ REP = json.load(open(os.path.join(VO_DIR, "report.json")))["lines"]
 order = sorted(START, key=START.get)
 words = sum(len(LINES[l]["text"].split()) for l in order)
 md = [
-    "# M1 Gaming PCs — final voiceover script (v12)",
+    "# M1 Gaming PCs — final voiceover script (v13)",
     "",
-    "Narrator: mature male (Kokoro-82M v1.0, style blend 60 % am_fenrir + 40 % am_onyx), performed on the **female v8 read** "
-    "(Kokoro af_heart) as the master: each line has her length (±2 %) and her pauses (vo/match_female.py), and the lines sit "
-    "with her gaps between them. Only the opening line is new; the rest is her script word for word.",
+    "Narrator: mature male (Kokoro-82M v1.0, style blend 60 % am_fenrir + 40 % am_onyx) on the timing of the **female v8 "
+    "read** (Kokoro af_heart): each line at her length where his natural read allows, her pauses where he pauses, the lines "
+    "placed with her gaps between them. Every take is complete and untrimmed (vo/male_take.py); nothing is cut to fit the picture.",
     "",
-    f"{words} words · film {duration:.2f} s.",
+    f"{words} words · film {duration:.2f} s · narration source 48 kHz / 24-bit PCM mono.",
     "",
-    "| # | Line | Her length | His length | Her gap before | His gap before | Timing deviation (median / p90) |",
+    "| # | Line | Her length | His length | Speed | Her gap before | His gap before |",
     "|---|---|---|---|---|---|---|",
 ]
 for i, lid in enumerate(order, 1):
     r = REP[lid]
     gap = "" if i == 1 else f"{VO[lid]['start'] - VO[order[i - 2]]['end']:.2f} s" + (f" — {GAP_NOTE[lid]}" if lid in GAP_NOTE else "")
-    md.append(f"| {i} | {LINES[lid]['text']} | {r['female_s']:.2f} s | {r['male_s']:.2f} s | "
-              f"{'' if i == 1 else f'{FEMALE_GAP[lid]:.2f} s'} | {gap} | {r['timing_dev_median_s']:.2f} / {r['timing_dev_p90_s']:.2f} s |")
+    her = f"{r['female_s']:.2f} s" if r.get("female_s") else "— (new line)"
+    md.append(f"| {i} | {LINES[lid]['text']} | {her} | {r['speech_s']:.2f} s | {r['speed']:.2f} | "
+              f"{'' if i == 1 else f'{FEMALE_GAP[lid]:.2f} s'} | {gap} |")
 md += [
     "",
-    "Timing deviation: his line DTW-aligned to hers — how far each of his sounds falls from the same sound in her read.",
     "A gap longer than hers is a local picture need (named in the row); no line is sped up or slowed down globally.",
     "",
     "Pronunciation: Qatar = “KUH-tar” · M1 = “em one” · WhatsApp = one word · the U.S. = “the you-ess” · "

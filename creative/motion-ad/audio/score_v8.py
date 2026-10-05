@@ -15,7 +15,7 @@ Outputs (48 kHz / 24-bit):
   public/audio/final8_novo.wav   — music + SFX, music a touch up, no ducking (Version B)
   public/audio/final8_bed_vo.wav — Version A without the voice (music/SFX stem)
   (the clean voice stem is public/audio/vo8.wav, from vo/build8.py)
-Each mix: −14 LUFS integrated, true peak ≤ −2 dBTP (headroom for AAC).
+Each mix: −14 LUFS integrated, true peak ≤ −1 dBTP; the voice is never saturated or compressed.
 """
 import json
 import os
@@ -25,7 +25,8 @@ import sys
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import resample_poly
+from scipy.ndimage import maximum_filter1d
+from scipy.signal import lfilter, resample_poly
 
 sys.path.insert(0, os.path.dirname(__file__))
 from engine import *  # noqa
@@ -466,17 +467,31 @@ vo, vsr = sf.read(VO_PATH if HAS_VOICE else os.path.join(ROOT, "public/audio/vo8
 print("voice:", "male VO (vo8.wav)" if HAS_VOICE else "none — bed ducked by the timing model")
 vo = vo[:N] if vo.ndim == 1 else vo[:N].mean(axis=1)
 vo = np.pad(vo, (0, max(0, N - len(vo))))
+# voice: clean it, keep it natural — 70 Hz high-pass, a gentle +1.5 dB presence lift at 3 kHz, nothing else
+# (no compression, no saturation, no de-essing: the takes are already level-matched line to line)
 vo = hp(vo, 70)
-# side-chain: a smooth envelope of the voice (attack 40 ms, release 320 ms) → −8 dB on music, −2.5 dB on SFX
-lev = np.abs(vo)
+
+
+def peaking(x, f0, gain_db, q):
+    A, w = 10 ** (gain_db / 40), 2 * np.pi * f0 / SR
+    al = np.sin(w) / (2 * q)
+    b_ = [1 + al * A, -2 * np.cos(w), 1 - al * A]
+    a_ = [1 + al / A, -2 * np.cos(w), 1 - al / A]
+    return lfilter(b_, a_, x)
+
+
+vo = peaking(vo, 3000, 1.5, 0.8)
+# side-chain: WHETHER he is speaking (10 ms blocks above −40 dB of his speech level), held through the short
+# gaps inside a line (0.45 s), opened 0.15 s early, smoothed with a 0.3 s raised cosine — the music glides
+# down just before he speaks and back up ~0.5 s after he stops; it never steps (a step reads as a drop-out)
 blk = secs(0.01)
-nb = len(lev) // blk + 1
-pk = np.array([lev[i * blk : (i + 1) * blk].max() if i * blk < len(lev) else 0 for i in range(nb)])
-gate = np.clip((20 * np.log10(pk + 1e-9) + 42) / 12, 0, 1)
-sm = np.zeros_like(gate)
-for i in range(1, len(gate)):
-    a = 0.22 if gate[i] > sm[i - 1] else 0.03
-    sm[i] = sm[i - 1] + a * (gate[i] - sm[i - 1])
+nb = len(vo) // blk + 1
+rb = np.array([np.sqrt(np.mean(vo[i * blk : (i + 1) * blk] ** 2)) if i * blk < len(vo) else 0.0 for i in range(nb)])
+vref = np.percentile(rb[rb > 1e-6], 90) if (rb > 1e-6).any() else 1.0
+act = (20 * np.log10(rb / vref + 1e-12) > -40).astype(float)
+act = maximum_filter1d(act, size=15 + 45 + 1, origin=(15 - 45) // 2)  # 0.15 s ahead, 0.45 s hold after
+kern = np.hanning(31)
+sm = np.clip(np.convolve(act, kern / kern.sum(), mode="same"), 0, 1)
 side = np.repeat(sm, blk)[:N]
 music_vo = music_b * (1 - (1 - db(-10)) * side)[:, None]
 # the moments where the SFX may step forward (no narration on top, or only its onset)
@@ -492,11 +507,34 @@ lift *= 1 - side  # never while the narrator is talking — the moments step for
 # SFX: −6 dB under the voice (the chat's UI a further −6 dB under the pricing line); at the five key moments the
 # duck is released and the SFX step forward +2.5 dB
 fx_vo = fx * ((1 - (1 - db(-6)) * side * (1 - lift)) * fxenv[:N] * (1 + (db(2.5) - 1) * lift))[:, None]
-voice = pan(vo, 0) * db(7) * (1.0 if HAS_VOICE else 0.0)
+voice = pan(vo, 0) * (1.0 if HAS_VOICE else 0.0)
+GLUE = 1.15
 
 
-def finish(stereo, dest):
-    out = master(stereo, -1.0)
+def glue(x):
+    """the bed's gentle soft-knee glue (music + SFX only — the voice never goes through it)"""
+    return np.tanh(x * GLUE) / np.tanh(GLUE)
+
+
+def k_loud(x):
+    """BS.1770 K-weighted mean power (dB) of a mono/stereo signal over the samples given"""
+    b1, a1 = [1.53512485958697, -2.69169618940638, 1.19839281085285], [1.0, -1.69065929318241, 0.73248077421585]
+    b2, a2 = [1.0, -2.0, 1.0], [1.0, -1.99004745483398, 0.99007225036621]
+    y = lfilter(b2, a2, lfilter(b1, a1, x, axis=0), axis=0)
+    return 10 * np.log10(np.mean(y**2) * (y.shape[1] if y.ndim > 1 else 1) + 1e-20)
+
+
+# the narrator sits 12 dB above the (ducked, glued) bed while he speaks
+if HAS_VOICE:
+    spk = side > 0.95
+    rel = k_loud(voice[spk]) - k_loud(glue(music_vo + fx_vo)[spk])
+    voice = voice * db(12 - rel)
+    print(f"voice over bed while speaking: {rel:+.1f} dB → set to +12.0 dB")
+
+
+def finish(bed, dest, voice_=None):
+    out = glue(bed) + (voice_ if voice_ is not None else 0.0)
+    out = out * (db(-6) / (np.abs(out).max() + 1e-9))  # headroom only (linear); the level is set below
     fade = np.ones(len(out))
     fade[: secs(0.004)] = np.linspace(0, 1, secs(0.004))
     fade[-secs(0.4) :] = np.linspace(1, 0, secs(0.4)) ** 1.5
@@ -529,10 +567,10 @@ def finish(stereo, dest):
         sm_g = np.minimum(out_g, np.convolve(out_g, k, mode="same"))
         return x * sm_g[:, None]
 
-    ceil = db(-2.6)
+    ceil = db(-1.3)  # true-peak ceiling (measured ≤ −1.0 dBTP); linear gain sets −14 LUFS
     for it in range(8):
         lufs, peak = measure(dest)
-        if abs(lufs + 14) < 0.1 and peak <= -2.0:
+        if abs(lufs + 14) < 0.1 and peak <= -1.0:
             break
         out = tp_limit(out * db(-14 - lufs), ceil)
         write_wav(dest, out)
@@ -541,6 +579,6 @@ def finish(stereo, dest):
 
 
 A_DIR = os.path.join(ROOT, "public/audio")
-finish(voice + music_vo + fx_vo, os.path.join(A_DIR, "final8_vo.wav"))
+finish(music_vo + fx_vo, os.path.join(A_DIR, "final8_vo.wav"), voice_=voice)
 finish(music_vo + fx_vo, os.path.join(A_DIR, "final8_bed_vo.wav"))
 finish(music_b * db(1.5) + fx * (db(1.0) * (1 + (db(1.5) - 1) * lift))[:, None], os.path.join(A_DIR, "final8_novo.wav"))

@@ -19,12 +19,13 @@
  },
  {
   "id": "show",
-  "text": "Then let us show you how it's properly done.",
+  "text": "Let us show you how it is done.",
   "speed": 0.95,
   "kw": {
-   "show": "Then let us",
-   "properly": "Then let us show you how it's"
-  }
+   "show": "Let us",
+   "done": "Let us show you how it is"
+  },
+  "no_female_ref": true
  },
  {
   "id": "starts",
