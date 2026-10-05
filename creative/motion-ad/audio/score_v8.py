@@ -565,8 +565,11 @@ def finish(bed, dest, voice_=None):
         k = np.hanning(2 * la + 1)
         k /= k.sum()
         sm_g = np.minimum(out_g, np.convolve(out_g, k, mode="same"))
+        gr = -20 * np.log10(np.maximum(sm_g, 1e-9))
+        GR[0] = (float(gr.max()), float((gr > 1.0).mean() * 100), float((gr > 3.0).mean() * 100))
         return x * sm_g[:, None]
 
+    GR = [(0.0, 0.0, 0.0)]
     ceil = db(-1.3)  # true-peak ceiling (measured ≤ −1.0 dBTP); linear gain sets −14 LUFS
     for it in range(8):
         lufs, peak = measure(dest)
@@ -575,7 +578,8 @@ def finish(bed, dest, voice_=None):
         out = tp_limit(out * db(-14 - lufs), ceil)
         write_wav(dest, out)
     lufs, peak = measure(dest)
-    print(f"{os.path.basename(dest)}: {lufs:.1f} LUFS, true peak {peak:.1f} dBTP")
+    print(f"{os.path.basename(dest)}: {lufs:.1f} LUFS, true peak {peak:.1f} dBTP | limiter: max {GR[0][0]:.1f} dB, "
+          f"> 1 dB {GR[0][1]:.1f} % of the time, > 3 dB {GR[0][2]:.1f} %")
 
 
 A_DIR = os.path.join(ROOT, "public/audio")

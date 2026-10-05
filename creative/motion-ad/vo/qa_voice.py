@@ -80,11 +80,15 @@ def track():
     ok = True
     for i, lid in enumerate(order):
         s, e = VO[lid]["start"], VO[lid]["end"]
-        seg = x[int((s - 0.25) * sr) : int((e + 0.35) * sr)]
-        db = frames_db(seg, sr, ref=ref * 10)
-        # the 150 ms before the first sound and the 250 ms after the last must be quiet (no cut-in / cut-off)
-        pre = db[: int(0.10 / 0.005)].max()
-        post = db[-int(0.25 / 0.005):].max()
+        prv = VO[order[i - 1]]["end"] if i else 0.0
+        nxs = VO[order[i + 1]]["start"] if i + 1 < len(order) else len(x) / sr
+        # just before the first sound / just after the last one must be quiet (no cut-in, no cut-off) —
+        # windows stop short of the neighbouring lines
+        p0, p1 = max(prv + 0.05, s - 0.15), s - 0.03
+        q0, q1 = e + 0.05, min(nxs - 0.05, e + 0.30)
+        lvl = lambda a, b: frames_db(x[int(a * sr) : int(b * sr)], sr, ref=ref * 10).max() if b - a > 0.02 else -120
+        pre, post = lvl(p0, p1), lvl(q0, q1)
+        seg = x[int(max(0, s - 0.25) * sr) : int(min(len(x) / sr, e + 0.35) * sr)]
         he = hard_edges(seg, sr)
         nxt = VO[order[i + 1]]["start"] - e if i + 1 < len(order) else None
         flags = []

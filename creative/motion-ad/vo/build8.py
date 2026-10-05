@@ -224,7 +224,7 @@ fly = [ret["approach"][1], ret["approach"][1] + 0.5]
 after("next")
 after("cta", fly[1] + 0.35, why="the site is full screen")  # READY → TO BUILD → YOURS?
 after("visit")
-cta = {"words": {"ready": v("cta", "ready"), "to": v("cta", "to"), "yours": v("cta", "yours")}, "hover": v("cta", "build") + 0.05,
+cta = {"words": {"ready": v("cta"), "to": v("cta", "to"), "yours": v("cta", "yours")}, "hover": v("cta", "build") + 0.05,
        "url": v("visit", "mone") - 0.05}
 
 # ------------------------------------------------------------------ 9. website → M1 logo → M1 GAMING PCS → DOHA • QATAR → monepcs.qa → hold
