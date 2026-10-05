@@ -101,7 +101,7 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
   const youGlow = range(t, W.you - 0.05, W.you + 0.4) * (1 - 0.6 * range(t, I.collapse[0], I.halvesIn[0])) * (1 - range(t, I.contact, I.contact + 0.3));
   const youIn = glideIn(range(t, W.you - 0.03, W.you + 0.42));
   const squeeze = (k: number): React.CSSProperties => ({ transform: `scale(${1 - 0.95 * k}, ${1 - 0.86 * k})`, filter: `brightness(${1 + 2.2 * k})`, opacity: 1 - range(k, 0.75, 1) });
-  const outA = W.it - 0.14;
+  const outA = W.it - 0.02; // PRESET. reads ~0.5 s; phase A clears as he says "It"
   const outB = W.you + 0.26; // IT SHOULD START / WITH leave; YOU. holds alone for a beat
   const YOU_Y = 760, YOU_SIZE = 310, YOU_C = { x: 540, y: YOU_Y + 0.46 * YOU_SIZE };
   const hook = t < I.halvesIn[0] + 0.05 && (
@@ -118,11 +118,11 @@ export const Intro8: React.FC<{ t: number; cam: Camera }> = ({ t, cam }) => {
         </div>
       )}
       {/* phase B */}
-      {t >= W.it - 0.1 && (
+      {t >= W.should2 - 0.25 && (
         <>
           {youGlow > 0 && <div style={{ position: "absolute", left: 540 - 600, top: YOU_C.y - 600, width: 1200, height: 1200, borderRadius: "50%", background: `radial-gradient(closest-side, rgba(249,194,4,${0.2 * youGlow}), rgba(249,194,4,${0.05 * youGlow}) 55%, rgba(249,194,4,0) 100%)` }} />}
           <div style={{ position: "absolute", inset: 0, transform: `translateX(${8 * drift}px)` }}>
-            <Line t={t} x={540} y={540} size={96} align="center" out={outB} outDur={0.3} outMode="up" words={[{ w: "IT", at: W.it }, { w: "SHOULD", at: W.should2 }, { w: "START", at: W.start2, gap: 0 }]} />
+            <Line t={t} x={540} y={540} size={96} align="center" out={outB} outDur={0.3} outMode="up" words={[{ w: "IT", at: W.should2 - 0.12 }, { w: "SHOULD", at: W.should2 }, { w: "START", at: W.start2, gap: 0 }]} />
             <Line t={t} x={540} y={660} size={70} weight={600} track={0.08} align="center" out={outB + 0.04} outDur={0.3} outMode="up" words={[{ w: "WITH", at: W.with2, gap: 0 }]} />
           </div>
           {/* YOU. arrives out of depth, holds, then compresses into light */}

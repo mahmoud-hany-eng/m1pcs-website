@@ -178,8 +178,8 @@ W = I["words"]
 sfx.add(W["your"], pan(kin(0.12, 1500, 801), -0.1))  # YOUR NEXT PC
 sfx.add(W["shouldnt"], pan(kin(0.12, 1800, 804), 0.1))  # SHOULDN'T START
 sfx.add(W["preset"], pan(word_hit(0.26, 170, 806), 0.05))  # PRESET. — the brief emphasis
-sfx.add(W["it"] - 0.2, whoosh(0.34, 2400, 500, peak=0.5, level=0.06, seed=805))  # phase A clears
-sfx.add(W["it"], pan(kin(0.1, 1700, 809), -0.05))  # IT SHOULD START
+sfx.add(W["it"] - 0.02, whoosh(0.34, 2400, 500, peak=0.5, level=0.06, seed=805))  # phase A clears
+sfx.add(W["should2"] - 0.12, pan(kin(0.1, 1700, 809), -0.05))  # IT SHOULD START
 sfx.add(W["you"], pan(word_hit(0.4, 120, 802), 0))  # YOU. lands
 sfx.add(W["you"] + 0.02, shimmer(0.5, 0.07, seed=803))
 c0, c1 = I["collapse"]
