@@ -1,5 +1,6 @@
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/SectionHeading";
 import { CHAPTERS } from "./story";
 
 /**
@@ -8,17 +9,17 @@ import { CHAPTERS } from "./story";
  */
 export function StaticSteps() {
   return (
-    <section aria-labelledby="how-it-works-title" className="border-b border-border">
+    <section aria-labelledby="how-it-works-title" className="relative">
       <Container className="py-16 sm:py-24">
         <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-          <p className="font-display text-xs font-bold uppercase tracking-[0.28em] text-accent sm:text-sm">Process</p>
+          <Eyebrow>Process</Eyebrow>
           <h1 id="how-it-works-title" className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
             How It Works
           </h1>
           <ol className="mt-14 flex w-full flex-col gap-12">
             {CHAPTERS.map((step, i) => (
               <li key={step.id} className="flex flex-col items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-accent/60 font-display text-sm font-bold text-accent">
+                <span className="glass glass-flat glass-tint-gold flex h-12 w-12 items-center justify-center rounded-full font-display text-sm font-bold text-accent">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{step.headline}</h2>
