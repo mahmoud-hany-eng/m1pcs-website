@@ -1,135 +1,73 @@
 /**
- * Single source of truth for the How It Works story: copy, chapter order and
- * how much scrolling each chapter gets.
+ * Single source of truth for the How It Works story: copy, chapter order
+ * and pacing. The DOM caption, the progress bar and the 3D director all
+ * read from here.
  *
- * The whole experience is one timeline scrubbed by the page scroll:
- *
- *   scrollY → progress (0..1 over the pinned track) → story position s
- *   (0..CHAPTER_COUNT; chapter i spans [i, i+1)) → every transform.
- *
- * Nothing advances on its own. `span` is the scroll distance (in viewport
- * heights) a chapter occupies — its pacing. Every chapter is choreographed
- * as a few clear beats with steady "hold" ranges in between, so one normal
- * wheel or swipe gesture moves the story on by a readable amount.
+ * Pacing model: scroll *selects* a chapter; each chapter then plays at a
+ * designed speed (its `duration`), so gestures and camera moves always run
+ * at the same, readable pace no matter how fast someone scrolls. To retime a
+ * chapter, change its `duration`; to retime beats inside it, edit the BEATS
+ * table in that chapter's scene file (values are 0..1 of the chapter).
  */
 
-export type ChapterId = "parts" | "quote" | "confirm" | "source" | "ship" | "build" | "deliver";
-
 export interface Chapter {
-  id: ChapterId;
+  id: "parts" | "quote" | "confirm" | "source" | "build";
   headline: string;
   body: string;
-  /** Scroll distance in viewport heights. */
-  span: number;
+  /** Seconds the chapter's choreography takes at normal speed. */
+  duration: number;
 }
 
 export const CHAPTERS: readonly Chapter[] = [
   {
     id: "parts",
     headline: "Pick Your Parts",
-    body: "Tell us your budget, how you’ll use your PC, and the style you like. We help you choose the right parts for your needs.",
-    span: 420,
+    body: "Tell us your budget, games, performance goals, and design preferences. We help you choose the right parts for your needs.",
+    duration: 9,
   },
   {
     id: "quote",
     headline: "Review Your Quotation",
-    body: "You receive a detailed quotation with your selected components, current pricing, and an estimated shipping timeframe.",
-    span: 340,
+    body: "You receive a detailed quotation with your selected parts, pricing, and estimated shipping timeframe.",
+    duration: 7.5,
   },
   {
     id: "confirm",
     headline: "Confirm Your Order",
-    body: "A deposit confirms your order. You receive a receipt, and your order is officially placed.",
-    span: 400,
+    body: "A deposit confirms your order. You receive payment confirmation and your order is officially placed.",
+    duration: 9.5,
   },
   {
     id: "source",
     headline: "Sourced From The U.S.",
-    body: "We source the exact parts your build requires directly from the U.S., according to your requirements.",
-    span: 380,
-  },
-  {
-    id: "ship",
-    headline: "Shipped to Qatar",
-    body: "Your parts travel from the U.S. to Qatar, where the M1 team receives them for your build.",
-    span: 420,
+    body: "Once your order is confirmed, the requested parts are sourced directly from the U.S. and shipped to Qatar.",
+    duration: 10,
   },
   {
     id: "build",
-    headline: "Built & Set Up by M1",
-    body: "Once your parts arrive, M1 assembles your PC and sets it up with Windows 11 Pro, the required drivers, and updates, so it’s ready to use.",
-    span: 480,
-  },
-  {
-    id: "deliver",
-    headline: "Delivered to Your Home",
-    body: "Your finished PC is delivered to your door, set up and ready to use.",
-    span: 640,
+    headline: "Built. Set Up. Delivered.",
+    body: "M1 assembles your PC, installs Windows and drivers, completes setup, and gets it ready for pickup or delivery.",
+    duration: 14,
   },
 ];
 
 export const CHAPTER_COUNT = CHAPTERS.length;
 
-/** Chapter indices by name, so scenes never hard-code positions in the story. */
-export const CH = {
-  parts: 0,
-  quote: 1,
-  confirm: 2,
-  source: 3,
-  ship: 4,
-  build: 5,
-  deliver: 6,
-} as const satisfies Record<ChapterId, number>;
-
-/** Total pinned scroll track, in viewport heights. */
-export const TRACK_VH = CHAPTERS.reduce((sum, c) => sum + c.span, 0);
+/**
+ * Scroll distance (viewport heights) that selects each chapter, plus a short
+ * pinned runway after the last one so the ending and CTA can settle.
+ */
+export const BAND_VH = 100;
+export const RUNWAY_VH = 45;
 
 /**
- * Repeating gestures (a wave, typing, a walk cycle) are phased by "story
- * seconds" derived from the scroll distance: one story second per
- * VH_PER_SECOND viewport heights. The same distance always produces the same
- * amount of motion, in every chapter, so gestures stay calm and readable at
- * a normal scrolling speed — and stop the moment the scroll does.
+ * Story position `s` runs from 0 to CHAPTER_COUNT. Chapter i occupies
+ * (i, i + 1]: it rests on its final frame at s = i + 1.
  */
-export const VH_PER_SECOND = 45;
-
-const SPAN_START: number[] = [];
-{
-  let span = 0;
-  for (const c of CHAPTERS) {
-    SPAN_START.push(span);
-    span += c.span;
-  }
-}
-
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-
-/** Scroll progress (0..1) → story position s (0..CHAPTER_COUNT). */
-export function progressToStory(progress: number): number {
-  const vh = clamp01(progress) * TRACK_VH;
-  for (let i = CHAPTER_COUNT - 1; i >= 0; i--) {
-    if (vh >= SPAN_START[i]) return i + Math.min(1, (vh - SPAN_START[i]) / CHAPTERS[i].span);
-  }
-  return 0;
-}
-
-/** Story position → scroll progress (inverse of progressToStory). */
-export function storyToProgress(s: number): number {
-  const i = Math.min(CHAPTER_COUNT - 1, Math.max(0, Math.floor(s)));
-  return (SPAN_START[i] + clamp01(s - i) * CHAPTERS[i].span) / TRACK_VH;
-}
-
-/** Story seconds at story position s — the phase source for repeating gestures. */
-export function clockAt(s: number): number {
-  return (storyToProgress(s) * TRACK_VH) / VH_PER_SECOND;
-}
-
-/** Chapter that owns story position s. */
 export function chapterAt(s: number): number {
-  return Math.min(CHAPTER_COUNT - 1, Math.max(0, Math.floor(s)));
+  return Math.min(CHAPTER_COUNT - 1, Math.max(0, Math.ceil(s) - 1));
 }
 
-/** 0..1 progress through chapter `index` (0 before it, 1 after it). */
 export function chapterLocal(s: number, index: number): number {
-  return clamp01(s - index);
+  return Math.min(1, Math.max(0, s - index));
 }

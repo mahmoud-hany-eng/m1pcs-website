@@ -61,8 +61,7 @@ export const Confetti = forwardRef<
           const drag = 1 - Math.exp(-t * 1.6);
           dummy.position.set(fl.v.x * drag * 0.9, fl.v.y * t + 0.5 * g * t * t, fl.v.z * drag * 0.9);
           dummy.rotation.set(fl.spin.x * t, fl.spin.y * t, fl.spin.z * t);
-          // Flakes grow in over the first instant of the burst and shrink away as they fall.
-          const fade = Math.max(0, 1 - t / 1.6) * Math.min(1, t / 0.08);
+          const fade = Math.max(0, 1 - t / 1.6);
           dummy.scale.set(fl.size * fade, fl.size * 1.6 * fade, 1);
           dummy.updateMatrix();
           mesh.current.setMatrixAt(i, dummy.matrix);

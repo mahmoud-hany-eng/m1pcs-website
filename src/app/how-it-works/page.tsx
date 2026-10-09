@@ -8,7 +8,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata: Metadata = {
   title: "How It Works",
   description:
-    "How M1's custom PC process works: pick your parts, review your quotation, confirm your order with a deposit, U.S. sourcing, shipping to Qatar, build and setup by M1, and delivery to your home.",
+    "How M1's custom PC process works: pick your parts, review your quotation, confirm your order, U.S. sourcing, build and setup by M1, and delivery.",
   alternates: { canonical: "/how-it-works" },
 };
 
@@ -17,8 +17,7 @@ export default function HowItWorksPage() {
     <>
       <HowItWorksExperience />
 
-      <section className="relative">
-        <div aria-hidden="true" className="hairline absolute inset-x-0 top-0" />
+      <section className="border-t border-border">
         <Container className="py-14 sm:py-20">
           <p className="mx-auto max-w-2xl text-center text-sm text-text-muted">
             {siteConfig.operations.depositNote} {siteConfig.operations.deliveryNote}

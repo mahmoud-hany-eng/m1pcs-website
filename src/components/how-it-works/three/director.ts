@@ -8,20 +8,22 @@ import type { CharacterApi } from "./Character";
 
 export type Quality = "high" | "low";
 
-/**
- * Everything a scene may read. It is derived from the scroll position only —
- * there is deliberately no elapsed time here, so no scene can animate on its
- * own: stop scrolling and every transform stays exactly where it is.
- */
+/** Lets the DOM know the canvas is driving the playhead this frame. */
+export interface StoryClock {
+  canvasTick: number;
+}
+
 export interface FrameState {
   /** Story position, 0..CHAPTER_COUNT (see story.ts). */
   s: number;
-  /** Story seconds at `s` — the phase for repeating gestures (waves, typing, walk cycles). */
-  clock: number;
+  dt: number;
+  time: number;
   /** Chapter that currently owns the characters. */
   active: number;
   /** Local 0..1 progress of every chapter. */
   local: readonly number[];
+  /** True while the playhead rests on a chapter's final frame. */
+  resting: boolean;
   /** "tall" on portrait/phone screens: labels switch to compact behaviour. */
   layout: StageLayout;
   /** Stage size in CSS px. */
@@ -44,8 +46,6 @@ export interface StoryWorld {
   rep: RefObject<CharacterApi | null>;
   customer: RefObject<CharacterApi | null>;
   anchors: AnchorStore;
-  /** Objects two scenes hand to each other (e.g. the finished PC: built in 5, delivered in 6). */
-  props: Map<string, THREE.Object3D>;
   quality: Quality;
   register(entry: SceneEntry): () => void;
 }

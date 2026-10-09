@@ -23,7 +23,7 @@ export const COLORS = {
   cardboard: "#b98a57",
   skinRep: "#c68b64",
   skinCustomer: "#e2ae88",
-  hairRep: "#2a201b",
+  hairRep: "#1f1a18",
   hairCustomer: "#3a2419",
   pants: "#1b1c21",
   denim: "#2b3140",

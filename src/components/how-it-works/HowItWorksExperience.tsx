@@ -3,20 +3,23 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useInView } from "framer-motion";
+import { AnimatePresence, motion, useAnimationFrame, useInView } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { AnchorStore } from "./anchors";
+import { Playhead } from "./playhead";
 import { StaticSteps } from "./StaticSteps";
 import { StoryOverlay } from "./StoryOverlay";
 import { stageMetrics, uiScale, type StageMetrics } from "./stage-layout";
-import { CHAPTERS, CHAPTER_COUNT, TRACK_VH, storyToProgress } from "./story";
-import { Timeline } from "./timeline";
-import { IconMouse, IconSwipe } from "./ui-icons";
+import { BAND_VH, CHAPTERS, CHAPTER_COUNT, RUNWAY_VH, chapterAt, chapterLocal } from "./story";
+import { useGuidedScroll } from "./useGuidedScroll";
+import type { StoryClock } from "./three/director";
 
 const StoryCanvas = dynamic(() => import("./three/StoryCanvas"), { ssr: false });
 
 type Mode = "pending" | "3d" | "static";
 type Quality = "high" | "low";
+
+const PIN_VH = CHAPTER_COUNT * BAND_VH + RUNWAY_VH;
 
 function supportsWebGL() {
   try {
@@ -42,9 +45,9 @@ class CanvasBoundary extends Component<{ onError: () => void; children: ReactNod
 }
 
 /**
- * /how-it-works — a pinned, full-screen 3D story scrubbed directly by the
- * page scroll (see timeline.ts). Reduced-motion visitors and devices
- * without WebGL get StaticSteps.
+ * /how-it-works — a pinned, full-screen 3D story in five chapters. Scroll
+ * (or arrow keys) moves chapter by chapter; each chapter plays at a designed
+ * pace. Reduced-motion users and devices without WebGL get StaticSteps.
  */
 export function HowItWorksExperience() {
   const [mode, setMode] = useState<Mode>("pending");
@@ -67,150 +70,83 @@ function detectQuality(metrics: StageMetrics): Quality {
   return "high";
 }
 
-const smooth = (x: number) => {
-  const t = x < 0 ? 0 : x > 1 ? 1 : x;
-  return t * t * (3 - 2 * t);
-};
-
-/** Caption crossfade half-width, in chapters (≈ 4 % of a chapter's scroll). */
-const CAPTION_FADE = 0.04;
-/** The scroll hint fades out over the first ~2 % of the story. */
-const HINT_FADE = 0.02;
-
-/** How visible chapter i's caption is at story position s (0..1), plus which way it moves. */
-function captionState(s: number, i: number) {
-  const fadeIn = i === 0 ? 1 : smooth((s - i - 0.004) / CAPTION_FADE);
-  const fadeOut = i === CHAPTER_COUNT - 1 ? 1 : 1 - smooth((s - (i + 1) + CAPTION_FADE + 0.004) / CAPTION_FADE);
-  return { v: fadeIn * fadeOut, dir: s < i + 0.5 ? 1 : -1 };
-}
-
-/** The hint's one looping cue (the only time-based motion on the page, and only before the story starts). */
-const HINT_CSS = `
-@keyframes hiw-wheel { 0% { transform: translateY(0); opacity: 1 } 70% { transform: translateY(4px); opacity: 0 } 100% { transform: translateY(0); opacity: 0 } }
-@keyframes hiw-swipe { 0% { transform: translateY(3px); opacity: 0 } 30% { opacity: 1 } 100% { transform: translateY(-3px); opacity: 0 } }
-.hiw-wheel { animation: hiw-wheel 1.6s ease-in-out infinite; }
-.hiw-swipe { animation: hiw-swipe 1.5s ease-out infinite; }
-@media (prefers-reduced-motion: reduce) { .hiw-wheel, .hiw-swipe { animation: none; } }
-`;
-
 function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) {
   const container = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const segments = useRef<(HTMLDivElement | null)[]>([]);
-  const captions = useRef<(HTMLDivElement | null)[]>([]);
-  const hint = useRef<HTMLDivElement>(null);
-  const cta = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
 
-  const timeline = useMemo(() => new Timeline(), []);
+  const playhead = useMemo(() => new Playhead(), []);
   const anchors = useMemo(() => new AnchorStore(), []);
+  const clock = useMemo<StoryClock>(() => ({ canvasTick: 0 }), []);
 
   const [metrics, setMetrics] = useState<StageMetrics>(() => stageMetrics(1440, 820));
   const [quality, setQuality] = useState<Quality | null>(null);
   const [ready, setReady] = useState(false);
+  const [chapter, setChapter] = useState(0);
+  const [hint, setHint] = useState(false);
+  const [cta, setCta] = useState(false);
   const [touch, setTouch] = useState(false);
   const inView = useInView(container, { margin: "10% 0px 10% 0px" });
 
-  // ---- layout: stage metrics + the pixel range of the pinned track (never measured per frame)
   useEffect(() => {
-    const el = container.current;
-    const pin = stage.current;
-    if (!el || !pin) return;
-    const measure = () => {
-      setMetrics(stageMetrics(pin.clientWidth, pin.clientHeight));
-      const stickyTop = parseFloat(getComputedStyle(pin).top) || 0;
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      timeline.setTrack(top - stickyTop, el.offsetHeight - pin.offsetHeight);
-      timeline.jump();
-      timeline.request();
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
+    const el = stage.current;
+    if (!el) return;
+    const update = () => setMetrics(stageMetrics(el.clientWidth, el.clientHeight));
+    update();
+    const ro = new ResizeObserver(update);
     ro.observe(el);
-    ro.observe(pin);
-    window.addEventListener("load", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("load", measure);
-    };
-  }, [timeline]);
+    setTouch(window.matchMedia("(pointer: coarse)").matches);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     setQuality((q) => q ?? detectQuality(metrics));
   }, [metrics]);
 
-  // The hint speaks the visitor's language: "scroll" with a mouse, "swipe" on touch screens.
-  useEffect(() => {
-    setTouch(window.matchMedia("(pointer: coarse)").matches);
-  }, []);
+  const { goTo } = useGuidedScroll({ container, stage, playhead, enabled });
 
-  // ---- the single scroll listener: every scroll asks the timeline for one frame
-  useEffect(() => {
-    const onScroll = () => timeline.request();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [timeline]);
-
-  useEffect(() => () => timeline.dispose(), [timeline]);
-
-  // ---- DOM layer: progress bar, captions, hint and CTA, written straight from the timeline
-  useEffect(() => {
-    const last = { segs: segments.current.map(() => -1), hint: -1, cta: -1, caps: captions.current.map(() => -1) };
-    const setVisible = (el: HTMLElement, v: number) => {
-      el.style.opacity = v.toFixed(3);
-      el.style.visibility = v < 0.002 ? "hidden" : "visible";
-    };
-    return timeline.subscribe((t) => {
-      // One segment per chapter, each filling with that chapter's progress.
-      // The fill slides in (translate, never scale), so its edge stays crisp.
-      segments.current.forEach((el, i) => {
-        if (!el) return;
-        const f = Math.round(Math.min(1, Math.max(0, t.s - i)) * 2000) / 2000;
-        if (f === last.segs[i]) return;
-        last.segs[i] = f;
-        el.style.transform = `translate3d(${((f - 1) * 100).toFixed(2)}%, 0, 0)`;
-      });
-      captions.current.forEach((el, i) => {
-        if (!el) return;
-        const { v, dir } = captionState(t.s, i);
-        const q = Math.round(v * 1000) / 1000;
-        if (q === last.caps[i]) return;
-        last.caps[i] = q;
-        setVisible(el, q);
-        el.style.transform = `translate3d(0, ${((1 - q) * 12 * dir).toFixed(2)}px, 0)`;
-      });
-      const h = Math.round((1 - smooth(t.progress / HINT_FADE)) * 1000) / 1000;
-      if (h !== last.hint && hint.current) {
-        last.hint = h;
-        setVisible(hint.current, h);
-      }
-      // The call to action arrives with the final hold, after the hand-over.
-      const c = Math.round(smooth((t.s - (CHAPTER_COUNT - 0.05)) / 0.03) * 1000) / 1000;
-      if (c !== last.cta && cta.current) {
-        last.cta = c;
-        setVisible(cta.current, c);
-        cta.current.style.transform = `translate3d(0, ${((1 - c) * 10).toFixed(2)}px, 0)`;
-      }
-    });
-  }, [timeline]);
-
-  // Development-only hook for visual QA: scroll to any story position (a real scroll).
+  // Development-only hook for visual QA (jump to any story position); stripped from production builds.
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
-    const w = window as unknown as { __hiwSeek?: (s: number) => void };
-    w.__hiwSeek = (s: number) => {
-      const el = container.current;
-      const pin = stage.current;
-      if (!el || !pin) return;
-      const stickyTop = parseFloat(getComputedStyle(pin).top) || 0;
-      const top = el.getBoundingClientRect().top + window.scrollY - stickyTop;
-      window.scrollTo({ top: top + storyToProgress(s) * (el.offsetHeight - pin.offsetHeight), behavior: "instant" });
+    const w = window as unknown as { __hiwSeek?: (s: number, target?: number) => void };
+    w.__hiwSeek = (s: number, target = s) => {
+      playhead.s = s;
+      playhead.target = target;
+      playhead.v = 0;
     };
     return () => {
       delete w.__hiwSeek;
     };
-  }, []);
+  }, [playhead]);
+
+  // Reads the playhead every frame for the DOM parts of the story. The 3D
+  // canvas advances the playhead in its own frame loop (so camera, props and
+  // pinned labels stay in perfect sync); if the canvas isn't running yet this
+  // loop advances it instead.
+  const ui = useRef({ chapter: -1, hint: false, cta: false, fill: -1 });
+  useAnimationFrame((_, delta) => {
+    if (!inView) return;
+    if (performance.now() - clock.canvasTick > 120) playhead.update(delta / 1000);
+    const s = playhead.s;
+    const c = chapterAt(s);
+    const local = chapterLocal(s, c);
+    const last = c === CHAPTER_COUNT - 1;
+    const nextHint = !last && (playhead.resting || local > 0.6) && playhead.target <= c + 1;
+    const nextCta = last && local > 0.82;
+    const u = ui.current;
+    if (c !== u.chapter) setChapter((u.chapter = c));
+    if (nextHint !== u.hint) setHint((u.hint = nextHint));
+    if (nextCta !== u.cta) setCta((u.cta = nextCta));
+    const fill = Math.round((s / CHAPTER_COUNT) * 1000) / 1000;
+    if (fill !== u.fill && bar.current) {
+      u.fill = fill;
+      bar.current.style.transform = `scaleX(${fill})`;
+    }
+  });
 
   const wide = metrics.layout === "wide";
+  const step = CHAPTERS[chapter];
+  const next = CHAPTERS[chapter + 1];
 
   return (
     <section aria-labelledby="how-it-works-title" className="relative bg-background">
@@ -229,7 +165,7 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
       <div
         ref={container}
         className="relative [--hiw-header:4rem] sm:[--hiw-header:5rem]"
-        style={{ height: `calc(100svh - var(--hiw-header) + ${TRACK_VH}vh)` }}
+        style={{ height: `calc(100svh - var(--hiw-header) + ${PIN_VH}vh)` }}
       >
         <div
           ref={stage}
@@ -239,7 +175,14 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
           <div className={`absolute inset-0 transition-opacity duration-700 ${ready ? "opacity-100" : "opacity-0"}`} aria-hidden="true">
             {enabled && quality && (
               <CanvasBoundary onError={onFail}>
-                <StoryCanvas timeline={timeline} anchors={anchors} quality={quality} active={inView} onReady={() => setReady(true)} />
+                <StoryCanvas
+                  playhead={playhead}
+                  anchors={anchors}
+                  clock={clock}
+                  quality={quality}
+                  active={inView}
+                  onReady={() => setReady(true)}
+                />
               </CanvasBoundary>
             )}
           </div>
@@ -258,6 +201,7 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
             className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 via-background/40 to-transparent"
             style={{ height: metrics.top + 28 }}
           />
+
           {/* legibility: soft fade behind the caption zone */}
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent"
@@ -267,78 +211,99 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
           {/* crisp DOM labels pinned to the 3D scene */}
           <StoryOverlay store={anchors} ui={uiScale(metrics)} />
 
-          {/* progress — one slim segment per step, centred, driven by the same timeline value as the scene */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }} aria-hidden="true">
-            <div className="glass-subtle mt-4 flex items-center gap-1.5 rounded-full px-3 py-2 sm:mt-5 sm:gap-2 sm:px-4 sm:py-2.5">
-              {CHAPTERS.map((c, i) => (
-                <div key={c.id} className="h-[3px] w-[26px] overflow-hidden rounded-full bg-white/[0.14] sm:w-[38px]">
-                  <div
-                    ref={(el) => {
-                      segments.current[i] = el;
-                    }}
-                    className="h-full w-full bg-accent"
-                    style={{ transform: "translate3d(-100%, 0, 0)" }}
-                  />
-                </div>
-              ))}
+          {/* progress */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }}>
+            <div className="mt-5 h-[3px] w-[140px] overflow-hidden rounded-full bg-white/[0.12] sm:mt-6 sm:w-[220px]">
+              <div ref={bar} className="h-full w-full origin-left rounded-full bg-gradient-to-r from-accent to-primary" style={{ transform: "scaleX(0)" }} />
             </div>
           </div>
 
-          {/* captions, scrubbed with the scene */}
+          {/* caption + hint / CTA */}
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-5" style={{ height: metrics.bottom }}>
-            <div className="relative w-full max-w-2xl flex-1" aria-hidden="true">
-              {CHAPTERS.map((step, i) => (
-                <div
+            <div className="relative flex w-full max-w-2xl flex-1 items-center justify-center">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
                   key={step.id}
-                  ref={(el) => {
-                    captions.current[i] = el;
-                  }}
-                  className="absolute inset-0 flex flex-col items-center justify-center text-center"
-                  style={{ opacity: i === 0 ? 1 : 0, visibility: i === 0 ? "visible" : "hidden" }}
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex flex-col items-center text-center"
                 >
-                  <p
+                  <h2
                     className={`font-display font-bold leading-[1.05] tracking-tight text-text-primary ${
                       wide ? "text-[clamp(2rem,3.3vw,3.1rem)]" : "text-[clamp(1.6rem,7vw,2.1rem)]"
                     }`}
                   >
                     {step.headline}
-                  </p>
+                  </h2>
                   <p className={`mt-2.5 text-text-secondary ${wide ? "max-w-[36rem] text-[1.05rem] leading-relaxed" : "max-w-[22rem] text-[0.95rem] leading-snug"}`}>
                     {step.body}
                   </p>
-                </div>
-              ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
-            <div className={`relative flex w-full items-center justify-center ${wide ? "h-[76px] pb-5" : "h-[84px] pb-[max(1rem,env(safe-area-inset-bottom))]"}`}>
-              {/* first-screen affordance: says this is an interactive, scroll-driven story; fades as soon as scrolling starts */}
-              <div ref={hint} className="pointer-events-none absolute inset-x-0 flex justify-center" aria-hidden="true">
-                <style>{HINT_CSS}</style>
-                <span className="glass-nav glass-tint-gold flex items-center gap-3 rounded-full py-2 pl-2 pr-5">
-                  <span className="btn-gold flex h-10 w-10 items-center justify-center rounded-full">
-                    {touch ? <IconSwipe className="h-6 w-6" /> : <IconMouse className="h-7 w-6" />}
-                  </span>
-                  <span className="flex flex-col text-left leading-tight">
-                    <span className="font-display text-[14.5px] font-bold text-white">{touch ? "Swipe up to explore" : "Scroll to explore"}</span>
-                    <span className="mt-0.5 text-[12px] text-white/60">The story moves with you</span>
-                  </span>
-                </span>
-              </div>
-              <div ref={cta} className="absolute inset-x-0 flex items-center justify-center gap-3" style={{ opacity: 0, visibility: "hidden" }}>
-                <Button
-                  href="/build-my-pc"
-                  size={wide ? "lg" : "md"}
-                  className="whitespace-nowrap shadow-[0_12px_40px_-12px_rgba(231,50,37,0.8)]"
-                >
-                  Request a PC Quote
-                </Button>
-                <Link
-                  href="/completed-builds"
-                  className="whitespace-nowrap text-sm font-semibold text-text-secondary underline-offset-4 transition-colors hover:text-accent hover:underline"
-                >
-                  See completed builds
-                </Link>
-              </div>
+            <div className={`flex w-full items-center justify-center ${wide ? "h-[76px] pb-5" : "h-[84px] pb-[max(1rem,env(safe-area-inset-bottom))]"}`}>
+              <AnimatePresence mode="wait" initial={false}>
+                {cta ? (
+                  <motion.div
+                    key="cta"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex items-center gap-3"
+                  >
+                    <Button
+                      href="/build-my-pc"
+                      size={wide ? "lg" : "md"}
+                      className="whitespace-nowrap shadow-[0_12px_40px_-12px_rgba(231,50,37,0.8)]"
+                    >
+                      Request a PC Quote
+                    </Button>
+                    <Link
+                      href="/completed-builds"
+                      className="whitespace-nowrap text-sm font-semibold text-text-secondary underline-offset-4 transition-colors hover:text-accent hover:underline"
+                    >
+                      See completed builds
+                    </Link>
+                  </motion.div>
+                ) : hint && next ? (
+                  <motion.button
+                    key={`hint-${chapter}`}
+                    type="button"
+                    onClick={() => goTo(chapter + 1)}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.35 }}
+                    className="flex items-center gap-3 rounded-full border border-white/15 bg-white/[0.06] py-2 pl-2 pr-4 text-left shadow-[0_10px_40px_-15px_rgba(0,0,0,0.9)] transition-colors hover:border-accent/50 hover:bg-white/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    aria-label={`Continue to the next step: ${next.headline}`}
+                  >
+                    <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black">
+                      <motion.svg
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.4}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        animate={{ y: [-2, 2, -2] }}
+                        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </motion.svg>
+                      <span className="absolute inset-0 animate-ping rounded-full bg-accent/40 [animation-duration:2s]" />
+                    </span>
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-[13px] font-semibold text-white">{touch ? "Swipe up to continue" : "Scroll to continue"}</span>
+                      <span className="text-[11px] text-white/55">Next: {next.headline}</span>
+                    </span>
+                  </motion.button>
+                ) : null}
+              </AnimatePresence>
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
 /**
  * Small, dependency-free animation helpers. Every scene is a pure function of
- * scroll progress, so these are all stateless mappings — no springs, no
- * integrators, nothing that could keep moving after the scroll stops.
+ * scroll progress, so these are all stateless mappings — except `Spring`,
+ * which only smooths *towards* a scroll-derived target (so reverse scrolling
+ * still converges to exactly the same pose).
  */
 
 export const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -33,6 +34,29 @@ export const bell = (t: number, a: number, b: number) => {
   const x = seg(t, a, b);
   return x <= 0 || x >= 1 ? 0 : Math.sin(x * Math.PI);
 };
+
+/** Critically-underdamped spring integrator (soft overshoot). */
+export class Spring {
+  x: number;
+  v = 0;
+  constructor(initial = 0) {
+    this.x = initial;
+  }
+  step(target: number, dt: number, stiffness: number, damping: number) {
+    // Two substeps keep stiff springs stable on long frames.
+    const h = dt / 2;
+    for (let i = 0; i < 2; i++) {
+      const a = (target - this.x) * stiffness - this.v * damping;
+      this.v += a * h;
+      this.x += this.v * h;
+    }
+    return this.x;
+  }
+  snap(value: number) {
+    this.x = value;
+    this.v = 0;
+  }
+}
 
 /** Deterministic PRNG so particle bursts replay identically in both scroll directions. */
 export function mulberry32(seed: number) {

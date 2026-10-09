@@ -1,31 +1,26 @@
 "use client";
 
 import * as THREE from "three";
-import { lerp, seg, smooth, window4 } from "../anim";
-import { aimArm, consultIdle, lookAt, talk } from "../choreo";
+import { easeOutBack, lerp, seg, smooth, window4 } from "../anim";
+import { aimArm, converse, lookAt, place, resetPose, talk } from "../choreo";
 import { useScene, useWorld, type FrameState } from "../director";
 import { QUOTE_ANCHOR, SPOTS } from "../layout";
 import { HAPPY, LEAN_IN, OK_L, THINK_L, add, blend, nod, talkHands } from "../poses";
-import { CH } from "../../story";
-import { QUOTE_ROWS, rowArrival } from "./ChapterParts";
+import { rowArrival } from "./ChapterParts";
 
-/**
- * Chapter 2 beats (0..1 of the chapter). The chosen parts fly into the
- * quotation one by one (see PART_FLIGHT); shipping and the estimate follow;
- * the customer reads it through and approves.
- */
+/** Chapter 2 beats (0..1 of the chapter). Rows 0-5 light as each part arrives (see PART_FLIGHT). */
 export const QUOTE_BEATS = {
-  cardIn: [0.05, 0.13],
-  present: [0.06, 0.12, 0.64, 0.68],
-  shipping: 0.58,
-  total: 0.63,
+  cardIn: [0.04, 0.13],
+  present: [0.05, 0.11, 0.66, 0.7],
+  shipping: 0.57,
+  total: 0.62,
   leanIn: [0.14, 0.19, 0.66, 0.7],
-  think: [0.4, 0.44, 0.56, 0.6],
-  scan: [0.68, 0.8],
-  nod: [0.8, 0.82, 0.86, 0.88],
-  approve: 0.87,
-  ok: [0.87, 0.9, 0.95, 0.975],
-  settle: [0.96, 1.0],
+  think: [0.34, 0.38, 0.54, 0.58],
+  scan: [0.66, 0.8],
+  nod: [0.79, 0.81, 0.86, 0.88],
+  approve: 0.86,
+  ok: [0.86, 0.89, 0.94, 0.97],
+  settle: [0.95, 1.0],
 } as const;
 
 const REP_HEAD = new THREE.Vector3(SPOTS.rep.x, 1.55, SPOTS.rep.z);
@@ -38,45 +33,52 @@ export function ChapterQuote() {
 
   useScene(20, (f: FrameState) => {
     const B = QUOTE_BEATS;
-    const s2 = f.local[CH.quote];
-    const s3 = f.local[CH.confirm];
-    const t = f.clock;
+    const s2 = f.local[1];
+    const s3 = f.local[2];
+    const t = f.time;
     const card = world.anchors.get("quote");
 
-    // ---------------- the quotation card (crisp DOM; it fades and rises, never scales)
-    const cardIn = smooth(seg(s2, B.cardIn[0], B.cardIn[1]));
-    const cardOut = smooth(seg(s3, 0.0, 0.07));
+    // ---------------- the quotation card
+    const cardIn = easeOutBack(seg(s2, B.cardIn[0], B.cardIn[1]), 1.3);
+    const cardOut = smooth(seg(s3, 0.0, 0.08));
     card.pos.copy(QUOTE_ANCHOR);
     card.pos.y += cardOut * 0.25;
     card.align = "center";
-    card.offsetY = (1 - cardIn) * 14;
-    card.opacity = cardIn * (1 - cardOut) * (f.s < CH.confirm + 0.2 ? 1 : 0);
-    for (let i = 0; i < QUOTE_ROWS; i++) card.cssVar(`r${i}`, smooth(seg(s2, rowArrival(i) - 0.012, rowArrival(i) + 0.03)));
-    card.cssVar("r5", smooth(seg(s2, B.shipping, B.shipping + 0.035)));
-    card.cssVar("r6", smooth(seg(s2, B.total, B.total + 0.035)));
-    card.cssVar("approved", smooth(seg(s2, B.approve, B.approve + 0.03)));
+    card.scale = Math.max(0.001, lerp(0.9, 1, Math.min(1, cardIn)) * (1 - cardOut * 0.1));
+    card.opacity = Math.min(1, cardIn) * (1 - cardOut) * (f.s < 2.2 ? 1 : 0);
+    for (let i = 0; i < 6; i++) card.cssVar(`r${i}`, smooth(seg(s2, rowArrival(i) - 0.012, rowArrival(i) + 0.035)));
+    card.cssVar("r6", smooth(seg(s2, B.shipping, B.shipping + 0.04)));
+    card.cssVar("r7", smooth(seg(s2, B.total, B.total + 0.04)));
+    card.cssVar("approved", easeOutBack(seg(s2, B.approve, B.approve + 0.04), 2));
 
-    // ---------------- characters (gestures are windows that are zero at the chapter edges)
-    if (f.active !== CH.quote) return;
+    // ---------------- characters
+    if (f.active !== 1) return;
     const rep = world.rep.current;
     const cust = world.customer.current;
     if (!rep || !cust) return;
-    consultIdle(rep, cust, SPOTS.rep, SPOTS.customer);
-    lookAt(cust, CARD_POINT, window4(s2, 0.03, 0.1, 0.9, 0.97));
+    resetPose(rep);
+    resetPose(cust);
+    rep.setVisible(true);
+    cust.setVisible(true);
+    place(rep, SPOTS.rep);
+    place(cust, SPOTS.customer);
+    lookAt(rep, CUSTOMER_HEAD);
+    lookAt(cust, CARD_POINT);
 
     // Rep presents the quotation, walking through it line by line.
     const present = window4(s2, ...B.present);
     aimArm(rep, "r", CARD_POINT, present, -0.38);
     lookAt(rep, CARD_POINT, present * 0.7);
-    talk(rep, t, present * 0.7);
+    talk(rep, t, present * 0.8);
     blend(rep.target, HAPPY, present * 0.6);
 
-    // Customer leans in and reads down the rows as they appear (the gaze glides row to row).
+    // Customer leans in and reads down the rows as they appear.
     let row = 0;
-    for (let i = 0; i < QUOTE_ROWS; i++) row += smooth(seg(s2, rowArrival(i) - 0.03, rowArrival(i) + 0.01));
-    row += smooth(seg(s2, B.shipping - 0.03, B.shipping + 0.01)) + smooth(seg(s2, B.total - 0.03, B.total + 0.01));
+    for (let i = 0; i < 6; i++) if (s2 >= rowArrival(i) - 0.02) row = i;
+    if (s2 >= B.shipping - 0.02) row = 6;
+    if (s2 >= B.total - 0.02) row = 7;
     const lean = window4(s2, ...B.leanIn);
-    reading.set(QUOTE_ANCHOR.x, QUOTE_ANCHOR.y + 0.32 - Math.max(0, row - 1) * 0.1, QUOTE_ANCHOR.z);
+    reading.set(QUOTE_ANCHOR.x, QUOTE_ANCHOR.y + 0.32 - row * 0.09, QUOTE_ANCHOR.z);
     lookAt(cust, reading, lean);
     blend(cust.target, LEAN_IN, lean);
     blend(cust.target, THINK_L, window4(s2, ...B.think));
@@ -96,10 +98,7 @@ export function ChapterQuote() {
     blend(rep.target, HAPPY, ok);
     add(rep.target, nod(t), ok * 0.6);
 
-    // Settled: warm smiles that ease back to the shared idle by the chapter's end.
-    const settle = window4(s2, B.settle[0], B.settle[0] + 0.015, 0.985, 1.0);
-    blend(rep.target, HAPPY, settle);
-    blend(cust.target, HAPPY, settle);
+    converse(cust, "l", rep, "r", t, smooth(seg(s2, B.settle[0], B.settle[1])));
   });
 
   return null;

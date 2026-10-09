@@ -1,26 +1,21 @@
 "use client";
 
-import { Suspense, forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
-import { useLoader } from "@react-three/fiber";
+import { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { COLORS, geo, glow, std } from "./assets";
-import { pose as makePose, type Pose } from "./poses";
+import { Spring } from "./anim";
+import { POSE_KEYS, REST, pose as makePose, type Pose, type PoseKey } from "./poses";
 
 export type CharacterVariant = "rep" | "customer";
 
 /** Imperative controller the director uses every frame (no React re-renders). */
 export interface CharacterApi {
   root: THREE.Group;
-  /** Mutable pose — scenes write into this every frame, `apply` poses the rig with it exactly. */
+  /** Mutable target pose — scenes write into this, `step` springs towards it. */
   target: Pose;
   place(x: number, z: number, yaw: number): void;
   setVisible(visible: boolean): void;
-  /**
-   * Poses the rig from `target`. No springs and no elapsed time: the rig
-   * shows exactly the pose the scroll position describes. `clock` (story
-   * seconds, scroll-derived) only phases a barely-there breathing cue.
-   */
-  apply(clock: number): void;
+  step(dt: number, time: number): void;
   /** Converts a point in the character's local space into its parent's space. */
   toParent(local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3;
   /** Arm angles that point a (straight) arm at a point in parent space. */
@@ -40,6 +35,16 @@ const UPPER_ARM = 0.28;
 const FOREARM = 0.27;
 const THIGH = 0.3;
 const SHIN = 0.31;
+
+// Per-joint spring tuning: arms are the bounciest, legs are crisp enough to walk.
+function springParams(key: PoseKey): [number, number] {
+  if (key.includes("Hip") || key.includes("Knee")) return [520, 42];
+  if (key === "bob" || key === "squash") return [260, 20];
+  if (key.startsWith("head")) return [85, 12.5];
+  if (key === "smile" || key === "mouthOpen" || key === "brow") return [140, 20];
+  if (key.includes("Arm") || key.includes("Elbow")) return [110, 13.5];
+  return [90, 13];
+}
 
 interface Look {
   skin: string;
@@ -74,41 +79,6 @@ const LOOKS: Record<CharacterVariant, Look> = {
 
 const tmp = new THREE.Vector3();
 
-/** Tapered torso (lathe): broad shoulders, narrower waist — reads better than a capsule. */
-let torsoGeometry: THREE.LatheGeometry | null = null;
-function torso() {
-  if (!torsoGeometry) {
-    const profile = [
-      [0.0, -0.06],
-      [0.17, -0.05],
-      [0.2, 0.04],
-      [0.195, 0.2],
-      [0.215, 0.38],
-      [0.235, 0.5],
-      [0.215, 0.58],
-      [0.14, 0.64],
-      [0.0, 0.66],
-    ].map(([r, y]) => new THREE.Vector2(r, y));
-    torsoGeometry = new THREE.LatheGeometry(profile, 28);
-  }
-  return torsoGeometry;
-}
-
-/** The official M1 emblem, printed on the rep's shirt. */
-function ShirtEmblem() {
-  const tex = useLoader(THREE.TextureLoader, "/how-it-works/m1-emblem.png");
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return (
-    <group position={[0.1, 0.43, 0.188]} rotation={[-0.08, 0.3, 0]}>
-      <mesh geometry={geo.circle(32)} material={std("#141416", { roughness: 0.5 })} scale={0.068} />
-      <mesh geometry={geo.plane()} position={[0, 0.002, 0.002]} scale={[0.09, 0.077, 1]}>
-        <meshBasicMaterial map={tex} transparent depthWrite={false} toneMapped={false} />
-      </mesh>
-    </group>
-  );
-}
-
 export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; castShadow?: boolean }>(
   function Character({ variant, castShadow = false }, ref) {
     const look = LOOKS[variant];
@@ -134,11 +104,16 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
     const mouth = useRef<THREE.Mesh>(null!);
     const brows = useRef<THREE.Group>(null!);
 
+    const springs = useMemo(() => {
+      const m = {} as Record<PoseKey, Spring>;
+      for (const k of POSE_KEYS) m[k] = new Spring(REST[k]);
+      return m;
+    }, []);
+
     const target = useMemo(() => makePose(), []);
-    // Each character breathes on its own phase so they never look synced.
-    const phase = isRep ? 0 : 1.7;
-    // The rep's brows sit just under the cap's brim; the customer's under the fringe.
-    const browY = isRep ? 0.058 : 0.088;
+    const values = useMemo(() => makePose(), []);
+    // Each character blinks on its own rhythm so they never look synced.
+    const blinkOffset = isRep ? 0 : 1.7;
 
     const api = useMemo<CharacterApi>(
       () => ({
@@ -194,13 +169,17 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           const parent = root.current.parent;
           return parent ? parent.worldToLocal(out) : out;
         },
-        apply(clock) {
-          const v = target;
+        step(dt, time) {
+          const d = Math.min(dt, 1 / 30);
+          const v = values;
+          for (const k of POSE_KEYS) {
+            const [kk, cc] = springParams(k);
+            v[k] = springs[k].step(target[k], d, kk, cc);
+          }
 
-          // A little life, phased by scroll (not time): breathing, sway, head drift.
-          const breathe = Math.sin(clock * 2.1 + phase);
-          const sway = Math.sin(clock * 0.9 + phase * 2);
-          const time = clock;
+          // Idle life layered on top: breathing, sway, head drift, blinking.
+          const breathe = Math.sin(time * 2.1 + blinkOffset);
+          const sway = Math.sin(time * 0.9 + blinkOffset * 2);
 
           body.current.position.y = v.bob;
           const sq = v.squash;
@@ -210,7 +189,7 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           chest.current.scale.set(1, 1 + breathe * 0.012, 0.82);
 
           head.current.rotation.set(
-            v.headPitch + Math.sin(time * 1.3 + phase) * 0.025,
+            v.headPitch + Math.sin(time * 1.3 + blinkOffset) * 0.025,
             v.headYaw + sway * 0.05,
             v.headRoll + Math.sin(time * 0.7) * 0.02,
           );
@@ -225,22 +204,23 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
           rKnee.current.rotation.x = v.rKnee;
 
           // Face.
+          const cycle = (time + blinkOffset) % 3.6;
+          const blink = cycle < 0.13 ? 0.12 : 1;
+          eyes.current.scale.y = blink;
           const smile = Math.max(0, Math.min(1, v.smile));
           smileArc.current.scale.set(1 + smile * 0.25, 0.25 + smile * 0.85, 1);
-          smileArc.current.position.y = -0.077 + smile * 0.011;
+          smileArc.current.position.y = -0.085 + smile * 0.012;
           const open = Math.max(0, Math.min(1, v.mouthOpen));
-          // The mouth grows from nothing as it opens (no pop).
-          const shown = Math.min(1, open / 0.06);
-          mouth.current.visible = shown > 0.001;
-          mouth.current.scale.set((0.045 + smile * 0.011) * shown, (0.011 + open * 0.04) * shown, 0.018 * shown);
-          brows.current.position.y = browY + v.brow * (isRep ? 0.012 : 0.02);
+          mouth.current.visible = open > 0.04;
+          mouth.current.scale.set(0.05 + smile * 0.012, 0.012 + open * 0.045, 0.02);
+          brows.current.position.y = 0.105 + v.brow * 0.025;
           brows.current.children[0].rotation.z = Math.PI / 2 + 0.08 - v.brow * 0.18;
           brows.current.children[1].rotation.z = Math.PI / 2 - 0.08 + v.brow * 0.18;
 
           root.current.updateMatrixWorld(true);
         },
       }),
-      [target, phase, browY, isRep],
+      [springs, target, values, blinkOffset],
     );
 
     useImperativeHandle(ref, () => api, [api]);
@@ -267,16 +247,15 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
     const arm = (side: "l" | "r") => {
       const s = side === "l" ? 1 : -1;
       return (
-        <group ref={side === "l" ? lShoulder : rShoulder} name={`${side}Arm`} position={[SHOULDER.x * s, SHOULDER.y, 0]}>
+        <group ref={side === "l" ? lShoulder : rShoulder} position={[SHOULDER.x * s, SHOULDER.y, 0]}>
           <mesh geometry={geo.sphere("lo")} material={sleeve} scale={0.085} />
           <mesh geometry={geo.capsule(0.068, 0.16)} material={sleeve} position={[0, -UPPER_ARM / 2, 0]} />
-          <group ref={side === "l" ? lElbow : rElbow} name={`${side}Elbow`} position={[0, -UPPER_ARM, 0]}>
-            <mesh geometry={geo.sphere("lo")} material={forearm} scale={0.061} />
+          <group ref={side === "l" ? lElbow : rElbow} position={[0, -UPPER_ARM, 0]}>
             <mesh geometry={geo.capsule(0.06, 0.17)} material={forearm} position={[0, -FOREARM / 2 + 0.02, 0]} />
             {!isRep && (
               <mesh geometry={geo.torus(0.058, 0.018)} material={std(COLORS.gold, { roughness: 0.5 })} position={[0, -FOREARM + 0.07, 0]} rotation={[Math.PI / 2, 0, 0]} />
             )}
-            <mesh ref={side === "l" ? lHand : rHand} geometry={geo.sphere("lo")} material={skin} position={[0, -FOREARM - 0.005, 0.005]} scale={[0.064, 0.08, 0.054]} />
+            <mesh ref={side === "l" ? lHand : rHand} geometry={geo.sphere("lo")} material={skin} position={[0, -FOREARM, 0.005]} scale={[0.068, 0.075, 0.06]} />
             <mesh geometry={geo.capsule(0.022, 0.035)} material={skin} position={[0.045 * s, -FOREARM + 0.01, 0.045]} rotation={[0.5, 0, -0.5 * s]} />
           </group>
         </group>
@@ -286,89 +265,81 @@ export const Character = forwardRef<CharacterApi, { variant: CharacterVariant; c
     const leg = (side: "l" | "r") => {
       const s = side === "l" ? 1 : -1;
       return (
-        <group ref={side === "l" ? lLeg : rLeg} name={`${side}Leg`} position={[0.11 * s, 0, 0]}>
+        <group ref={side === "l" ? lLeg : rLeg} position={[0.11 * s, 0, 0]}>
           <mesh geometry={geo.capsule(0.088, 0.18)} material={pants} position={[0, -THIGH / 2, 0]} />
-          <group ref={side === "l" ? lKnee : rKnee} name={`${side}Knee`} position={[0, -THIGH, 0]}>
-            <mesh geometry={geo.sphere("lo")} material={pants} scale={0.083} />
+          <group ref={side === "l" ? lKnee : rKnee} position={[0, -THIGH, 0]}>
             <mesh geometry={geo.capsule(0.078, 0.2)} material={pants} position={[0, -SHIN / 2 + 0.01, 0]} />
-            <mesh geometry={geo.roundBox(0.15, 0.1, 0.27, 0.045)} material={shoes} position={[0, -SHIN + 0.01, 0.055]} />
-            <mesh geometry={geo.roundBox(0.16, 0.035, 0.285, 0.015)} material={std("#1a1a1d", { roughness: 0.8 })} position={[0, -SHIN - 0.04, 0.058]} />
+            <mesh geometry={geo.roundBox(0.15, 0.1, 0.27, 0.045)} material={shoes} position={[0, -SHIN + 0.0, 0.055]} />
           </group>
         </group>
       );
     };
 
     return (
-      <group ref={root} name={variant}>
+      <group ref={root}>
         {/* Soft contact shadow so figures stay grounded even without shadow maps. */}
         <mesh geometry={geo.circle()} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} scale={0.42} material={glow("#000000", 0.45)} />
-        <group ref={body} name="body">
+        <group ref={body}>
           <group position={[0, HIP_Y, 0]}>
             <mesh geometry={geo.sphere("lo")} material={pants} scale={[0.22, 0.13, 0.16]} position={[0, 0.02, 0]} />
             {leg("l")}
             {leg("r")}
-            <group ref={spine} name="spine" position={[0, SPINE_Y, 0]} rotation-order="YXZ">
-              <mesh ref={chest} geometry={torso()} material={shirt} position={[0, 0, 0]} scale={[1, 1, 0.82]} />
+            <group ref={spine} position={[0, SPINE_Y, 0]} rotation-order="YXZ">
+              <mesh ref={chest} geometry={geo.capsule(0.215, 0.3)} material={shirt} position={[0, 0.3, 0]} scale={[1, 1, 0.82]} />
               {isRep ? (
                 <>
                   {/* Collar + M1 badge */}
                   <mesh geometry={geo.torus(0.1, 0.028)} material={std(COLORS.ink, { roughness: 0.5 })} position={[0, 0.56, 0]} rotation={[Math.PI / 2, 0, 0]} />
-                  <Suspense fallback={null}>
-                    <ShirtEmblem />
-                  </Suspense>
-                  {/* placket */}
-                  <mesh geometry={geo.box()} material={std("#b8281d", { roughness: 0.6 })} position={[0, 0.47, 0.192]} scale={[0.035, 0.14, 0.01]} />
+                  <mesh geometry={geo.roundBox(0.1, 0.06, 0.02, 0.01)} material={std(COLORS.gold, { roughness: 0.35, metalness: 0.4 })} position={[0.1, 0.42, 0.17]} rotation={[0, 0.25, 0]} />
+                  <mesh geometry={geo.box()} material={std(COLORS.ink)} position={[0, 0.3, 0.176]} scale={[0.36, 0.035, 0.01]} />
                 </>
               ) : (
                 <>
                   {/* Hood + drawstrings */}
                   <mesh geometry={geo.torus(0.14, 0.055)} material={shirt} position={[0, 0.56, -0.05]} rotation={[Math.PI / 2.4, 0, 0]} />
-                  <mesh geometry={geo.capsule(0.01, 0.1)} material={std(COLORS.gold)} position={[0.045, 0.44, 0.192]} />
-                  <mesh geometry={geo.capsule(0.01, 0.1)} material={std(COLORS.gold)} position={[-0.045, 0.44, 0.192]} />
+                  <mesh geometry={geo.capsule(0.01, 0.1)} material={std(COLORS.gold)} position={[0.045, 0.44, 0.175]} />
+                  <mesh geometry={geo.capsule(0.01, 0.1)} material={std(COLORS.gold)} position={[-0.045, 0.44, 0.175]} />
                   <mesh geometry={geo.box()} material={std("#d8d4cc")} position={[0, 0.22, 0.176]} scale={[0.26, 0.1, 0.01]} />
                 </>
               )}
               {arm("l")}
               {arm("r")}
               <mesh geometry={geo.capsule(0.07, 0.06)} material={skin} position={[0, 0.63, 0]} />
-              <group ref={head} name="head" position={[0, HEAD_Y, 0]} rotation-order="YXZ">
-                <mesh geometry={geo.sphere()} material={skin} scale={[0.228, 0.22, 0.214]} />
+              <group ref={head} position={[0, HEAD_Y, 0]} rotation-order="YXZ">
+                <mesh geometry={geo.sphere()} material={skin} scale={[0.25, 0.24, 0.235]} />
                 {/* ears */}
-                <mesh geometry={geo.sphere("lo")} material={skin} position={[0.222, -0.01, 0]} scale={[0.037, 0.055, 0.032]} />
-                <mesh geometry={geo.sphere("lo")} material={skin} position={[-0.222, -0.01, 0]} scale={[0.037, 0.055, 0.032]} />
+                <mesh geometry={geo.sphere("lo")} material={skin} position={[0.245, -0.01, 0]} scale={[0.04, 0.06, 0.035]} />
+                <mesh geometry={geo.sphere("lo")} material={skin} position={[-0.245, -0.01, 0]} scale={[0.04, 0.06, 0.035]} />
                 {isRep ? (
                   <>
-                    {/* M1 cap: crown, brim, button */}
-                    <mesh geometry={geo.hemisphere()} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.04, -0.005]} scale={[0.238, 0.2, 0.229]} />
-                    <mesh geometry={geo.roundBox(0.27, 0.018, 0.155, 0.008)} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.068, 0.228]} rotation={[-0.06, 0, 0]} />
-                    <mesh geometry={geo.sphere("lo")} material={std(COLORS.red, { roughness: 0.5 })} position={[0, 0.238, -0.005]} scale={[0.024, 0.014, 0.024]} />
-                    <mesh geometry={geo.circle()} material={std(COLORS.gold, { roughness: 0.35, metalness: 0.6 })} position={[0, 0.148, 0.178]} rotation={[-0.62, 0, 0]} scale={0.036} />
-                    {/* short hair below the cap: back of the head + sideburns */}
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0, -0.01, -0.085]} scale={[0.2, 0.14, 0.15]} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.2, -0.02, -0.075]} scale={[0.022, 0.05, 0.034]} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[-0.2, -0.02, -0.075]} scale={[0.022, 0.05, 0.034]} />
+                    {/* M1 cap */}
+                    <mesh geometry={geo.hemisphere()} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.045, -0.005]} scale={[0.262, 0.22, 0.252]} />
+                    <mesh geometry={geo.roundBox(0.3, 0.02, 0.17, 0.008)} material={std(COLORS.red, { roughness: 0.55 })} position={[0, 0.05, 0.25]} rotation={[0.12, 0, 0]} />
+                    <mesh geometry={geo.circle()} material={glow(COLORS.gold)} position={[0, 0.16, 0.2]} rotation={[-0.6, 0, 0]} scale={0.045} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.2, -0.03, -0.07]} scale={[0.07, 0.1, 0.12]} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[-0.2, -0.03, -0.07]} scale={[0.07, 0.1, 0.12]} />
                   </>
                 ) : (
                   <>
-                    <mesh geometry={geo.hemisphere()} material={hair} position={[0, 0.018, -0.01]} scale={[0.238, 0.228, 0.232]} rotation={[-0.25, 0, 0]} />
-                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.063, 0.135, 0.153]} scale={[0.145, 0.063, 0.082]} rotation={[0.3, 0, -0.35]} />
+                    <mesh geometry={geo.hemisphere()} material={hair} position={[0, 0.02, -0.01]} scale={[0.262, 0.25, 0.255]} rotation={[-0.25, 0, 0]} />
+                    <mesh geometry={geo.sphere("lo")} material={hair} position={[0.07, 0.15, 0.17]} scale={[0.16, 0.07, 0.09]} rotation={[0.3, 0, -0.35]} />
                   </>
                 )}
                 {/* face */}
-                <group ref={eyes} name="eyes" position={[0, 0.027, 0.19]}>
-                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[0.077, 0, 0]} scale={[0.031, 0.042, 0.018]} />
-                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[-0.077, 0, 0]} scale={[0.031, 0.042, 0.018]} />
-                  <mesh geometry={geo.sphere("lo")} material={white} position={[0.087, 0.015, 0.015]} scale={0.01} />
-                  <mesh geometry={geo.sphere("lo")} material={white} position={[-0.067, 0.015, 0.015]} scale={0.01} />
+                <group ref={eyes} position={[0, 0.03, 0.212]}>
+                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[0.085, 0, 0]} scale={[0.034, 0.046, 0.02]} />
+                  <mesh geometry={geo.sphere("lo")} material={eyeMat} position={[-0.085, 0, 0]} scale={[0.034, 0.046, 0.02]} />
+                  <mesh geometry={geo.sphere("lo")} material={white} position={[0.096, 0.016, 0.017]} scale={0.011} />
+                  <mesh geometry={geo.sphere("lo")} material={white} position={[-0.074, 0.016, 0.017]} scale={0.011} />
                 </group>
-                <group ref={brows} name="brows" position={[0, browY, 0.198]}>
-                  <mesh geometry={geo.capsule(0.01, 0.045)} material={hair} position={[0.077, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
-                  <mesh geometry={geo.capsule(0.01, 0.045)} material={hair} position={[-0.077, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
+                <group ref={brows} position={[0, 0.105, 0.215]}>
+                  <mesh geometry={geo.capsule(0.011, 0.05)} material={hair} position={[0.085, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
+                  <mesh geometry={geo.capsule(0.011, 0.05)} material={hair} position={[-0.085, 0, 0]} rotation={[0, 0, Math.PI / 2]} />
                 </group>
-                <mesh ref={smileArc} geometry={geo.torus(0.054, 0.012, Math.PI)} material={dark} position={[0, -0.077, 0.2]} rotation={[0, 0, Math.PI]} />
-                <mesh ref={mouth} geometry={geo.sphere("lo")} material={dark} position={[0, -0.09, 0.194]} />
-                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.2)} position={[0.126, -0.045, 0.172]} rotation={[0, 0.55, 0]} scale={0.032} />
-                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.2)} position={[-0.126, -0.045, 0.172]} rotation={[0, -0.55, 0]} scale={0.032} />
+                <mesh ref={smileArc} geometry={geo.torus(0.06, 0.013, Math.PI)} material={dark} position={[0, -0.085, 0.222]} rotation={[0, 0, Math.PI]} />
+                <mesh ref={mouth} geometry={geo.sphere("lo")} material={dark} position={[0, -0.1, 0.214]} />
+                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.22)} position={[0.14, -0.05, 0.19]} rotation={[0, 0.55, 0]} scale={0.035} />
+                <mesh geometry={geo.circle()} material={glow(COLORS.red, 0.22)} position={[-0.14, -0.05, 0.19]} rotation={[0, -0.55, 0]} scale={0.035} />
               </group>
             </group>
           </group>

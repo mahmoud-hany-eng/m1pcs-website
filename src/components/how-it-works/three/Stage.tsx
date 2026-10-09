@@ -51,9 +51,9 @@ function LogoSign({ intensity }: { intensity: React.RefObject<number> }) {
   }, [sign, halo]);
   const aspect = sign.image.width / sign.image.height;
 
-  // Halo strength is set by the story position (see StoryCanvas), never by time.
-  useFrame(() => {
-    haloMat.current.opacity = 0.62 * (intensity.current ?? 1);
+  useFrame((state) => {
+    const breathe = 0.62 + Math.sin(state.clock.elapsedTime * 1.3) * 0.05;
+    haloMat.current.opacity = breathe * (intensity.current ?? 1);
   });
 
   return (
@@ -84,11 +84,11 @@ export function Stage({ receiveShadow, logoIntensity }: { receiveShadow: boolean
       <mesh geometry={geo.circle(72)} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]} scale={STAGE_RADIUS}>
         <meshBasicMaterial map={floorGlow} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh geometry={geo.torus(STAGE_RADIUS + 0.02, 0.022)} material={glow("#7a1d15", 0.9)} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} />
+      <mesh geometry={geo.torus(STAGE_RADIUS + 0.02, 0.03)} material={glow(COLORS.red)} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} />
 
       {/* back wall with the logo */}
       <mesh geometry={geo.roundBox(4.2, 2.7, 0.12, 0.06)} material={wallMat} position={[0, 2.05, -2.42]} receiveShadow={receiveShadow} />
-      <mesh geometry={geo.box()} material={glow("#6a1a13", 0.8)} position={[0, 0.72, -2.35]} scale={[3.9, 0.014, 0.012]} />
+      <mesh geometry={geo.box()} material={glow(COLORS.red, 0.85)} position={[0, 0.72, -2.35]} scale={[3.9, 0.018, 0.012]} />
       <Suspense fallback={null}>
         <LogoSign intensity={logoIntensity} />
       </Suspense>
@@ -96,7 +96,7 @@ export function Stage({ receiveShadow, logoIntensity }: { receiveShadow: boolean
       {/* table */}
       <group>
         <mesh geometry={geo.roundBox(TABLE_SIZE.w, 0.09, TABLE_SIZE.d, 0.04)} material={tableMat} position={[0, TABLE_TOP_Y - 0.045, 0]} castShadow={receiveShadow} receiveShadow={receiveShadow} />
-        <mesh geometry={geo.box()} material={glow("#8a2418", 0.9)} position={[0, TABLE_TOP_Y - 0.06, TABLE_SIZE.d / 2 + 0.004]} scale={[TABLE_SIZE.w - 0.16, 0.014, 0.01]} />
+        <mesh geometry={geo.box()} material={glow(COLORS.red)} position={[0, TABLE_TOP_Y - 0.06, TABLE_SIZE.d / 2 + 0.004]} scale={[TABLE_SIZE.w - 0.16, 0.02, 0.01]} />
         <mesh geometry={geo.roundBox(0.09, 0.86, 1.02, 0.02)} material={tableMat} position={[-1.12, 0.43, 0]} castShadow={receiveShadow} />
         <mesh geometry={geo.roundBox(0.09, 0.86, 1.02, 0.02)} material={tableMat} position={[1.12, 0.43, 0]} castShadow={receiveShadow} />
         <mesh geometry={geo.box()} material={std(COLORS.surface, { roughness: 0.6 })} position={[0, 0.3, -0.2]} scale={[2.2, 0.04, 0.5]} />
