@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useMotionValueEvent, useScroll, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useMotionValueEvent, useScroll, useSpring } from "framer-motion";
 import { Container } from "@/components/ui/Container";
-import { Eyebrow } from "@/components/ui/SectionHeading";
 
 /** Premium, restrained "expo-out" easing — matches the other homepage sections. */
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -59,13 +58,12 @@ function interp(t: number, input: readonly number[], output: readonly number[]):
 }
 
 /**
- * "Your PC. Your Parts. Your Budget." — the process, told inside the glass
- * showroom. Desktop pins one focal glass pane (the section's single L3
- * surface) while five stages crossfade inside it over the scroll track; a
- * warm key light drifts behind the pane with the same scroll value, so the
- * frost visibly shifts as the story advances (and reverses with it).
- * Mobile (and reduced motion, any width) gets a plain stacked flow along a
- * lit rail with whileInView reveals — same pattern as FeaturedSpecScroll.
+ * "Your PC. Your Parts. Your Budget." — the calm, light-themed process
+ * section between the dark Featured Spec Story and the dark Built by M1
+ * section. Desktop pins a large stage number + headline in a sticky
+ * viewport while five stages crossfade over the scroll track; mobile (and
+ * reduced motion, any width) gets a plain stacked flow with whileInView
+ * reveals — same pattern established in FeaturedSpecScroll.
  */
 export function ProcessSection() {
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -86,27 +84,24 @@ export function ProcessSection() {
         transition: { duration: 0.4 },
       }
     : {
-        // Depth settle: rises, fades in and comes into focus. Text-only
-        // blocks — never applied to a glass pane (a filter on the pane
-        // would cut its frost off from the page behind it mid-animation).
-        initial: { opacity: 0, y: 24, filter: "blur(8px)" },
-        whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
+        initial: { opacity: 0, y: 24 },
+        whileInView: { opacity: 1, y: 0 },
         viewport: { once: false, margin: "-20% 0px" },
-        transition: { duration: 0.8, ease: EASE },
+        transition: { duration: 0.7, ease: EASE },
       };
 
   return (
     <>
-      <section className="relative pb-10 pt-24 sm:pb-14 sm:pt-32 lg:pt-40">
+      <section className="bg-[#F6F3EE] pb-16 pt-24 sm:pb-20 sm:pt-32 lg:pt-40">
         <Container>
-          <motion.div {...introReveal} className="flex flex-col items-start gap-6">
-            <Eyebrow>The process</Eyebrow>
-            <h2 className="font-display text-[clamp(2.75rem,7vw,5.5rem)] font-bold leading-[1.02] tracking-tight text-white">
-              <span className="block">Your PC.</span>
-              <span className="block">Your Parts.</span>
-              <span className="block text-white/55">Your Budget.</span>
-            </h2>
-          </motion.div>
+          <motion.h2
+            {...introReveal}
+            className="font-display text-[clamp(2.75rem,7vw,5.5rem)] font-bold leading-[1.02] tracking-tight text-[#1C1917]"
+          >
+            <span className="block">Your PC.</span>
+            <span className="block">Your Parts.</span>
+            <span className="block">Your Budget.</span>
+          </motion.h2>
         </Container>
       </section>
 
@@ -175,91 +170,45 @@ function StickyProcess() {
     { opacity: op4, y: y4 },
   ];
 
-  // Rail fills (each stage's fifth of the scroll) and the key light's
-  // drift behind the pane — all from the same single subscription.
-  const f0 = useMotionValue(0);
-  const f1 = useMotionValue(0);
-  const f2 = useMotionValue(0);
-  const f3 = useMotionValue(0);
-  const f4 = useMotionValue(0);
-  const fills = [f0, f1, f2, f3, f4];
-  const glow = useMotionValue(0);
-  const glowX = useTransform(glow, (v) => `${-30 + v * 90}%`);
-  const amberX = useTransform(glow, (v) => `${40 - v * 70}%`);
-
   useMotionValueEvent(smoothProgress, "change", (p) => {
     stageMotion.forEach(({ opacity, y }, i) => {
       opacity.set(interp(p, ranges[i], opOuts[i]));
       y.set(interp(p, ranges[i], yOuts[i]));
     });
-    fills.forEach((f, i) => f.set(Math.min(1, Math.max(0, p * 5 - i))));
-    glow.set(p);
   });
 
   return (
     // ~240vh: 100svh (minus header) pinned viewport + ~140vh of actual
     // scroll distance the five stages play out over — deliberately
     // shorter/faster than the Featured Spec Story's 300vh.
-    <div ref={sectionRef} className="relative h-[240vh]">
+    <div ref={sectionRef} className="relative h-[240vh] bg-[#F6F3EE]">
       <div className="sticky top-16 flex h-[calc(100svh-4rem)] items-center overflow-hidden sm:top-20 sm:h-[calc(100svh-5rem)]">
-        {/* Key light + amber fill behind the pane, drifting with scroll
-            (transform only) so the frost shifts as the stages advance. */}
-        <motion.div
-          aria-hidden="true"
-          style={{ x: glowX }}
-          className="pointer-events-none absolute left-0 top-[18%] h-[64%] w-[46%] rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.34),transparent)]"
-        />
-        <motion.div
-          aria-hidden="true"
-          style={{ x: amberX }}
-          className="pointer-events-none absolute right-0 top-[40%] h-[50%] w-[34%] rounded-full bg-[radial-gradient(closest-side,rgb(249_194_4/0.12),transparent)]"
-        />
-
-        <Container className="relative">
-          <div className="glass-strong rounded-glass-lg px-10 pb-10 pt-12 xl:px-14 xl:pt-14">
-            <div className="grid grid-cols-[minmax(0,0.75fr)_minmax(0,1.4fr)] items-center gap-12 xl:gap-16">
-              <div className="relative h-36 xl:h-44">
-                {STAGES.map((stage, i) => (
-                  <motion.span
-                    key={stage.headline}
-                    style={{ opacity: stageMotion[i].opacity, y: stageMotion[i].y }}
-                    className="absolute inset-0 flex items-center bg-gradient-to-b from-white via-white/80 to-white/25 bg-clip-text font-display text-[clamp(5rem,10vw,9rem)] font-bold leading-none tracking-tight text-transparent"
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </motion.span>
-                ))}
-              </div>
-
-              <div className="relative min-h-[11rem]">
-                {STAGES.map((stage, i) => (
-                  <motion.div
-                    key={stage.headline}
-                    style={{ opacity: stageMotion[i].opacity, y: stageMotion[i].y }}
-                    className="absolute inset-0 flex flex-col justify-center gap-4"
-                  >
-                    <h3 className="font-display text-[clamp(2.25rem,4.2vw,3.75rem)] font-bold leading-[1.05] tracking-tight text-white">
-                      {stage.headline}
-                    </h3>
-                    <p className="max-w-lg text-lg text-text-secondary">{stage.supporting}</p>
-                  </motion.div>
-                ))}
-              </div>
+        <Container>
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-center lg:gap-16">
+            <div className="relative h-32 lg:h-40">
+              {STAGES.map((stage, i) => (
+                <motion.span
+                  key={stage.headline}
+                  style={{ opacity: stageMotion[i].opacity, y: stageMotion[i].y }}
+                  className="absolute inset-0 flex items-center font-display text-[clamp(4rem,9vw,7rem)] font-bold leading-none tracking-tight text-[#1C1917]"
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </motion.span>
+              ))}
             </div>
 
-            {/* Five-step rail, scrubbed by the same scroll value. */}
-            <div className="mt-10 grid grid-cols-5 gap-3" aria-hidden="true">
+            <div className="relative min-h-[10rem] lg:min-h-[9rem]">
               {STAGES.map((stage, i) => (
-                <div key={stage.headline} className="flex flex-col gap-2.5">
-                  <span className="h-[3px] overflow-hidden rounded-full bg-white/[0.1]">
-                    <motion.span style={{ scaleX: fills[i] }} className="block h-full w-full origin-left rounded-full bg-accent" />
-                  </span>
-                  <span className="relative font-display text-xs font-semibold tracking-widest text-text-muted">
-                    {String(i + 1).padStart(2, "0")}
-                    <motion.span style={{ opacity: stageMotion[i].opacity }} className="absolute inset-0 text-white">
-                      {String(i + 1).padStart(2, "0")}
-                    </motion.span>
-                  </span>
-                </div>
+                <motion.div
+                  key={stage.headline}
+                  style={{ opacity: stageMotion[i].opacity, y: stageMotion[i].y }}
+                  className="absolute inset-0 flex flex-col justify-center gap-4"
+                >
+                  <h3 className="font-display text-[clamp(2.25rem,4.5vw,3.75rem)] font-bold leading-[1.05] tracking-tight text-[#1C1917]">
+                    {stage.headline}
+                  </h3>
+                  <p className="max-w-md text-lg text-[#6B6358]">{stage.supporting}</p>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -286,25 +235,21 @@ function SimpleProcess({ reduceMotion }: { reduceMotion: boolean }) {
         };
 
   return (
-    <section className="relative pb-20 pt-6 sm:pb-28">
+    <section className="bg-[#F6F3EE] py-20 sm:py-28">
       <Container>
-        <ol className="relative flex flex-col gap-12">
-          {/* the lit rail the stages hang from */}
-          <span aria-hidden="true" className="absolute bottom-6 left-[1.2rem] top-6 w-px bg-gradient-to-b from-accent/50 via-white/15 to-transparent" />
+        <div className="flex flex-col gap-14">
           {STAGES.map((stage, i) => (
-            <motion.li key={stage.headline} {...reveal(0.05 * i)} className="relative grid grid-cols-[auto_1fr] items-start gap-5">
-              <span className="glass-subtle flex h-10 w-10 items-center justify-center rounded-full font-display text-sm font-bold tracking-wide text-white">
+            <motion.div key={stage.headline} {...reveal(0.05 * i)} className="flex flex-col gap-3">
+              <span className="font-display text-4xl font-bold leading-none tracking-tight text-[#1C1917]">
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="flex flex-col gap-2 pt-1">
-                <h3 className="font-display text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl">
-                  {stage.headline}
-                </h3>
-                <p className="max-w-md text-base text-text-secondary sm:text-lg">{stage.supporting}</p>
-              </div>
-            </motion.li>
+              <h3 className="font-display text-3xl font-bold leading-tight tracking-tight text-[#1C1917] sm:text-4xl">
+                {stage.headline}
+              </h3>
+              <p className="max-w-md text-base text-[#6B6358] sm:text-lg">{stage.supporting}</p>
+            </motion.div>
           ))}
-        </ol>
+        </div>
       </Container>
     </section>
   );
