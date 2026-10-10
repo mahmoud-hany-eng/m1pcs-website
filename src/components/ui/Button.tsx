@@ -1,23 +1,28 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "outline" | "whatsapp";
-type Size = "md" | "lg";
+type Variant = "primary" | "secondary" | "outline" | "glass" | "whatsapp";
+type Size = "sm" | "md" | "lg";
 
+/*
+ * Primary/secondary/WhatsApp are opaque, lit-from-above pills (inner top
+ * highlight + a light sweep on hover); outline/glass is the clear glass
+ * pill. All share `.btn-sheen` from globals.css — hover lifts 1px and
+ * sweeps light across, it never scales.
+ */
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:pointer-events-none text-center";
+  "btn-sheen inline-flex items-center justify-center gap-2 rounded-full font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:pointer-events-none text-center";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "bg-primary text-white hover:bg-primary-dark active:bg-primary-dark",
-  secondary:
-    "bg-accent text-black hover:bg-accent-hover active:bg-accent-hover",
-  outline:
-    "border border-border-strong text-text-primary hover:border-accent hover:text-accent bg-transparent",
-  whatsapp: "bg-[#25D366] text-black hover:bg-[#1ebc59]",
+  primary: "btn-red",
+  secondary: "btn-gold",
+  outline: "btn-glass",
+  glass: "btn-glass",
+  whatsapp: "btn-whatsapp",
 };
 
 const sizes: Record<Size, string> = {
+  sm: "px-5 py-2.5 text-sm",
   md: "px-5 py-3 text-sm sm:text-base",
   lg: "px-7 py-4 text-base sm:text-lg",
 };

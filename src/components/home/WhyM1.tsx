@@ -56,9 +56,9 @@ const ROWS: TrustRow[] = [
 /**
  * "Why M1?" — quiet after the kinetic Parts section. Desktop uses a
  * spotlight/focus effect: whichever row is nearest the vertical center of
- * the viewport reads at full strength while the others dim, tracked via a
- * single lightweight IntersectionObserver (not a continuous scroll
- * listener). Mobile and reduced motion get a plain per-row fade, same
+ * the viewport reads at full strength inside one suspended glass slab while
+ * the others dim, tracked via a single lightweight IntersectionObserver (not
+ * a continuous scroll listener). Mobile and reduced motion get a plain per-row fade, same
  * split pattern as ProcessSection's Simple/Sticky variants.
  */
 export function WhyM1() {
@@ -80,17 +80,20 @@ export function WhyM1() {
         transition: { duration: 0.4 },
       }
     : {
-        initial: { opacity: 0, y: 24 },
-        whileInView: { opacity: 1, y: 0 },
+        // Depth settle: rises, fades in and comes into focus. Text-only
+        // blocks — never applied to a glass pane (a filter on the pane
+        // would cut its frost off from the page behind it mid-animation).
+        initial: { opacity: 0, y: 24, filter: "blur(8px)" },
+        whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
         viewport: { once: false, margin: "-20% 0px" },
-        transition: { duration: 0.7, ease: EASE },
+        transition: { duration: 0.8, ease: EASE },
       };
 
   return (
-    <section className="bg-background py-24 sm:py-28 lg:py-32">
+    <section className="relative py-24 sm:py-28 lg:py-32">
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
-          <h2 className="font-display text-[clamp(2.75rem,6vw,5rem)] font-bold leading-[1.02] tracking-tight text-text-primary">
+          <h2 className="font-display text-[clamp(2.75rem,6vw,5rem)] font-bold leading-[1.02] tracking-tight text-white">
             Why M1?
           </h2>
         </motion.div>
@@ -107,8 +110,13 @@ export function WhyM1() {
 }
 
 function SpotlightWhyM1() {
+  const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Offsets of every row inside the list, so the one glass slab can glide
+  // to whichever statement is in focus (null until measured on the client,
+  // which keeps SSR and first paint identical).
+  const [rects, setRects] = useState<{ top: number; height: number }[] | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -126,9 +134,34 @@ function SpotlightWhyM1() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () =>
+      setRects(rowRefs.current.map((el) => ({ top: el?.offsetTop ?? 0, height: el?.offsetHeight ?? 0 })));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, []);
+
+  const slab = rects?.[activeIndex];
+
   return (
     <Container className="mt-14">
-      <div className="flex flex-col">
+      <div ref={listRef} className="relative flex flex-col gap-3">
+        {/* The single suspended glass slab. It moves (transform) between
+            statements; the frost itself is never animated. */}
+        <div
+          aria-hidden="true"
+          className="glass glass-tint-red pointer-events-none absolute inset-x-0 top-0 rounded-glass-lg transition-[transform,height,opacity] duration-700 ease-glass"
+          style={{
+            transform: `translateY(${slab?.top ?? 0}px)`,
+            height: slab?.height ?? 0,
+            opacity: slab ? 1 : 0,
+          }}
+        />
+
         {ROWS.map((row, i) => {
           const isActive = i === activeIndex;
           return (
@@ -137,10 +170,10 @@ function SpotlightWhyM1() {
               ref={(el) => {
                 rowRefs.current[i] = el;
               }}
-              className="grid grid-cols-[auto_1fr] items-start gap-6 border-t border-border py-10 transition-[opacity,transform] duration-700 ease-out last:border-b sm:gap-10 sm:py-12"
+              className="relative grid grid-cols-[auto_1fr] items-start gap-6 px-8 py-10 transition-[opacity,transform] duration-700 ease-out sm:gap-10 sm:px-10 sm:py-11"
               style={{
-                opacity: isActive ? 1 : 0.5,
-                transform: isActive ? "translateY(0px)" : "translateY(8px)",
+                opacity: isActive ? 1 : 0.42,
+                transform: isActive ? "translateY(0px)" : "translateY(6px)",
               }}
             >
               <span
@@ -153,7 +186,7 @@ function SpotlightWhyM1() {
               <div className="flex flex-col gap-3">
                 <h3
                   className={`font-display text-3xl font-bold tracking-tight transition-colors duration-700 sm:text-5xl ${
-                    isActive ? "text-text-primary" : "text-text-secondary"
+                    isActive ? "text-white" : "text-text-secondary"
                   }`}
                 >
                   {row.headline}
@@ -197,13 +230,13 @@ function SimpleWhyM1({ reduceMotion }: { reduceMotion: boolean }) {
           <motion.div
             key={row.headline}
             {...reveal(0.05 * i)}
-            className="grid grid-cols-[auto_1fr] items-start gap-6 border-t border-border py-8 last:border-b"
+            className="grid grid-cols-[auto_1fr] items-start gap-6 border-t border-white/[0.07] py-8 last:border-b"
           >
             <span className="font-display text-xl font-bold text-accent sm:text-2xl">
               {row.number}
             </span>
             <div className="flex flex-col gap-2">
-              <h3 className="font-display text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+              <h3 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 {row.headline}
               </h3>
               <p className="max-w-xl text-sm text-text-secondary sm:text-base">

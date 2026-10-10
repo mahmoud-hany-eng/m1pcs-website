@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { animate, motion, useInView, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
+import { animate, motion, useInView, useMotionValue, useTransform } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/SectionHeading";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -22,6 +24,14 @@ const CLAIMS: Claim[] = [
     body: "Based on your request, parts are sourced directly from the U.S. and shipped to Qatar.",
     icon: "route",
   },
+];
+
+/** Hairline dividers between the claim cells at 1, 2 and 4 columns. */
+const CLAIM_DIVIDERS = [
+  "",
+  "border-t sm:border-t-0 sm:border-l",
+  "border-t lg:border-t-0 lg:border-l",
+  "border-t sm:border-l lg:border-t-0",
 ];
 
 function ClaimIcon({ name }: { name: Claim["icon"] }) {
@@ -70,14 +80,19 @@ const bezier = (t: number, a: number, b: number, c: number) => (1 - t) * (1 - t)
 function RouteVisual() {
   const ref = useRef<SVGSVGElement>(null);
   const inView = useInView(ref, { margin: "-15% 0px" });
-  const reduce = useReducedMotion();
-  const t = useMotionValue(reduce ? 0.5 : 0);
+  const reduce = usePrefersReducedMotion();
+  const t = useMotionValue(0);
   const x = useTransform(t, (v) => bezier(v, P0.x, P1.x, P2.x));
   const y = useTransform(t, (v) => bezier(v, P0.y, P1.y, P2.y));
   const drawn = useTransform(t, (v) => Math.max(0.001, v));
 
   useEffect(() => {
-    if (reduce || !inView) return;
+    // Reduced motion: the parcel rests mid-route instead of travelling.
+    if (reduce) {
+      t.set(0.5);
+      return;
+    }
+    if (!inView) return;
     const controls = animate(t, [0, 1], { duration: 3.4, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.6 });
     return () => controls.stop();
   }, [inView, reduce, t]);
@@ -122,24 +137,27 @@ function RouteVisual() {
  * brands, fully custom builds and U.S. sourcing on request.
  */
 export function SourcingTeaser() {
-  const reduce = useReducedMotion();
+  const reduce = usePrefersReducedMotion();
   const reveal = (delay = 0) =>
     reduce
       ? { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true, margin: "-10% 0px" }, transition: { duration: 0.4, delay } }
       : {
           initial: { opacity: 0, y: 22 },
           whileInView: { opacity: 1, y: 0 },
-          viewport: { once: true, margin: "-15% 0px" },
+          viewport: { once: false, margin: "-15% 0px" },
           transition: { duration: 0.7, delay, ease: EASE },
         };
 
   return (
-    <section className="relative overflow-hidden border-y border-border bg-background py-20 sm:py-24 lg:py-28">
-      <div className="pointer-events-none absolute left-1/2 top-1/3 h-[420px] w-[900px] max-w-[140%] -translate-x-1/2 rounded-full bg-primary/[0.06] blur-[90px]" aria-hidden="true" />
+    <section className="relative overflow-hidden py-20 sm:py-24 lg:py-28">
+      <div
+        className="pointer-events-none absolute left-1/2 top-[42%] h-[520px] w-[1000px] max-w-[160%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.14),transparent)]"
+        aria-hidden="true"
+      />
       <Container className="relative">
         <motion.div {...reveal()} className="mx-auto flex max-w-2xl flex-col items-center text-center">
-          <p className="font-display text-xs font-bold uppercase tracking-[0.28em] text-accent sm:text-sm">Parts &amp; Sourcing</p>
-          <h2 className="mt-4 font-display text-[clamp(2rem,4.6vw,3.4rem)] font-bold leading-[1.05] tracking-tight text-text-primary">
+          <Eyebrow>Parts &amp; Sourcing</Eyebrow>
+          <h2 className="mt-5 font-display text-[clamp(2rem,4.6vw,3.4rem)] font-bold leading-[1.05] tracking-tight text-white">
             Brand-new parts. Sourced from the U.S. for your build.
           </h2>
           <p className="mt-4 max-w-xl text-base text-text-secondary sm:text-lg">
@@ -148,28 +166,33 @@ export function SourcingTeaser() {
           </p>
         </motion.div>
 
-        <motion.div {...reveal(0.08)} className="mx-auto mt-10 max-w-3xl rounded-card border border-border bg-surface/60 px-4 pb-2 pt-6 sm:px-10">
-          <RouteVisual />
+        {/* One glass instrument panel: the route on top, the four claims
+            as a divided strip along its base — a single pane rather than a
+            grid of identical cards. */}
+        <motion.div {...reveal(0.08)} className="glass mx-auto mt-12 max-w-5xl overflow-hidden rounded-glass-lg">
+          <div className="mx-auto max-w-3xl px-4 pb-2 pt-8 sm:px-10">
+            <RouteVisual />
+          </div>
+          <div className="hairline" aria-hidden="true" />
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {CLAIMS.map((c, i) => (
+              <motion.li
+                key={c.title}
+                {...reveal(0.12 + i * 0.06)}
+                className={`flex flex-col items-center gap-3 border-white/[0.06] p-6 text-center sm:p-7 ${CLAIM_DIVIDERS[i]}`}
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgb(249_194_4/0.35)]">
+                  <ClaimIcon name={c.icon} />
+                </span>
+                <h3 className="font-display text-lg font-bold tracking-tight text-white">{c.title}</h3>
+                <p className="text-sm text-text-secondary">{c.body}</p>
+              </motion.li>
+            ))}
+          </ul>
         </motion.div>
 
-        <ul className="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {CLAIMS.map((c, i) => (
-            <motion.li
-              key={c.title}
-              {...reveal(0.12 + i * 0.06)}
-              className="flex flex-col items-center gap-3 rounded-card border border-border bg-surface/50 p-6 text-center"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/50 text-accent">
-                <ClaimIcon name={c.icon} />
-              </span>
-              <h3 className="font-display text-lg font-bold tracking-tight text-text-primary">{c.title}</h3>
-              <p className="text-sm text-text-secondary">{c.body}</p>
-            </motion.li>
-          ))}
-        </ul>
-
         <motion.div {...reveal(0.2)} className="mt-10 flex justify-center">
-          <Button href="/how-it-works" variant="outline" size="lg">
+          <Button href="/how-it-works" variant="glass" size="lg">
             See how it works
             <span aria-hidden="true">→</span>
           </Button>

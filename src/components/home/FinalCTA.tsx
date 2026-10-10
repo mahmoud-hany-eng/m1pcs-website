@@ -67,7 +67,7 @@ export function FinalCTA() {
   });
 
   return (
-    <section className="relative isolate flex min-h-[75svh] items-center overflow-hidden bg-background py-24 sm:min-h-[85svh] sm:py-28">
+    <section className="relative isolate flex min-h-[75svh] items-center overflow-hidden py-24 sm:min-h-[85svh] sm:py-28">
       {/* Bleeds off the right edge and is oversized relative to its own
           box on every breakpoint (mobile already had this right; desktop
           used to anchor flush at the edge, small and fully opaque, which
@@ -102,9 +102,16 @@ export function FinalCTA() {
         className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40 sm:via-background/70 sm:to-transparent lg:via-background/80 lg:to-background/55"
       />
 
+      {/* The PC dissolves into the floor instead of meeting the footer
+          on a hard edge. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background"
+      />
+
       <Container className="relative">
-        <div className="flex max-w-2xl flex-col items-start gap-8">
-          <h2 className="font-display text-[clamp(3rem,7vw,6rem)] font-bold leading-[0.98] tracking-tight text-text-primary">
+        <div className="flex max-w-3xl flex-col items-start gap-10">
+          <h2 className="font-display text-[clamp(3rem,7vw,6rem)] font-bold leading-[0.98] tracking-tight text-white">
             <span className="block overflow-hidden">
               <motion.span {...lineReveal(0)} className="block">
                 Ready to build
@@ -117,33 +124,32 @@ export function FinalCTA() {
             </span>
           </h2>
 
-          <motion.p
-            {...fadeReveal(0.45)}
-            className="max-w-md text-lg text-text-secondary sm:text-xl"
-          >
-            Tell us what you need.
-            <br />
-            We&rsquo;ll help you build it.
-          </motion.p>
-
-          <motion.div
-            {...fadeReveal(0.6)}
-            className="flex w-full flex-col gap-4 sm:w-auto sm:flex-row"
-          >
-            <Button href="/build-my-pc" size="lg" className="w-full sm:w-auto">
-              Build Your PC
-            </Button>
-            {whatsappHref && (
-              <Button
-                href={whatsappHref}
-                external
-                variant="whatsapp"
-                size="lg"
-                className="w-full sm:w-auto"
-              >
-                WhatsApp Us
-              </Button>
-            )}
+          {/* The floating glass control area — the only pane in the
+              section, hovering over the PC so the build frosts through. */}
+          <motion.div {...fadeReveal(0.45)} className="glass w-full rounded-glass-lg p-2 sm:w-auto">
+            <div className="flex flex-col gap-5 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:gap-8 sm:py-2 sm:pl-5 sm:pr-1">
+              <p className="text-base leading-snug text-text-secondary sm:text-lg">
+                Tell us what you need.
+                <br />
+                <span className="text-white">We&rsquo;ll help you build it.</span>
+              </p>
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                <Button href="/build-my-pc" size="lg" className="w-full whitespace-nowrap sm:w-auto">
+                  Build Your PC
+                </Button>
+                {whatsappHref && (
+                  <Button
+                    href={whatsappHref}
+                    external
+                    variant="whatsapp"
+                    size="lg"
+                    className="w-full whitespace-nowrap sm:w-auto"
+                  >
+                    WhatsApp Us
+                  </Button>
+                )}
+              </div>
+            </div>
           </motion.div>
         </div>
       </Container>

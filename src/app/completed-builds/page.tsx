@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 export default function CompletedBuildsPage() {
   return (
     <>
-      <section className="border-b border-border">
-        <Container className="py-16 sm:py-24">
+      <section className="relative">
+        <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
             eyebrow="Portfolio"
             title="Completed builds"
@@ -26,9 +26,13 @@ export default function CompletedBuildsPage() {
         </Container>
       </section>
 
-      <section>
-        <Container className="py-16 sm:py-24">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="relative overflow-x-clip">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-24 h-[700px] w-[min(1100px,140%)] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.1),transparent)]"
+        />
+        <Container className="relative py-12 sm:py-16">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {completedBuilds.map((build) => (
               <BuildCard key={build.slug} build={build} />
             ))}

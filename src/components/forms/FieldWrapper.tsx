@@ -15,7 +15,7 @@ export function FieldWrapper({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-text-primary">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-white/90">
         {label}
         {required && <span className="text-primary"> *</span>}
       </label>

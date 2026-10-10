@@ -20,8 +20,15 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border bg-surface">
-      <Container className="py-12 sm:py-16">
+    // Smoked glass only along the top edge: a lit hairline and a faint
+    // falloff of light beneath it, over a charcoal gradient — no frost.
+    <footer className="relative bg-gradient-to-b from-[#121214]/90 via-[#0c0c0d]/95 to-[#08080a]">
+      <div aria-hidden="true" className="hairline absolute inset-x-0 top-0" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(55%_100%_at_50%_0%,rgb(255_255_255/0.045),transparent_75%)]"
+      />
+      <Container className="relative py-12 sm:py-16">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-4">
             <Link href="/" className="flex items-center gap-2 w-fit">
@@ -49,7 +56,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-text-secondary hover:text-accent transition-colors"
+                    className="text-sm text-text-secondary hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -67,7 +74,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-text-secondary hover:text-accent transition-colors"
+                    className="text-sm text-text-secondary hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -86,7 +93,7 @@ export function Footer() {
                   href={siteConfig.social.instagram.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-accent transition-colors"
+                  className="hover:text-white transition-colors"
                 >
                   Instagram: {siteConfig.social.instagram.handle}
                 </a>
@@ -98,7 +105,7 @@ export function Footer() {
                 <li>
                   <a
                     href={`mailto:${siteConfig.contact.email}`}
-                    className="hover:text-accent transition-colors"
+                    className="hover:text-white transition-colors"
                   >
                     {siteConfig.contact.email}
                   </a>
@@ -114,7 +121,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 border-t border-border pt-8">
+        <div className="hairline mt-12" aria-hidden="true" />
+        <div className="pt-8">
           <div className="flex flex-col gap-2 text-xs text-text-muted">
             <p className="font-medium text-text-secondary">
               {siteConfig.legal.registeredName}

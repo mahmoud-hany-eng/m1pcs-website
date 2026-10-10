@@ -49,10 +49,14 @@ export const PART_UI: { id: string; tag: string; name: string; Icon: ComponentTy
 export const SETUP_ITEMS = ["Windows 11 Pro", "Drivers", "Updates"] as const;
 const ORDER_LINES = ["Deposit received", "Payment confirmation sent", "Order officially placed"] as const;
 
+/*
+ * Glass-look labels (claude-dev showroom material). These ride the 3D scene every frame, so they
+ * carry the glass material (charcoal gradient, lit top edge, hairline) but no live backdrop-filter.
+ */
 const CARD =
-  "rounded-2xl border border-white/[0.12] bg-[#0f0f11]/95 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.95)] ring-1 ring-black/40";
+  "rounded-2xl border border-white/[0.1] bg-[linear-gradient(160deg,rgba(40,40,44,0.95)_0%,rgba(14,14,16,0.96)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_24px_60px_-24px_rgba(0,0,0,0.95)]";
 const PILL =
-  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 font-display text-[12px] font-semibold leading-none shadow-[0_10px_28px_-12px_rgba(0,0,0,0.9)] sm:text-[13px]";
+  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 font-display text-[12px] font-semibold leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_28px_-12px_rgba(0,0,0,0.9)] sm:text-[13px]";
 
 /** Row reveal driven by a 0..1 CSS variable written from the 3D timeline. */
 const reveal = (name: string): CSSProperties => ({
@@ -91,13 +95,13 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
     >
       {/* who's who */}
       <Anchored id="tag-rep">
-        <span className={`${PILL} border-primary/50 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-primary/50 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           M1 team
         </span>
       </Anchored>
       <Anchored id="tag-customer">
-        <span className={`${PILL} border-white/20 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-white/20 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="h-1.5 w-1.5 rounded-full bg-white" />
           You
         </span>
@@ -106,7 +110,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
       {/* 1 — requirements */}
       {REQUIREMENTS.map(({ id, label, Icon }) => (
         <Anchored key={id} id={id}>
-          <span className={`${PILL} border-white/[0.14] bg-[#141416]/95 py-1 pl-1 pr-3 text-white`}>
+          <span className={`${PILL} border-white/[0.14] bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] py-1 pl-1 pr-3 text-white`}>
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-accent sm:h-7 sm:w-7">
               <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </span>
@@ -118,7 +122,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
       {/* 1 — part labels (turn gold with a check once chosen) */}
       {PART_UI.map(({ id, tag }) => (
         <Anchored key={id} id={`part-${id}`}>
-          <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/[0.14] bg-[#141416]/95 px-2.5 py-1 font-display text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-white transition-colors duration-300 group-data-[selected]:border-accent group-data-[selected]:bg-accent group-data-[selected]:text-black sm:text-[11px]">
+          <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/[0.14] bg-[#141416]/95 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] font-display text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-white transition-colors duration-300 group-data-[selected]:border-accent group-data-[selected]:bg-accent group-data-[selected]:text-black sm:text-[11px]">
             <IconCheck className="-ml-0.5 hidden h-3 w-3 group-data-[selected]:block" />
             {tag}
           </span>
@@ -192,7 +196,7 @@ export function StoryOverlay({ store, ui = 1 }: { store: AnchorStore; ui?: numbe
         </div>
       </Anchored>
       <Anchored id="received">
-        <span className={`${PILL} border-accent/40 bg-[#141416]/95 text-white`}>
+        <span className={`${PILL} border-accent/40 bg-[linear-gradient(180deg,rgba(40,40,44,0.95),rgba(18,18,20,0.95))] text-white`}>
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-black">
             <IconCheck className="h-3 w-3" />
           </span>

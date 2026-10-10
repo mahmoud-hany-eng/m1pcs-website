@@ -77,6 +77,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body className="min-h-screen bg-background text-text-primary antialiased flex flex-col">
+        {/* The dark glass showroom every page sits in (see .site-ambient). */}
+        <div className="site-ambient" aria-hidden="true" />
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />

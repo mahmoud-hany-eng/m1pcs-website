@@ -10,7 +10,7 @@ export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-lg border border-border-strong bg-surface px-4 py-3 text-base text-text-primary transition-colors focus:border-accent focus:outline-none ${
+      className={`glass-input min-h-[3.25rem] cursor-pointer px-4 py-3 text-base ${
         props.className ?? ""
       }`}
     />

@@ -52,7 +52,9 @@ export function BuildImageFrame({
   translateY?: number;
 }) {
   return (
-    <div className="relative aspect-[4/5] w-full overflow-hidden border-b border-border bg-gradient-to-br from-surface-elevated to-background">
+    // No box behind the cutout — the PC stands directly on the card's glass;
+    // only the soft vignette (the edge-fringe fix above) sits behind it.
+    <div className="relative aspect-[4/5] w-full overflow-hidden">
       <div aria-hidden="true" className="build-photo-vignette pointer-events-none absolute inset-0" />
       <Image
         src={src}

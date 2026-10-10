@@ -162,10 +162,13 @@ export function FeaturedBuilds() {
         transition: { duration: 0.4 },
       }
     : {
-        initial: { opacity: 0, y: 24 },
-        whileInView: { opacity: 1, y: 0 },
+        // Depth settle: rises, fades in and comes into focus. Text-only
+        // blocks — never applied to a glass pane (a filter on the pane
+        // would cut its frost off from the page behind it mid-animation).
+        initial: { opacity: 0, y: 24, filter: "blur(8px)" },
+        whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
         viewport: { once: false, margin: "-20% 0px" },
-        transition: { duration: 0.7, ease: EASE },
+        transition: { duration: 0.8, ease: EASE },
       };
 
   const railReveal = reduceMotion
@@ -183,11 +186,11 @@ export function FeaturedBuilds() {
       };
 
   return (
-    <section className="overflow-x-clip bg-background py-24 sm:py-28 lg:py-32">
+    <section className="overflow-x-clip py-24 sm:py-28 lg:py-32">
       <Container>
         <motion.div {...introReveal} className="max-w-2xl">
           <h2
-            className={`${dmSerifDisplay.className} text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-text-primary`}
+            className={`${dmSerifDisplay.className} text-[clamp(2.75rem,5.5vw,4.75rem)] font-normal leading-[1.05] tracking-tight text-white`}
           >
             {/* Same font, same weight and size as "Built by" throughout —
                 DM Serif Display's numeral already reads clearly as "1" on
@@ -324,9 +327,17 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-[2%] w-[220px] sm:w-[280px] lg:right-[7%] lg:w-[340px] xl:right-[17%] xl:w-[420px]"
         >
-          <div className="absolute left-1/2 top-1/2 h-[70%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.07] blur-[80px]" />
+          <div className="absolute left-1/2 top-1/2 h-[80%] w-[150%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.16),transparent)]" />
           <div className="absolute bottom-[6%] left-1/2 h-[10%] w-[85%] -translate-x-1/2 rounded-full bg-black/50 blur-2xl" />
         </div>
+
+        {/* The showroom's glass floor: one lit hairline the whole runway
+            stands on, brightest under the active slot. Light only. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-[7%] h-px bg-gradient-to-r from-transparent via-white/[0.12] to-white/[0.04]" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-[7%] right-[2%] h-px w-[220px] bg-gradient-to-r from-transparent via-white/40 to-transparent sm:w-[280px] lg:right-[7%] lg:w-[340px] xl:right-[17%] xl:w-[420px]"
+        />
 
         {builds.map((build, i) => {
           let d = i - activeIndex;
@@ -365,9 +376,14 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
         })}
       </div>
 
-      <Container>
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-t border-border pt-6">
-          <div className="relative min-h-[64px] flex-1 basis-[280px]">
+      {/* Glass info dock — floats up over the runway's floor so the lit
+          floor line and the red pool frost through it. */}
+      <Container className="relative z-[150] -mt-10 sm:-mt-12">
+        <div className="glass flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-glass px-5 py-4 sm:px-7 sm:py-5">
+          {/* Entering and exiting captions share one grid cell, so the dock
+              always sizes to its content (a long name on a phone wraps
+              instead of spilling out of the pane). */}
+          <div className="grid min-h-[64px] flex-1 basis-[260px]">
             <AnimatePresence initial={false}>
               <BuildInfo key={activeBuild.slug} build={activeBuild} index={activeIndex} reduceMotion={reduceMotion} />
             </AnimatePresence>
@@ -382,7 +398,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
                 type="button"
                 aria-label="Previous build"
                 onClick={advanceLeft}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                className="btn-sheen btn-glass flex h-11 w-11 items-center justify-center rounded-full text-text-secondary hover:text-white"
               >
                 <span aria-hidden="true">&larr;</span>
               </button>
@@ -390,7 +406,7 @@ function PortfolioRunway({ reduceMotion }: { reduceMotion: boolean }) {
                 type="button"
                 aria-label="Next build"
                 onClick={advanceRight}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                className="btn-sheen btn-glass flex h-11 w-11 items-center justify-center rounded-full text-text-secondary hover:text-white"
               >
                 <span aria-hidden="true">&rarr;</span>
               </button>
@@ -430,12 +446,12 @@ function BuildInfo({
     <motion.div
       {...variants}
       transition={reduceMotion ? { duration: 0.15 } : { duration: 0.35, ease: EASE }}
-      className="absolute inset-0 flex flex-wrap items-baseline gap-x-3 gap-y-1"
+      className="flex flex-wrap content-center items-baseline gap-x-3 gap-y-1 [grid-area:1/1]"
     >
-      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
         {String(index + 1).padStart(2, "0")}
       </span>
-      <h3 className="font-display text-lg font-semibold text-text-primary sm:text-xl">
+      <h3 className="font-display text-lg font-semibold text-white sm:text-xl">
         {build.name}
       </h3>
       <p className="text-sm text-text-secondary">
@@ -443,7 +459,7 @@ function BuildInfo({
       </p>
       <Link
         href="/completed-builds"
-        className="group ml-auto inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors hover:text-accent sm:ml-0"
+        className="group ml-auto inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent transition-colors hover:text-white sm:ml-0"
       >
         View Build
         <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">

@@ -191,8 +191,8 @@ const sections: { id: string; title: string; body: React.ReactNode }[] = [
 export default function PoliciesPage() {
   return (
     <>
-      <section className="border-b border-border">
-        <Container className="py-16 sm:py-24">
+      <section className="relative">
+        <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
             align="left"
             eyebrow="Legal"
@@ -202,19 +202,19 @@ export default function PoliciesPage() {
         </Container>
       </section>
 
-      <section>
-        <Container className="py-16 sm:py-24">
-          <div className="flex flex-col gap-4 lg:flex-row lg:gap-16">
+      <section className="relative">
+        <Container className="py-12 sm:py-16">
+          <div className="flex flex-col gap-10 lg:flex-row lg:gap-16">
             <nav
               aria-label="Policy sections"
-              className="lg:sticky lg:top-24 lg:h-fit lg:w-56 lg:shrink-0"
+              className="glass-subtle rounded-glass p-2 lg:sticky lg:top-28 lg:h-fit lg:w-60 lg:shrink-0"
             >
-              <ul className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">
+              <ul className="flex flex-wrap gap-1 lg:flex-col">
                 {sections.map((section) => (
                   <li key={section.id}>
                     <a
                       href={`#${section.id}`}
-                      className="block rounded-lg px-3 py-2 text-sm text-text-secondary hover:bg-surface hover:text-accent"
+                      className="block rounded-xl px-3.5 py-2.5 text-sm text-text-secondary transition-colors hover:bg-white/[0.05] hover:text-white"
                     >
                       {section.title}
                     </a>
@@ -223,10 +223,11 @@ export default function PoliciesPage() {
               </ul>
             </nav>
 
-            <div className="flex flex-1 flex-col gap-14">
+            <div className="flex max-w-3xl flex-1 flex-col gap-14">
               {sections.map((section) => (
-                <div key={section.id} id={section.id} className="scroll-mt-24">
-                  <h2 className="font-display text-2xl font-bold">
+                <div key={section.id} id={section.id} className="scroll-mt-28">
+                  <h2 className="flex items-center gap-3 font-display text-2xl font-bold text-white">
+                    <span aria-hidden="true" className="h-5 w-[3px] rounded-full bg-gradient-to-b from-accent to-primary" />
                     {section.title}
                   </h2>
                   <div className="mt-4 flex flex-col gap-4 text-sm sm:text-base text-text-secondary [&_a]:underline [&_a]:underline-offset-2">

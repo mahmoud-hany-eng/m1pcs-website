@@ -12,7 +12,9 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
+    // creative/ holds standalone side projects (e.g. the Remotion showreel)
+    // with their own package.json and tooling — not part of the site.
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "creative/**"],
   },
 ];
 

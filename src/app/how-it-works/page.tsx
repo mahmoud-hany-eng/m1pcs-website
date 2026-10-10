@@ -17,7 +17,8 @@ export default function HowItWorksPage() {
     <>
       <HowItWorksExperience />
 
-      <section className="border-t border-border">
+      <section className="relative">
+        <div aria-hidden="true" className="hairline absolute inset-x-0 top-0" />
         <Container className="py-14 sm:py-20">
           <p className="mx-auto max-w-2xl text-center text-sm text-text-muted">
             {siteConfig.operations.depositNote} {siteConfig.operations.deliveryNote}

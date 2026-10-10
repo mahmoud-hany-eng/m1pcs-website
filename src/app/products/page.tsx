@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 export default function ProductsPage() {
   return (
     <>
-      <section className="border-b border-border">
-        <Container className="py-16 sm:py-24">
+      <section className="relative">
+        <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
             eyebrow="Products"
             title="Custom builds & components"
@@ -26,11 +26,16 @@ export default function ProductsPage() {
         </Container>
       </section>
 
-      <section>
-        <Container className="py-16 sm:py-24">
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category) => (
-              <CategoryCard key={category.slug} category={category} />
+      <section className="relative overflow-x-clip">
+        {/* Warm key light the grid of panes sits in. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-24 h-[640px] w-[min(1100px,140%)] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(231_50_37/0.11),transparent)]"
+        />
+        <Container className="relative py-12 sm:py-16">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+            {categories.map((category, i) => (
+              <CategoryCard key={category.slug} category={category} index={i} featured={i === 0} />
             ))}
           </div>
         </Container>

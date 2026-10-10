@@ -213,8 +213,10 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
 
           {/* progress */}
           <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center" style={{ height: metrics.top }}>
-            <div className="mt-5 h-[3px] w-[140px] overflow-hidden rounded-full bg-white/[0.12] sm:mt-6 sm:w-[220px]">
-              <div ref={bar} className="h-full w-full origin-left rounded-full bg-gradient-to-r from-accent to-primary" style={{ transform: "scaleX(0)" }} />
+            <div className="glass-subtle mt-3 flex items-center self-start rounded-full px-3 py-2 sm:mt-3.5 sm:px-4 sm:py-2.5">
+              <div className="h-[3px] w-[140px] overflow-hidden rounded-full bg-white/[0.12] sm:w-[220px]">
+                <div ref={bar} className="h-full w-full origin-left rounded-full bg-gradient-to-r from-accent to-primary" style={{ transform: "scaleX(0)" }} />
+              </div>
             </div>
           </div>
 
@@ -278,10 +280,10 @@ function Story3D({ enabled, onFail }: { enabled: boolean; onFail: () => void }) 
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
                     transition={{ duration: 0.35 }}
-                    className="flex items-center gap-3 rounded-full border border-white/15 bg-white/[0.06] py-2 pl-2 pr-4 text-left shadow-[0_10px_40px_-15px_rgba(0,0,0,0.9)] transition-colors hover:border-accent/50 hover:bg-white/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="glass-nav glass-tint-gold flex items-center gap-3 rounded-full border border-transparent py-2 pl-2 pr-4 text-left transition-colors hover:border-accent/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     aria-label={`Continue to the next step: ${next.headline}`}
                   >
-                    <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent text-black">
+                    <span className="btn-gold relative flex h-8 w-8 items-center justify-center rounded-full">
                       <motion.svg
                         viewBox="0 0 24 24"
                         className="h-4 w-4"
