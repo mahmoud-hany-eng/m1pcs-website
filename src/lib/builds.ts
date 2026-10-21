@@ -5,7 +5,7 @@ import type { CompletedBuild } from "@/types";
  * photos of each build (see /public/builds/). Ordered newest first — this
  * array order is what /completed-builds and the homepage "Built by M1."
  * gallery both render in, so do not reorder without also updating that
- * intent. Do not add builds beyond these 13 or invent pricing.
+ * intent. Do not add builds beyond these 15 or invent pricing.
  *
  * `imageScale`/`imageTranslateX`/`imageTranslateY` correct for each photo's
  * transparent canvas having a different amount of empty padding around the
@@ -16,6 +16,50 @@ import type { CompletedBuild } from "@/types";
  * photo is ever replaced.
  */
 export const completedBuilds: CompletedBuild[] = [
+  {
+    slug: "intel-core-ultra-270k-plus-rtx-5060-ti",
+    name: "Intel Core Ultra 270K Plus / RTX 5060 Ti Build",
+    cpu: "Intel Core Ultra 270K Plus",
+    cpuCooler: "NZXT Kraken Plus 240",
+    gpu: "NVIDIA RTX 5060 Ti 8GB",
+    ram: "32GB DDR5 7600MHz",
+    storage: "1TB M.2 SSD (7400MB/s)",
+    motherboard: "ASRock B860M WiFi",
+    psu: "650W 80+ Gold",
+    accessories: [
+      "7x ARGB fans (4 intake, 3 exhaust)",
+      "24-pin and 8-pin ARGB sleeves for PSU cables",
+      "Thermalright Trofeo Vision LCD White Sub-Display",
+    ],
+    description:
+      "A build pairing an Intel Core Ultra 270K Plus with an RTX 5060 Ti, finished with an NZXT Kraken Plus 240 liquid cooler, seven ARGB fans, ARGB-sleeved PSU cables and a Thermalright LCD sub-display.",
+    imageAlt:
+      "M1 completed gaming PC build with an Intel Core Ultra 270K Plus and NVIDIA RTX 5060 Ti, white glass-cube case with purple ARGB lighting, ARGB-sleeved cables and an LCD sub-display.",
+    imageSrc: "/builds/intel-core-ultra-270k-plus-rtx-5060-ti.webp",
+    imageScale: 0.96,
+    imageTranslateX: 0,
+    imageTranslateY: 0.4,
+  },
+  {
+    slug: "ryzen-5-9600x-rx-9060-xt",
+    name: "Ryzen 5 9600X / RX 9060 XT Build",
+    cpu: "AMD Ryzen 5 9600X",
+    cpuCooler: "Xigmatek AK4",
+    gpu: "AMD Radeon RX 9060 XT 16GB",
+    ram: "16GB DDR5 6000MHz",
+    storage: "512GB SSD",
+    motherboard: "ASRock B850M Pro RS WiFi",
+    psu: "650W 80+ Gold",
+    accessories: ["3x ARGB fans (2 intake, 1 exhaust)"],
+    description:
+      "An all-AMD build pairing a Ryzen 5 9600X with a Radeon RX 9060 XT 16GB, 16GB of DDR5 6000MHz and a Xigmatek AK4 air cooler.",
+    imageAlt:
+      "M1 completed gaming PC build with an AMD Ryzen 5 9600X and AMD Radeon RX 9060 XT, white case with blue ARGB lighting.",
+    imageSrc: "/builds/ryzen-5-9600x-rx-9060-xt.webp",
+    imageScale: 0.92,
+    imageTranslateX: 0,
+    imageTranslateY: 0.6,
+  },
   {
     slug: "ryzen-7-9800x3d-rtx-5080",
     name: "Ryzen 7 9800X3D / RTX 5080 Build",
