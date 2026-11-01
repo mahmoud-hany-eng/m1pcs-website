@@ -5,7 +5,7 @@ import type { CompletedBuild } from "@/types";
  * photos of each build (see /public/builds/). Ordered newest first — this
  * array order is what /completed-builds and the homepage "Built by M1."
  * gallery both render in, so do not reorder without also updating that
- * intent. Do not add builds beyond these 15 or invent pricing.
+ * intent. Do not add builds beyond these 16 or invent pricing.
  *
  * `imageScale`/`imageTranslateX`/`imageTranslateY` correct for each photo's
  * transparent canvas having a different amount of empty padding around the
@@ -16,6 +16,26 @@ import type { CompletedBuild } from "@/types";
  * photo is ever replaced.
  */
 export const completedBuilds: CompletedBuild[] = [
+  {
+    slug: "ryzen-7-9850x3d-rtx-5080",
+    name: "Ryzen 7 9850X3D / RTX 5080 Build",
+    cpu: "AMD Ryzen 7 9850X3D",
+    cpuCooler: "Lian Li HydroShift II LCD 360mm",
+    gpu: "MSI Gaming GeForce RTX 5080 16GB",
+    ram: "Patriot DDR5 32GB 6000MHz",
+    storage: "KingSpec 2TB M.2 Gen 4 SSD",
+    motherboard: "GIGABYTE B850 AORUS Elite",
+    psu: "ASRock White SL-850GW",
+    accessories: ["10x ARGB fans (6 intake, 4 exhaust)"],
+    description:
+      "A Ryzen 7 9850X3D and RTX 5080 build with a 360mm Lian Li HydroShift II LCD liquid cooler, 32GB of DDR5 6000MHz and a 10-fan ARGB layout.",
+    imageAlt:
+      "M1 completed gaming PC build with an AMD Ryzen 7 9850X3D and NVIDIA RTX 5080, white case with white-and-blue ARGB lighting and a 360mm LCD liquid cooler.",
+    imageSrc: "/builds/ryzen-7-9850x3d-rtx-5080.webp",
+    imageScale: 0.84,
+    imageTranslateX: 0,
+    imageTranslateY: 0.3,
+  },
   {
     slug: "intel-core-ultra-270k-plus-rtx-5060-ti",
     name: "Intel Core Ultra 270K Plus / RTX 5060 Ti Build",
