@@ -17,7 +17,7 @@ export function buildPageTitle(build: CompletedBuild): string {
 }
 
 export function buildPageDescription(build: CompletedBuild): string {
-  return `Completed custom gaming PC by M1 in Qatar: ${build.cpu} and ${build.gpu} on a ${build.motherboard} board. See the full parts list and request a similar build.`;
+  return `Completed custom gaming PC by M1 in Qatar: ${build.cpu} and ${build.gpu}, ${build.motherboard} motherboard. See the full parts list and request a similar build.`;
 }
 
 /** The (up to) `count` builds closest to `slug` in the newest-first list. */
