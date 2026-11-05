@@ -3,15 +3,16 @@ import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { ComplaintForm } from "@/components/forms/ComplaintForm";
+import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 import { buildGeneralContactMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
-export const metadata: Metadata = {
-  title: "Contact",
+export const metadata: Metadata = pageMetadata({
+  title: "Contact M1 Gaming PCs in Qatar",
   description:
-    "Contact M1 Gaming PCs in Qatar via WhatsApp, Instagram or email, or view official business information.",
-  alternates: { canonical: "/contact" },
-};
+    "Contact M1 Gaming PCs in Qatar via WhatsApp, Instagram or email for custom PC quotes and component enquiries, or view our official business information.",
+  path: "/contact",
+});
 
 export default function ContactPage() {
   const whatsappHref = buildWhatsAppLink(buildGeneralContactMessage());
@@ -21,6 +22,7 @@ export default function ContactPage() {
       <section className="relative">
         <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
+            as="h1"
             eyebrow="Contact"
             title="Get in touch"
             description="The fastest way to reach us is WhatsApp or Instagram. For formal enquiries and complaints, use email."

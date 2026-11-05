@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 
-export const metadata: Metadata = {
-  title: "Policies",
+export const metadata: Metadata = pageMetadata({
+  title: "Returns, Warranty & Delivery Policies",
   description:
     "Terms & Conditions, Privacy Policy, Returns & Exchanges, Warranty, Delivery, Payment, Cancellations and Complaints information for M1 Gaming PCs.",
-  alternates: { canonical: "/policies" },
-};
+  path: "/policies",
+});
 
 /**
  * Content notice for the business owner: every section reflects the real
@@ -194,6 +195,7 @@ export default function PoliciesPage() {
       <section className="relative">
         <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
+            as="h1"
             align="left"
             eyebrow="Legal"
             title="Policies"

@@ -11,10 +11,13 @@ export function CategoryCard({
   category,
   index,
   featured = false,
+  detailHref,
 }: {
   category: CategoryItem;
   index?: number;
   featured?: boolean;
+  /** Landing page for this category, when one exists (shown as a text link). */
+  detailHref?: string;
 }) {
   return (
     <div
@@ -32,6 +35,15 @@ export function CategoryCard({
           )}
         </div>
         <p className="text-sm leading-relaxed text-text-secondary">{category.description}</p>
+        {detailHref && (
+          // Raised above the card-wide "Request Current Price" overlay so both links stay clickable.
+          <Link
+            href={detailHref}
+            className="relative z-10 w-fit text-sm font-medium text-text-primary underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
+          >
+            Guide: {category.name} in Qatar
+          </Link>
+        )}
       </div>
       <Link
         href={`/build-my-pc?category=${encodeURIComponent(category.name)}`}

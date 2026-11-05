@@ -44,12 +44,18 @@ export function BuildImageFrame({
   scale = 1,
   translateX = 0,
   translateY = 0,
+  sizes = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw",
+  priority = false,
 }: {
   src: string;
   alt: string;
   scale?: number;
   translateX?: number;
   translateY?: number;
+  /** `sizes` hint for the responsive srcset (defaults to the 3-up card grid). */
+  sizes?: string;
+  /** Preload — only for the page's single largest above-the-fold image. */
+  priority?: boolean;
 }) {
   return (
     // No box behind the cutout — the PC stands directly on the card's glass;
@@ -61,7 +67,8 @@ export function BuildImageFrame({
         alt={alt}
         fill
         draggable={false}
-        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        sizes={sizes}
+        priority={priority}
         className="object-contain p-8 drop-shadow-[0_20px_24px_rgba(0,0,0,0.55)] sm:p-10"
         style={buildImageTransform({ scale, translateX, translateY })}
       />

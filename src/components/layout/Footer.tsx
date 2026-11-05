@@ -8,6 +8,17 @@ const exploreLinks = [
   { href: "/products", label: "Products" },
   { href: "/completed-builds", label: "Completed Builds" },
   { href: "/how-it-works", label: "How It Works" },
+  { href: "/guides", label: "Guides" },
+];
+
+const componentLinks = [
+  { href: "/products/gpus", label: "Graphics Cards (GPUs)" },
+  { href: "/products/cpus", label: "Processors (CPUs)" },
+  { href: "/products/motherboards", label: "Motherboards" },
+  { href: "/products/ram", label: "RAM" },
+  { href: "/products/ssd-storage", label: "SSDs & Storage" },
+  { href: "/products/cooling", label: "PC Cooling" },
+  { href: "/products/power-supplies", label: "Power Supplies" },
 ];
 
 const supportLinks = [
@@ -29,7 +40,7 @@ export function Footer() {
         className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(55%_100%_at_50%_0%,rgb(255_255_255/0.045),transparent_75%)]"
       />
       <Container className="relative py-12 sm:py-16">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex flex-col gap-4">
             <Link href="/" className="flex items-center gap-2 w-fit">
               <Image
@@ -53,6 +64,24 @@ export function Footer() {
             </h3>
             <ul className="flex flex-col gap-2">
               {exploreLinks.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-text-secondary hover:text-white transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+              Components
+            </h3>
+            <ul className="flex flex-col gap-2">
+              {componentLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}

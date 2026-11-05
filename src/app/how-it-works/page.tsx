@@ -3,14 +3,15 @@ import { Container } from "@/components/ui/Container";
 import { CTABlock } from "@/components/cta/CTABlock";
 import { Button } from "@/components/ui/Button";
 import { HowItWorksExperience } from "@/components/how-it-works/HowItWorksExperience";
+import { pageMetadata } from "@/lib/seo";
 import { siteConfig } from "@/lib/site-config";
 
-export const metadata: Metadata = {
-  title: "How It Works",
+export const metadata: Metadata = pageMetadata({
+  title: "How a Custom PC Order Works: Quote to Delivery",
   description:
-    "How M1's custom PC process works: pick your parts, review your quotation, confirm your order, U.S. sourcing, build and setup by M1, and delivery.",
-  alternates: { canonical: "/how-it-works" },
-};
+    "How M1's custom PC process works in Qatar: pick your parts, review your quotation, confirm your order, U.S. sourcing, build and setup by M1, and delivery.",
+  path: "/how-it-works",
+});
 
 export default function HowItWorksPage() {
   return (

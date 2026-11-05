@@ -36,7 +36,12 @@ export function BuildCard({ build }: { build: CompletedBuild }) {
 
       <div className="flex flex-1 flex-col gap-4 p-6">
         <h3 className="font-display text-lg font-semibold text-white">
-          {build.name}
+          <Link
+            href={`/completed-builds/${build.slug}`}
+            className="transition-colors hover:text-accent"
+          >
+            {build.name}
+          </Link>
         </h3>
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -49,6 +54,16 @@ export function BuildCard({ build }: { build: CompletedBuild }) {
         </dl>
 
         <p className="text-sm text-text-secondary">{build.description}</p>
+
+        <Link
+          href={`/completed-builds/${build.slug}`}
+          className="group inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent transition-colors hover:text-accent-hover"
+        >
+          View build details
+          <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+            &rarr;
+          </span>
+        </Link>
 
         {/* Native <details> — no client JS needed for this simple disclosure. */}
         <details className="group rounded-xl bg-white/[0.03] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)] open:pb-3">
