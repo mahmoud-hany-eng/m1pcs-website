@@ -30,3 +30,26 @@ export function nearbyBuilds(all: CompletedBuild[], slug: string, count = 3): Co
     .slice(0, count)
     .map(({ b }) => b);
 }
+
+/**
+ * Normalised graphics-card model key ("RTX 5060 TI", "RTX 5060", "RX 9060 XT"),
+ * so a card listed as "NVIDIA RTX 5060 Ti 8GB" and one listed as
+ * "NVIDIA RTX 5060 Ti" match, but a 5060 and a 5060 Ti do not.
+ */
+export function gpuModelKey(gpu: string): string | null {
+  const m = gpu.match(/\b(RTX|GTX|RX)\s?(\d{3,4})(?:\s?(Ti|XT))?\b/i);
+  return m ? `${m[1]} ${m[2]}${m[3] ? ` ${m[3]}` : ""}`.toUpperCase() : null;
+}
+
+/** Human label for the key, e.g. "RTX 5060 Ti". */
+export function gpuModelLabel(gpu: string): string | null {
+  const m = gpu.match(/\b(RTX|GTX|RX)\s?(\d{3,4})(?:\s?(Ti|XT))?\b/i);
+  return m ? `${m[1].toUpperCase()} ${m[2]}${m[3] ? ` ${m[3][0].toUpperCase()}${m[3].slice(1).toLowerCase()}` : ""}` : null;
+}
+
+/** Other completed builds that use the same graphics-card model, in list order. */
+export function sameGpuBuilds(all: CompletedBuild[], build: CompletedBuild): CompletedBuild[] {
+  const key = gpuModelKey(build.gpu);
+  if (!key) return [];
+  return all.filter((b) => b.slug !== build.slug && gpuModelKey(b.gpu) === key);
+}

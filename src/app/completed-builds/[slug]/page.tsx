@@ -10,8 +10,16 @@ import { Breadcrumbs } from "@/components/seo/Breadcrumbs";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { completedBuilds } from "@/lib/builds";
 import { categoryPages } from "@/lib/category-pages";
+import { getBuildNotes } from "@/lib/build-notes";
 import { BUILDS_DATA_UPDATED } from "@/lib/content-dates";
-import { buildPageDescription, buildPageTitle, buildShortName, nearbyBuilds } from "@/lib/build-seo";
+import {
+  buildPageDescription,
+  buildPageTitle,
+  buildShortName,
+  gpuModelLabel,
+  nearbyBuilds,
+  sameGpuBuilds,
+} from "@/lib/build-seo";
 import { buildOgPath, buildPageJsonLd, pageMetadata } from "@/lib/seo";
 
 /** Every completed build is known at build time; anything else is a 404. */
@@ -58,11 +66,14 @@ export default async function CompletedBuildPage({ params }: { params: Promise<P
   // The category pages for the parts in this build (descriptive, part-specific links).
   const partLinks = categoryPages.map((c) => ({
     href: `/products/${c.slug}`,
-    label: `${c.short} in Qatar`,
+    label: c.guideLabel,
     part: c.pick(build),
     partLabel: c.usedLabel,
   }));
   const related = nearbyBuilds(completedBuilds, build.slug, 3);
+  const notes = getBuildNotes(build.slug);
+  const sameGpu = sameGpuBuilds(completedBuilds, build);
+  const gpuLabel = gpuModelLabel(build.gpu);
 
   return (
     <>
@@ -115,9 +126,8 @@ export default async function CompletedBuildPage({ params }: { params: Promise<P
               <Eyebrow>Completed build</Eyebrow>
               <SectionHeading as="h1" align="left" title={build.name} description={build.description} />
               <p className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)]">
-                M1 configured and built this PC for a customer in Qatar, so this exact PC is not available to buy. Component
-                availability and pricing may have changed since it was completed — request a similar build and M1 will quote current
-                equivalent parts.
+                M1 built this PC for a customer in Qatar, so this exact PC is not available to buy. Parts pricing and availability may
+                have changed; request a similar build and M1 will quote current equivalents.
               </p>
             </div>
 
@@ -145,13 +155,54 @@ export default async function CompletedBuildPage({ params }: { params: Promise<P
         </Container>
       </section>
 
+      {notes && (
+        <section aria-labelledby="about-this-build" className="relative">
+          <Container className="py-10 sm:py-14">
+            <h2 id="about-this-build" className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              About this build
+            </h2>
+            <div className="mt-6 flex max-w-3xl flex-col gap-4 text-base text-text-secondary">
+              <p>
+                <strong className="font-semibold text-white">Platform and memory. </strong>
+                {notes.platform}
+              </p>
+              <p>
+                <strong className="font-semibold text-white">Cooling and airflow. </strong>
+                {notes.cooling}
+              </p>
+              <p>
+                <strong className="font-semibold text-white">Look. </strong>
+                {notes.look}
+              </p>
+              {notes.extras && (
+                <p>
+                  <strong className="font-semibold text-white">Extras. </strong>
+                  {notes.extras}
+                </p>
+              )}
+            </div>
+            {sameGpu.length > 0 && gpuLabel && (
+              <div className="mt-8 max-w-3xl">
+                <h3 className="font-display text-lg font-semibold text-white">Other builds with the {gpuLabel}</h3>
+                <ul className="mt-3 flex flex-col gap-2 text-sm text-text-secondary">
+                  {sameGpu.map((b) => (
+                    <li key={b.slug}>
+                      <Link href={`/completed-builds/${b.slug}`} className="font-medium text-accent transition-colors hover:text-accent-hover">
+                        {b.name}
+                      </Link>{" "}
+                      &mdash; {b.cpu} on a {b.motherboard} board, cooled by {b.cpuCooler}.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Container>
+        </section>
+      )}
+
       <section className="relative">
         <Container className="py-10 sm:py-14">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">About the parts in this build</h2>
-          <p className="mt-3 max-w-3xl text-text-secondary">
-            Each part below links to what to check before choosing that kind of component. M1 can quote the same parts or current
-            alternatives, and confirms pricing and availability for every request.
-          </p>
+          <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">Choosing parts like these</h2>
           <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {partLinks.map((p) => (
               <li key={p.href} className="glass glass-flat glass-interactive relative p-5">
@@ -204,7 +255,7 @@ export default async function CompletedBuildPage({ params }: { params: Promise<P
 
       <CTABlock
         title="Want a PC like this?"
-        description="Tell M1 your budget and goals and we'll quote a current configuration, with pricing and availability confirmed."
+        description={`Tell M1 what you would keep and what you would change from the ${short} and we'll quote a current configuration.`}
       >
         <Button href={`/build-my-pc?reference=${encodeURIComponent(build.name)}`} size="lg" className="w-full sm:w-auto">
           Request a similar build

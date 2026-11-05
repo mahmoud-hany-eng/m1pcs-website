@@ -191,7 +191,7 @@ export const guides: Guide[] = [
         blocks: [
           {
             type: "p",
-            text: "Good airflow is a steady path: cool air in through the front or bottom, hot air out through the rear and top. A common approach is slightly more intake than exhaust, which helps dust control when the intake fans have filters. Several M1 builds are listed with their fan layouts for exactly this reason, for example ten fans split six intake and four exhaust.",
+            text: "Good airflow is a steady path: cool air in through the front or bottom, hot air out through the rear and top. A common approach is slightly more intake than exhaust, which helps dust control when the intake fans have filters. Some of M1's completed builds list their fan layout, for example ten fans split six intake and four exhaust.",
           },
           {
             type: "ul",

@@ -117,6 +117,26 @@ export default async function CategoryPageRoute({ params }: { params: Promise<Pa
         </Container>
       </section>
 
+      <section aria-labelledby="quote-tips-title" className="relative">
+        <Container className="py-8 sm:py-12">
+          <h2 id="quote-tips-title" className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            What to tell M1 when you request {page.short} pricing
+          </h2>
+          <p className="mt-3 max-w-3xl text-text-secondary">
+            These are the questions the quote form asks for this category. Most are optional and several offer a &ldquo;not sure&rdquo;
+            answer, but the more you share, the closer the first quotation will be.
+          </p>
+          <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {page.quoteTips.map((tip) => (
+              <li key={tip.label} className="glass glass-flat flex flex-col gap-2 p-6">
+                <h3 className="font-display text-lg font-semibold text-white">{tip.label}</h3>
+                <p className="text-sm leading-relaxed text-text-secondary">{tip.why}</p>
+              </li>
+            ))}
+          </ul>
+        </Container>
+      </section>
+
       <section className="relative">
         <Container className="py-8 sm:py-12">
           <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
