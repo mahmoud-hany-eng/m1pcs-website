@@ -156,7 +156,7 @@ export function CinematicHero() {
               {...rise(0.05)}
               className="font-display text-[clamp(3.5rem,9vw,8rem)] font-bold leading-[0.95] tracking-tight text-white"
             >
-              <span className="block">Built</span>
+              <span className="block">Built</span>{" "}
               <span className="block">Different.</span>
             </motion.h1>
 

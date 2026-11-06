@@ -62,15 +62,20 @@ above is the more reliable equivalent of that flow.)
 
 ### Environment variables to enter in Vercel
 
-All four are safe to expose publicly (`NEXT_PUBLIC_*`) — none are secrets:
+All of these are safe to expose publicly (`NEXT_PUBLIC_*`) — none are secrets:
 
 | Variable | Required before going live | Purpose |
 |---|---|---|
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | **Yes** | Digits only, international format (e.g. `974XXXXXXXX`). Drives every WhatsApp CTA and the quote form. |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | Yes | Footer, Contact page, complaint form `mailto:`. |
 | `NEXT_PUBLIC_CONTACT_PHONE` | Yes | Display-only phone string. |
-| `NEXT_PUBLIC_SITE_URL` | Yes | Set to your real domain, e.g. `https://m1pcs.qa` — used for metadata, Open Graph, sitemap.xml, robots.txt. |
+| `NEXT_PUBLIC_SITE_URL` | Yes | The exact live origin, e.g. `https://monepcs.qa` (no path, no trailing slash) — used for canonical URLs, Open Graph, structured data, sitemap.xml and robots.txt. Set it on the **Production** environment. If unset it falls back to `https://monepcs.qa`. |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | No | Only if you verify Search Console with the HTML-tag method: paste the token Google gives you (the `content` value). Leave unset when using DNS domain-property verification. |
 | `NEXT_PUBLIC_ECOMMERCE_LICENCE_NUMBER` | No | Leave unset until the licence is issued; the field only renders once it has a real value. |
+
+Vercel Preview deployments are kept out of search results automatically
+(`robots.txt` disallows everything and an `X-Robots-Tag: noindex` header is
+sent when `VERCEL_ENV` is `preview`); Production is unaffected.
 
 No other environment variables, secrets, or API keys are required — this
 version has no database and no third-party services beyond WhatsApp deep

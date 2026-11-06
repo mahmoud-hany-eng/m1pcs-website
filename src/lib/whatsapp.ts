@@ -77,7 +77,7 @@ export function buildQuoteMessage(state: QuoteFormState): string {
   const notes = formatAnswer(general.additionalRequirements);
   const notesSection = notes ? ["Additional Notes:", notes] : [];
 
-  const footerSection = ["(Submitted via m1pcs.qa — this is a quote request, not an order.)"];
+  const footerSection = [`(Submitted via ${siteConfig.siteHost} — this is a quote request, not an order.)`];
 
   return [
     headerSection,
@@ -98,7 +98,7 @@ export function buildCategoryPriceMessage(categoryName: string): string {
   return [
     `Hi M1, I'd like the current price and availability for: *${categoryName}*.`,
     "",
-    "(Sent via m1pcs.qa)",
+    `(Sent via ${siteConfig.siteHost})`,
   ].join("\n");
 }
 
@@ -108,7 +108,7 @@ export function buildSimilarBuildMessage(buildName: string): string {
     `Hi M1, I'm interested in a build similar to: *${buildName}*.`,
     "Could you share current pricing and availability for equivalent components?",
     "",
-    "(Sent via m1pcs.qa)",
+    `(Sent via ${siteConfig.siteHost})`,
   ].join("\n");
 }
 

@@ -4,7 +4,9 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFloatingButton } from "@/components/layout/WhatsAppFloatingButton";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { siteConfig } from "@/lib/site-config";
+import { OG_SIZE, DEFAULT_OG_PATH, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -18,10 +20,15 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
-const title = "M1 Gaming PCs Qatar | Custom Gaming PCs & Computer Components";
+const title = "Custom Gaming PCs & Components in Qatar | M1 Gaming PCs";
 const description =
-  "Custom gaming PCs and computer components in Qatar. Tell M1 your budget and performance goals and request a current custom quotation.";
+  "M1 Gaming PCs builds custom gaming PCs and sources computer components in Qatar. Tell us your budget and performance goals and request a current quotation.";
 
+/**
+ * Site-wide defaults. Every page overrides title/description/canonical/openGraph
+ * through `pageMetadata()` (src/lib/seo.ts) so nothing here leaks a home-page
+ * og:url or og:title onto other routes.
+ */
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
@@ -29,13 +36,7 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.brand.name}`,
   },
   description,
-  keywords: [
-    "custom gaming PC Qatar",
-    "gaming PC Qatar",
-    "PC components Qatar",
-    "M1 Gaming PCs",
-    "build a PC Qatar",
-  ],
+  applicationName: siteConfig.brand.name,
   authors: [{ name: siteConfig.legal.registeredName }],
   openGraph: {
     type: "website",
@@ -44,29 +45,29 @@ export const metadata: Metadata = {
     siteName: siteConfig.brand.name,
     title,
     description,
-    images: [
-      {
-        url: "/logo.png",
-        width: 4500,
-        height: 5625,
-        alt: "M1 Gaming PCs logo",
-      },
-    ],
+    images: [{ url: DEFAULT_OG_PATH, ...OG_SIZE, alt: "M1 Gaming PCs — custom gaming PCs in Qatar" }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title,
     description,
-    images: ["/logo.png"],
+    images: [DEFAULT_OG_PATH],
   },
   icons: {
     icon: [
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/favicon-192.png", sizes: "192x192", type: "image/png" },
     ],
-    shortcut: "/favicon.png",
+    shortcut: "/favicon-48.png",
     apple: "/apple-icon.png",
   },
+  // Optional Search Console HTML-tag verification: only emitted when the
+  // environment variable is set (never a made-up token). Domain-property DNS
+  // verification needs no code at all and is the recommended route.
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export default function RootLayout({
@@ -83,6 +84,7 @@ export default function RootLayout({
         <main className="flex-1">{children}</main>
         <Footer />
         <WhatsAppFloatingButton />
+        <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
       </body>
     </html>
   );

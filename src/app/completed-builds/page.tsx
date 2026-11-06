@@ -4,21 +4,42 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { BuildCard } from "@/components/cards/BuildCard";
 import { CTABlock } from "@/components/cta/CTABlock";
 import { Button } from "@/components/ui/Button";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { completedBuilds } from "@/lib/builds";
+import { contentDates } from "@/lib/content-dates";
+import { itemListJsonLd, pageMetadata, webPageJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Completed Builds",
-  description:
-    "Browse examples of custom gaming PCs previously built by M1 in Qatar, and request a similar build.",
-  alternates: { canonical: "/completed-builds" },
-};
+const description =
+  "Browse custom gaming PCs M1 has built for customers in Qatar, with full parts lists for each build, and request a similar build with current pricing.";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Completed Custom Gaming PC Builds in Qatar",
+  description,
+  path: "/completed-builds",
+});
 
 export default function CompletedBuildsPage() {
   return (
     <>
+      <JsonLd
+        data={[
+          webPageJsonLd({
+            path: "/completed-builds",
+            name: "Completed custom gaming PC builds in Qatar",
+            description,
+            type: "CollectionPage",
+            dateModified: contentDates.completedBuilds,
+          }),
+          itemListJsonLd(
+            "Completed custom gaming PC builds",
+            completedBuilds.map((b) => ({ name: b.name, path: `/completed-builds/${b.slug}` }))
+          ),
+        ]}
+      />
       <section className="relative">
         <Container className="pb-4 pt-16 sm:pb-6 sm:pt-24">
           <SectionHeading
+            as="h1"
             eyebrow="Portfolio"
             title="Completed builds"
             description="A selection of PCs M1 has previously configured and built for real customers in Qatar."

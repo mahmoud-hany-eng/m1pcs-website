@@ -29,7 +29,22 @@ function formatQatarNumber(digits: string | null): string | null {
 }
 const contactEmail = cleanEnv(process.env.NEXT_PUBLIC_CONTACT_EMAIL);
 const contactPhone = cleanEnv(process.env.NEXT_PUBLIC_CONTACT_PHONE);
-const siteUrl = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
+/**
+ * Public production origin. `NEXT_PUBLIC_SITE_URL` wins when set (Vercel
+ * Production should set it to the live domain). Normalised to an origin with
+ * no trailing slash so every canonical / sitemap / Open Graph URL built from it
+ * is consistent.
+ */
+const DEFAULT_SITE_URL = "https://monepcs.qa";
+const siteUrlFromEnv = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
+const siteUrl = (() => {
+  if (!siteUrlFromEnv) return DEFAULT_SITE_URL;
+  try {
+    return new URL(siteUrlFromEnv).origin;
+  } catch {
+    return DEFAULT_SITE_URL;
+  }
+})();
 const ecommerceLicenceNumber = cleanEnv(
   process.env.NEXT_PUBLIC_ECOMMERCE_LICENCE_NUMBER
 );
@@ -97,11 +112,13 @@ export const siteConfig = {
       "Manufacturer warranty is available on products where applicable. Warranty periods vary by product, and many products come with warranties starting from 3 years.",
   },
 
-  /** Canonical production URL, no trailing slash. Falls back to a safe
-   * default for metadata generation even before a real domain is
-   * connected — this never needs to resolve over DNS for the site itself
-   * to build and run correctly. */
-  siteUrl: siteUrl || "https://m1pcs.qa",
+  /** Canonical production origin, no trailing slash. Falls back to the
+   * production domain (https://monepcs.qa) when NEXT_PUBLIC_SITE_URL is unset
+   * or invalid, so canonicals / sitemap / Open Graph URLs never point at a
+   * different domain. */
+  siteUrl,
+  /** Bare host of `siteUrl` (e.g. "monepcs.qa"), for human-readable text. */
+  siteHost: new URL(siteUrl).host,
 } as const;
 
 export type SiteConfig = typeof siteConfig;
@@ -116,6 +133,12 @@ if (typeof window === "undefined") {
     !contactEmail && "NEXT_PUBLIC_CONTACT_EMAIL",
     !contactPhone && "NEXT_PUBLIC_CONTACT_PHONE",
   ].filter(Boolean);
+
+  if (!siteUrlFromEnv && process.env.NODE_ENV === "production") {
+    console.warn(
+      `[m1-config] NEXT_PUBLIC_SITE_URL is not set — falling back to ${DEFAULT_SITE_URL} for canonical, sitemap and Open Graph URLs. Set it on the Vercel Production environment to the exact live origin.`
+    );
+  }
 
   if (missing.length > 0) {
     console.warn(

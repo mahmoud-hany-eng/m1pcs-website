@@ -458,7 +458,7 @@ function BuildInfo({
         {build.cpu} &middot; {build.gpu}
       </p>
       <Link
-        href="/completed-builds"
+        href={`/completed-builds/${build.slug}`}
         className="group ml-auto inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent transition-colors hover:text-white sm:ml-0"
       >
         View Build
