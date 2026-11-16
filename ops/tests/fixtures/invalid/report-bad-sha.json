@@ -1,0 +1,72 @@
+{
+  "schema_version": "1",
+  "report_kind": "claude_run_report",
+  "task_id": "OPS-9001",
+  "attempt_id": "OPS-9001-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": null,
+    "url": null
+  },
+  "branch": "claude/ops-9001-example-guide",
+  "base_branch": "claude-dev",
+  "base_sha": "1111111111111111111111111111111111111111",
+  "head_sha": "abc123",
+  "started_at": "2026-01-02T03:10:00Z",
+  "finished_at": "2026-01-02T03:40:00Z",
+  "outcome": "completed",
+  "summary": "Added the example guide and ran the required lint check, which passed.",
+  "commits": [
+    {
+      "sha": "2222222222222222222222222222222222222222",
+      "subject": "Add example guide"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "docs/guides/example.md",
+      "change_type": "added",
+      "additions": 12,
+      "deletions": 0
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 12.5,
+      "output_excerpt": "no problems found",
+      "output_sha256": null,
+      "notes": ""
+    }
+  ],
+  "risk": {
+    "declared_class": "A",
+    "categories": [
+      "docs_only"
+    ],
+    "rationale": "Documentation file only."
+  },
+  "protected_paths_touched": [],
+  "deviations": [],
+  "unresolved_issues": [],
+  "assumptions": [],
+  "questions_for_human": [],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "The task is complete and ready for review.",
+    "suggested_next_task_title": null
+  }
+}
