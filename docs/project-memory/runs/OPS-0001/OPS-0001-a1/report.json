@@ -1,0 +1,706 @@
+{
+  "schema_version": "1",
+  "report_kind": "claude_run_report",
+  "task_id": "OPS-0001",
+  "attempt_id": "OPS-0001-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0001-foundation",
+  "base_branch": "claude-dev",
+  "base_sha": "b7348bb1c347790a4917d822960134363669efd6",
+  "head_sha": "2e2a0865091e5b260db72170e307f5161df83f86",
+  "started_at": "2026-11-16T23:23:17Z",
+  "finished_at": "2026-11-16T23:47:14Z",
+  "outcome": "completed",
+  "summary": "Created the shared project memory (requirements with stable ids, recommendations kept apart from confirmed requirements, 30 open questions, 9 human decisions, 8 proposed ADRs, roadmap), the root CLAUDE.md worker protocol, the architect reviewer prompt, strict JSON schemas for tasks, run reports, architect decisions and the policy, a deterministic policy.json, and a zero-dependency offline validator (ops/validate-memory.mjs plus two libraries) with 144 tests, 3 valid and 32 invalid fixtures. The work was done in an isolated worktree on a new local branch based on the remote integration branch, leaving the main working tree, the unpushed Reel commits and creative/ untouched. No workflow, secret, environment, external call or website change was made, and nothing was pushed. Lint, type check and production build pass and match the pristine baseline; the memory validator and its tests pass.",
+  "commits": [
+    {
+      "sha": "53a0a662eb43956aabe4460caeb3d56f787dd957",
+      "subject": "OPS-0001: shared project memory and Claude worker protocol"
+    },
+    {
+      "sha": "4bf039d32456fabcf62ded6768eba3cc5ac5ba0b",
+      "subject": "OPS-0001: strict schemas and deterministic policy"
+    },
+    {
+      "sha": "2e2a0865091e5b260db72170e307f5161df83f86",
+      "subject": "OPS-0001: offline project-memory validator with tests and fixtures"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "CLAUDE.md",
+      "change_type": "added",
+      "additions": 131,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "added",
+      "additions": 69,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+      "change_type": "added",
+      "additions": 65,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "added",
+      "additions": 74,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0001-git-as-shared-project-memory.md",
+      "change_type": "added",
+      "additions": 21,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0002-github-actions-as-sole-orchestrator.md",
+      "change_type": "added",
+      "additions": 22,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0003-privilege-separation.md",
+      "change_type": "added",
+      "additions": 26,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0004-branch-model-and-promotion.md",
+      "change_type": "added",
+      "additions": 23,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0005-deterministic-policy-and-risk-classes.md",
+      "change_type": "added",
+      "additions": 28,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0006-reports-are-claims.md",
+      "change_type": "added",
+      "additions": 23,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0007-task-delivery-by-file-and-completion-by-artifacts.md",
+      "change_type": "added",
+      "additions": 23,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0008-loyalty-as-append-only-ledger.md",
+      "change_type": "added",
+      "additions": 24,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "added",
+      "additions": 61,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "added",
+      "additions": 194,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "added",
+      "additions": 239,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+      "change_type": "added",
+      "additions": 74,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "added",
+      "additions": 39,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/architect-decision.schema.json",
+      "change_type": "added",
+      "additions": 647,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/policy.schema.json",
+      "change_type": "added",
+      "additions": 1393,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/run-report.schema.json",
+      "change_type": "added",
+      "additions": 541,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/task.schema.json",
+      "change_type": "added",
+      "additions": 315,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0001-shared-project-memory.md",
+      "change_type": "added",
+      "additions": 138,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/tasks/TEMPLATE.md",
+      "change_type": "added",
+      "additions": 55,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/json-schema.mjs",
+      "change_type": "added",
+      "additions": 238,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/policy.mjs",
+      "change_type": "added",
+      "additions": 151,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures.test.mjs",
+      "change_type": "added",
+      "additions": 41,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-advisory-flag-false.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-approve-with-blocker.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-confidence-out-of-range.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-lowers-class.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-needs-human-without-reason.json",
+      "change_type": "added",
+      "additions": 57,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-next-task-mismatch.json",
+      "change_type": "added",
+      "additions": 57,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-proposal-class-too-low.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-unknown-verdict.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-attempt-mismatch.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-attestation-contradicted.json",
+      "change_type": "added",
+      "additions": 80,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-bad-sha.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-claims-verified.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-class-lowered.json",
+      "change_type": "added",
+      "additions": 78,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-extra-property.json",
+      "change_type": "added",
+      "additions": 73,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-failed-required-check.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-head-mismatch.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-missing-required-check.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-outside-scope.json",
+      "change_type": "added",
+      "additions": 78,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-passed-nonzero-exit.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-protected-undeclared.json",
+      "change_type": "added",
+      "additions": 78,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-time-reversed.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-wrong-trust-level.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-bad-id.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-branch-mismatch.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-class-c.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-class-too-low.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-extra-property.json",
+      "change_type": "added",
+      "additions": 45,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-immutable-path.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-leading-wildcard.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-missing-objective.json",
+      "change_type": "added",
+      "additions": 43,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-too-many-attempts.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-unknown-prefix.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/manifest.json",
+      "change_type": "added",
+      "additions": 261,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/valid/architect-decision.json",
+      "change_type": "added",
+      "additions": 87,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/valid/run-report.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/valid/task.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/helpers.mjs",
+      "change_type": "added",
+      "additions": 108,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/json-schema.test.mjs",
+      "change_type": "added",
+      "additions": 93,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/policy.test.mjs",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/validate-memory.test.mjs",
+      "change_type": "added",
+      "additions": 440,
+      "deletions": 0
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "added",
+      "additions": 939,
+      "deletions": 0
+    },
+    {
+      "path": "package.json",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 1
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint-baseline",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 3,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Baseline before any change: pristine origin/claude-dev (b7348bb) in a throwaway worktree, dependencies installed with npm ci."
+    },
+    {
+      "check_id": "typecheck-baseline",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 4,
+      "output_excerpt": "(no output; tsc prints nothing on success)",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Baseline before any change: pristine origin/claude-dev (b7348bb) in a throwaway worktree, dependencies installed with npm ci."
+    },
+    {
+      "check_id": "build-baseline",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 23,
+      "output_excerpt": "  ├ chunks/4bd1b696-c023c6e3521b1417.js                         54.2 kB\n  └ other shared chunks (total)                                 2.06 kB\n○  (Static)  prerendered as static content\n●  (SSG)     prerendered as static HTML (uses generateStaticParams)",
+      "output_sha256": "5bee680d20bc5cfe84138943468cf01dae0c2e70e069670164cfabf00592da38",
+      "notes": "Baseline before any change: pristine origin/claude-dev (b7348bb) in a throwaway worktree, dependencies installed with npm ci."
+    },
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 9.4,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 6.4,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 26.2,
+      "output_excerpt": "   Generating static pages (0/56) ...\n   Generating static pages (14/56) \r\n   Generating static pages (28/56) \r\n   Generating static pages (42/56) \r\n ✓ Generating static pages (56/56)\n+ First Load JS shared by all                                    103 kB\n○  (Static)  prerendered as static content\n●  (SSG)     prerendered as static HTML (uses generateStaticParams)",
+      "output_sha256": "d4001426a81d3b513dd7f6852f03d494e7197b40d29f616def16b31540d3f0dd",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.2,
+      "output_excerpt": "OK: checked 67 file(s); 0 warning(s).",
+      "output_sha256": "a0833a69f5357862c6644ac76099dd5990a48cb072bfdaf7c92d23b1c37f90a9",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 1.7,
+      "output_excerpt": "# tests 144\n# pass 144\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "cf618f596739f6a70f69dfc1263f81587b97ac51d1400c4abde2d020505798ef",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "build-output-unchanged",
+      "command": "ad hoc: build pristine origin/claude-dev, then the same tree plus the OPS-0001 files at the SAME path; compare chunks, HTML and routes",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "chunk-content digest identical (268a2aaa077d046a); asset file names identical; 35 of 35 prerendered HTML files identical after normalising the random build id; robots.txt and sitemap.xml identical; route table and bundle sizes identical.",
+      "output_sha256": null,
+      "notes": "Not a single command. A first comparison at two different paths showed differing hashes, and a second pristine tree at a third path differed from both, so this Next.js build depends on the checkout path; only the same-path comparison is meaningful. src/, public/ and the tracked configuration are byte-identical to the base."
+    },
+    {
+      "check_id": "validator-mutation-sanity",
+      "command": "ad hoc: break 7 validator behaviours one at a time in a scratch copy (sed) and run npm run ops:test each time",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "baseline 144 pass/0 fail. Sabotaged maxClass: 22 fail. Ignored additionalProperties: 3 fail. Disabled the secret scan: 10 fail. Removed the report scope check: 3 fail. Removed control-plane explicitness: 1 fail. Removed golden path check: 3 fail. Removed the trust const: 3 fail.",
+      "output_sha256": null,
+      "notes": "Shows the tests detect real breakage. Passed means every sabotage was caught. The scratch copy was deleted."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git -C /home/user/m1pcs-website status/rev-parse/rev-list/diff/stash list; git ls-remote --heads origin 'claude/*'",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree still on claude-dev at 187e045, 8 commits ahead of origin/claude-dev, 0 stash entries; its only uncommitted change is the original mode flip 100644 to 100755 on creative/motion-ad/scripts/deliver-v8.sh with 0 content lines; no claude/* branch exists on the remote; the task branch has no upstream.",
+      "output_sha256": null,
+      "notes": "Observed after the commits, before this report was written."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "docs_only",
+      "policy_or_schema",
+      "tests_only",
+      "dependencies"
+    ],
+    "rationale": "The work touches control-plane files (CLAUDE.md, ops/, policy, schemas, architect prompt), governed memory and package.json, which policy classes as B. No class C path was touched."
+  },
+  "protected_paths_touched": [
+    "CLAUDE.md",
+    "docs/project-memory/README.md",
+    "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/adr/0001-git-as-shared-project-memory.md",
+    "docs/project-memory/architecture/adr/0002-github-actions-as-sole-orchestrator.md",
+    "docs/project-memory/architecture/adr/0003-privilege-separation.md",
+    "docs/project-memory/architecture/adr/0004-branch-model-and-promotion.md",
+    "docs/project-memory/architecture/adr/0005-deterministic-policy-and-risk-classes.md",
+    "docs/project-memory/architecture/adr/0006-reports-are-claims.md",
+    "docs/project-memory/architecture/adr/0007-task-delivery-by-file-and-completion-by-artifacts.md",
+    "docs/project-memory/architecture/adr/0008-loyalty-as-append-only-ledger.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/architect-decision.schema.json",
+    "docs/project-memory/schemas/policy.schema.json",
+    "docs/project-memory/schemas/run-report.schema.json",
+    "docs/project-memory/schemas/task.schema.json",
+    "docs/project-memory/tasks/OPS-0001-shared-project-memory.md",
+    "docs/project-memory/tasks/TEMPLATE.md",
+    "ops/lib/json-schema.mjs",
+    "ops/lib/policy.mjs",
+    "ops/tests/fixtures.test.mjs",
+    "ops/tests/fixtures/invalid/decision-advisory-flag-false.json",
+    "ops/tests/fixtures/invalid/decision-approve-with-blocker.json",
+    "ops/tests/fixtures/invalid/decision-confidence-out-of-range.json",
+    "ops/tests/fixtures/invalid/decision-lowers-class.json",
+    "ops/tests/fixtures/invalid/decision-needs-human-without-reason.json",
+    "ops/tests/fixtures/invalid/decision-next-task-mismatch.json",
+    "ops/tests/fixtures/invalid/decision-proposal-class-too-low.json",
+    "ops/tests/fixtures/invalid/decision-unknown-verdict.json",
+    "ops/tests/fixtures/invalid/report-attempt-mismatch.json",
+    "ops/tests/fixtures/invalid/report-attestation-contradicted.json",
+    "ops/tests/fixtures/invalid/report-bad-sha.json",
+    "ops/tests/fixtures/invalid/report-claims-verified.json",
+    "ops/tests/fixtures/invalid/report-class-lowered.json",
+    "ops/tests/fixtures/invalid/report-extra-property.json",
+    "ops/tests/fixtures/invalid/report-failed-required-check.json",
+    "ops/tests/fixtures/invalid/report-head-mismatch.json",
+    "ops/tests/fixtures/invalid/report-missing-required-check.json",
+    "ops/tests/fixtures/invalid/report-outside-scope.json",
+    "ops/tests/fixtures/invalid/report-passed-nonzero-exit.json",
+    "ops/tests/fixtures/invalid/report-protected-undeclared.json",
+    "ops/tests/fixtures/invalid/report-time-reversed.json",
+    "ops/tests/fixtures/invalid/report-wrong-trust-level.json",
+    "ops/tests/fixtures/invalid/task-bad-id.json",
+    "ops/tests/fixtures/invalid/task-branch-mismatch.json",
+    "ops/tests/fixtures/invalid/task-class-c.json",
+    "ops/tests/fixtures/invalid/task-class-too-low.json",
+    "ops/tests/fixtures/invalid/task-extra-property.json",
+    "ops/tests/fixtures/invalid/task-immutable-path.json",
+    "ops/tests/fixtures/invalid/task-leading-wildcard.json",
+    "ops/tests/fixtures/invalid/task-missing-objective.json",
+    "ops/tests/fixtures/invalid/task-too-many-attempts.json",
+    "ops/tests/fixtures/invalid/task-unknown-prefix.json",
+    "ops/tests/fixtures/manifest.json",
+    "ops/tests/fixtures/valid/architect-decision.json",
+    "ops/tests/fixtures/valid/run-report.json",
+    "ops/tests/fixtures/valid/task.json",
+    "ops/tests/helpers.mjs",
+    "ops/tests/json-schema.test.mjs",
+    "ops/tests/policy.test.mjs",
+    "ops/tests/validate-memory.test.mjs",
+    "ops/validate-memory.mjs",
+    "package.json"
+  ],
+  "deviations": [
+    {
+      "description": "Added a fourth schema, policy.schema.json, beyond the three requested.",
+      "reason": "policy.json is enforced by code, so it needs the same strict contract as the other documents."
+    },
+    {
+      "description": "Modified the existing package.json to add two scripts, ops:validate and ops:test. No dependency, script or config entry was changed or removed.",
+      "reason": "The validator and its tests need a standard way to run; the task also asked to keep compatibility with the existing setup. This is the only existing file that changed."
+    },
+    {
+      "description": "The ops:test script passes a shell glob (ops/tests/*.test.mjs) instead of a directory.",
+      "reason": "Node 22 treats a directory argument as a module and fails; a glob works on all supported Node versions."
+    },
+    {
+      "description": "Held the public site (ui_public_site) at class B in the policy, although the Phase 0 audit suggested UI changes could be class A.",
+      "reason": "No automated visual-regression baselines exist yet, so automatic approval would be unsafe; recorded as OQ-0027."
+    },
+    {
+      "description": "Also committed a task record for OPS-0001 and this run report so the contracts are exercised on a real task.",
+      "reason": "Dogfooding the task and report formats shows they are practical and validates them on real data."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "minor",
+      "category": "build_config",
+      "description": "The Next.js production build is not reproducible across checkout paths: two pristine checkouts at different paths produce different chunk hashes, while the same path is reproducible. Any future build-output comparison (for example visual or bundle regression in CI) must compare builds at the same path."
+    },
+    {
+      "severity": "info",
+      "category": "external_api_integration",
+      "description": "Whether the architect decision schema is accepted by the OpenAI Responses API in strict structured-output mode is unverified, because the OpenAI documentation could not be fetched from this environment. It must be contract-tested before stage STG-4 relies on it."
+    },
+    {
+      "severity": "info",
+      "category": "policy_or_schema",
+      "description": "policy.json is draft_pending_human_review and all ADRs are proposed, because the Phase 0 modifications have not been itemised (OQ-0020). All limit and budget values are recommendations, not decisions."
+    },
+    {
+      "severity": "info",
+      "category": "build_config",
+      "description": "The ops:test script relies on shell glob expansion and may not work in a Windows cmd shell; CI and this environment use sh."
+    }
+  ],
+  "assumptions": [
+    "The 'appropriate clean remote integration baseline' is origin/claude-dev (b7348bb), the integration branch in the Phase 0 branch model. It differs from origin/main only by the 140 creative/ files; website source and configuration are byte-identical between the two.",
+    "A separate worktree outside the repository directory is an acceptable form of isolation.",
+    "The task record and the run report may be committed on this branch as part of the task."
+  ],
+  "questions_for_human": [
+    "Please itemise the modifications intended when the Phase 0 audits were approved with modifications (OQ-0020), so the ADRs and policy can be ratified.",
+    "Is the small package.json change (two script lines) acceptable, or should the validator be run only with node directly?",
+    "Should the worktree at /home/user/m1pcs-ops-0001 be kept for your review, or removed afterwards (the branch itself stays in the repository either way)?",
+    "Do you authorise pushing claude/ops-0001-foundation for review (no push has been made, and none is authorised)?"
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "The task is complete on the local branch. A human should review the contracts and policy, itemise the Phase 0 modifications, and decide on pushing before any further stage starts.",
+    "suggested_next_task_title": "OPS-0002: CI baseline and unprivileged validation workflow (stage STG-3, first part)"
+  }
+}
