@@ -1,0 +1,1393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "m1-ops/policy.schema.json",
+  "title": "M1 deterministic policy",
+  "description": "Strict contract for docs/project-memory/policy/policy.json. Risk classes are computed from this file by trusted code, never from a model's self-classification.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Stable policy identifier.",
+      "minLength": 3,
+      "maxLength": 80
+    },
+    "policy_version": {
+      "type": "string",
+      "description": "Semantic version of the policy.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft_pending_human_review",
+        "active"
+      ],
+      "description": "Only a human may set active."
+    },
+    "owner": {
+      "const": "human",
+      "description": "This file is human-owned. Workers and models may propose changes but never approve them."
+    },
+    "provenance": {
+      "type": "string",
+      "description": "Where the initial values come from and what is still undecided.",
+      "minLength": 10,
+      "maxLength": 1500
+    },
+    "task_id_prefixes": {
+      "type": "array",
+      "description": "Allowed task id prefixes.",
+      "items": {
+        "type": "string",
+        "description": "A task id prefix.",
+        "pattern": "^[A-Z]{3,5}$"
+      },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "branches": {
+      "type": "object",
+      "description": "Branch model.",
+      "properties": {
+        "production": {
+          "type": "string",
+          "description": "Production branch. Merging into it is the production deploy.",
+          "minLength": 1
+        },
+        "integration": {
+          "type": "string",
+          "description": "Integration branch (preview deployments only).",
+          "minLength": 1
+        },
+        "worker_branch_prefix": {
+          "const": "claude/",
+          "description": "Prefix of every worker branch."
+        },
+        "worker_may_push": {
+          "type": "array",
+          "description": "Branches a worker may push to when pushing is authorized.",
+          "items": {
+            "$ref": "#/$defs/glob_pattern"
+          },
+          "minItems": 1
+        },
+        "worker_must_not_push": {
+          "type": "array",
+          "description": "Branches a worker must never push to.",
+          "items": {
+            "type": "string",
+            "description": "A branch name."
+          },
+          "minItems": 1
+        },
+        "merge_into_integration": {
+          "type": "string",
+          "enum": [
+            "orchestrator_after_all_gates_pass",
+            "human_only"
+          ],
+          "description": "Who may merge into the integration branch."
+        },
+        "merge_into_production": {
+          "const": "human_only",
+          "description": "Always human-only."
+        },
+        "force_push": {
+          "const": "never",
+          "description": "Force pushes are never allowed."
+        },
+        "pushes_currently_authorized": {
+          "type": "boolean",
+          "description": "False until a human records a standing push authorization in HUMAN_DECISIONS.md and flips this value."
+        }
+      },
+      "required": [
+        "production",
+        "integration",
+        "worker_branch_prefix",
+        "worker_may_push",
+        "worker_must_not_push",
+        "merge_into_integration",
+        "merge_into_production",
+        "force_push",
+        "pushes_currently_authorized"
+      ],
+      "additionalProperties": false
+    },
+    "risk_classes": {
+      "type": "object",
+      "description": "Risk classes.",
+      "properties": {
+        "A": {
+          "type": "object",
+          "description": "Class A.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Short name.",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "description": {
+              "type": "string",
+              "description": "What belongs in this class.",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "approval": {
+              "type": "string",
+              "enum": [
+                "automatic_when_all_gates_pass",
+                "human_approval_before_run",
+                "never_autonomous"
+              ],
+              "description": "Approval model."
+            },
+            "runs_without_human_approval": {
+              "type": "boolean",
+              "description": "True if the orchestrator may start a task of this class without a human approval."
+            },
+            "may_auto_merge_to_integration": {
+              "type": "boolean",
+              "description": "True if the orchestrator may merge into the integration branch without a human."
+            },
+            "max_changed_files": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            },
+            "max_changed_lines": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "approval",
+            "runs_without_human_approval",
+            "may_auto_merge_to_integration",
+            "max_changed_files",
+            "max_changed_lines"
+          ],
+          "additionalProperties": false
+        },
+        "B": {
+          "type": "object",
+          "description": "Class B.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Short name.",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "description": {
+              "type": "string",
+              "description": "What belongs in this class.",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "approval": {
+              "type": "string",
+              "enum": [
+                "automatic_when_all_gates_pass",
+                "human_approval_before_run",
+                "never_autonomous"
+              ],
+              "description": "Approval model."
+            },
+            "runs_without_human_approval": {
+              "type": "boolean",
+              "description": "True if the orchestrator may start a task of this class without a human approval."
+            },
+            "may_auto_merge_to_integration": {
+              "type": "boolean",
+              "description": "True if the orchestrator may merge into the integration branch without a human."
+            },
+            "max_changed_files": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            },
+            "max_changed_lines": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "approval",
+            "runs_without_human_approval",
+            "may_auto_merge_to_integration",
+            "max_changed_files",
+            "max_changed_lines"
+          ],
+          "additionalProperties": false
+        },
+        "C": {
+          "type": "object",
+          "description": "Class C.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Short name.",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "description": {
+              "type": "string",
+              "description": "What belongs in this class.",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "approval": {
+              "type": "string",
+              "enum": [
+                "automatic_when_all_gates_pass",
+                "human_approval_before_run",
+                "never_autonomous"
+              ],
+              "description": "Approval model."
+            },
+            "runs_without_human_approval": {
+              "type": "boolean",
+              "description": "True if the orchestrator may start a task of this class without a human approval."
+            },
+            "may_auto_merge_to_integration": {
+              "type": "boolean",
+              "description": "True if the orchestrator may merge into the integration branch without a human."
+            },
+            "max_changed_files": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            },
+            "max_changed_lines": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "Cap for automatic handling, or null."
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "approval",
+            "runs_without_human_approval",
+            "may_auto_merge_to_integration",
+            "max_changed_files",
+            "max_changed_lines"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "A",
+        "B",
+        "C"
+      ],
+      "additionalProperties": false
+    },
+    "risk_categories": {
+      "type": "object",
+      "description": "Every risk category with its minimum class.",
+      "properties": {
+        "docs_only": {
+          "type": "object",
+          "description": "Category docs_only.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "tests_only": {
+          "type": "object",
+          "description": "Category tests_only.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "ui_public_site": {
+          "type": "object",
+          "description": "Category ui_public_site.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "build_config": {
+          "type": "object",
+          "description": "Category build_config.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "dependencies": {
+          "type": "object",
+          "description": "Category dependencies.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "ci_workflows": {
+          "type": "object",
+          "description": "Category ci_workflows.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "ops_control_plane": {
+          "type": "object",
+          "description": "Category ops_control_plane.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "policy_or_schema": {
+          "type": "object",
+          "description": "Category policy_or_schema.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "auth_or_sessions": {
+          "type": "object",
+          "description": "Category auth_or_sessions.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "database_schema": {
+          "type": "object",
+          "description": "Category database_schema.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "rls_or_authorization": {
+          "type": "object",
+          "description": "Category rls_or_authorization.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "loyalty_or_finance_logic": {
+          "type": "object",
+          "description": "Category loyalty_or_finance_logic.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "customer_data": {
+          "type": "object",
+          "description": "Category customer_data.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "external_api_integration": {
+          "type": "object",
+          "description": "Category external_api_integration.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "scope_creep": {
+          "type": "object",
+          "description": "Category scope_creep.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "other": {
+          "type": "object",
+          "description": "Category other.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "secrets_or_credentials": {
+          "type": "object",
+          "description": "Category secrets_or_credentials.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "production_deploy": {
+          "type": "object",
+          "description": "Category production_deploy.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "billing_or_paid_service": {
+          "type": "object",
+          "description": "Category billing_or_paid_service.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "destructive_operation": {
+          "type": "object",
+          "description": "Category destructive_operation.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "infrastructure_settings": {
+          "type": "object",
+          "description": "Category infrastructure_settings.",
+          "properties": {
+            "minimum_class": {
+              "$ref": "#/$defs/risk_class"
+            },
+            "description": {
+              "type": "string",
+              "description": "What this category covers.",
+              "minLength": 5,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "minimum_class",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "docs_only",
+        "tests_only",
+        "ui_public_site",
+        "build_config",
+        "dependencies",
+        "ci_workflows",
+        "ops_control_plane",
+        "policy_or_schema",
+        "auth_or_sessions",
+        "database_schema",
+        "rls_or_authorization",
+        "loyalty_or_finance_logic",
+        "customer_data",
+        "external_api_integration",
+        "scope_creep",
+        "other",
+        "secrets_or_credentials",
+        "production_deploy",
+        "billing_or_paid_service",
+        "destructive_operation",
+        "infrastructure_settings"
+      ],
+      "additionalProperties": false
+    },
+    "path_rules": {
+      "type": "array",
+      "description": "Path rules applied to the actual changed paths.",
+      "items": {
+        "type": "object",
+        "description": "A path rule. All matching rules apply; the highest minimum class and the most restrictive restriction win.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Rule identifier.",
+            "pattern": "^PATH-[0-9]{3}$"
+          },
+          "patterns": {
+            "type": "array",
+            "description": "Globs the rule applies to.",
+            "items": {
+              "$ref": "#/$defs/glob_pattern_or_wild"
+            },
+            "minItems": 1
+          },
+          "exclude": {
+            "type": "array",
+            "description": "Globs excluded from the rule.",
+            "items": {
+              "$ref": "#/$defs/glob_pattern_or_wild"
+            }
+          },
+          "category": {
+            "$ref": "#/$defs/risk_category"
+          },
+          "restriction": {
+            "type": "string",
+            "enum": [
+              "none",
+              "protected",
+              "control_plane",
+              "immutable"
+            ],
+            "description": "none: normal. protected: human review before merge. control_plane: protected, must be explicitly listed in files_allowed, never auto-merged. immutable: any change is a violation."
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the rule exists.",
+            "minLength": 3,
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "id",
+          "patterns",
+          "exclude",
+          "category",
+          "restriction",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "classification": {
+      "type": "object",
+      "description": "How the authoritative class is computed.",
+      "properties": {
+        "rule": {
+          "const": "maximum_of_all_signals",
+          "description": "The final class is the maximum of all signals."
+        },
+        "signals": {
+          "type": "array",
+          "description": "Signals combined into the final class.",
+          "items": {
+            "type": "string",
+            "description": "A signal name."
+          },
+          "minItems": 1
+        },
+        "model_self_classification": {
+          "const": "advisory_may_raise_never_lower",
+          "description": "Declared or model-assigned classes can raise the computed class, never lower it."
+        },
+        "authoritative_inputs": {
+          "type": "array",
+          "description": "Inputs the policy engine trusts.",
+          "items": {
+            "type": "string",
+            "description": "An input name."
+          },
+          "minItems": 1
+        },
+        "prohibited_operation_class": {
+          "const": "C",
+          "description": "Any prohibited operation makes the task class C."
+        },
+        "unmatched_path_category": {
+          "$ref": "#/$defs/risk_category"
+        }
+      },
+      "required": [
+        "rule",
+        "signals",
+        "model_self_classification",
+        "authoritative_inputs",
+        "prohibited_operation_class",
+        "unmatched_path_category"
+      ],
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "description": "Manual approval requirements.",
+      "properties": {
+        "human_approval_before_run_for_classes": {
+          "type": "array",
+          "description": "Classes that need a human approval before a run starts.",
+          "items": {
+            "$ref": "#/$defs/risk_class"
+          }
+        },
+        "never_autonomous_for_classes": {
+          "type": "array",
+          "description": "Classes that never run autonomously.",
+          "items": {
+            "$ref": "#/$defs/risk_class"
+          }
+        },
+        "human_approval_before_merge_for_restrictions": {
+          "type": "array",
+          "description": "Restrictions that need a human approval before merge.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "protected",
+              "control_plane",
+              "immutable"
+            ],
+            "description": "A restriction."
+          }
+        },
+        "milestone_gate_required_at_end_of_each_phase": {
+          "type": "boolean",
+          "description": "A human signs off at the end of every roadmap phase."
+        },
+        "channel": {
+          "type": "object",
+          "description": "Approval channel.",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "not_configured",
+                "configured"
+              ],
+              "description": "Whether an approval channel exists."
+            },
+            "planned": {
+              "type": "string",
+              "description": "Planned channel.",
+              "minLength": 3,
+              "maxLength": 300
+            },
+            "interim": {
+              "type": "string",
+              "description": "Interim channel until configured.",
+              "minLength": 3,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "status",
+            "planned",
+            "interim"
+          ],
+          "additionalProperties": false
+        },
+        "approval_reference_format": {
+          "type": "string",
+          "description": "Format of a recorded approval.",
+          "minLength": 3,
+          "maxLength": 60
+        }
+      },
+      "required": [
+        "human_approval_before_run_for_classes",
+        "never_autonomous_for_classes",
+        "human_approval_before_merge_for_restrictions",
+        "milestone_gate_required_at_end_of_each_phase",
+        "channel",
+        "approval_reference_format"
+      ],
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "description": "Run limits.",
+      "properties": {
+        "max_attempts_per_task": {
+          "type": "integer",
+          "description": "Maximum attempts per task.",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "max_tasks_per_day": {
+          "type": "integer",
+          "description": "Maximum tasks started per UTC day.",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "max_concurrent_tasks": {
+          "type": "integer",
+          "description": "Maximum tasks in flight at once.",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "max_consecutive_auto_tasks": {
+          "type": "integer",
+          "description": "Auto-approved tasks in a row before a human checkpoint.",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "max_fires_per_hour": {
+          "type": "integer",
+          "description": "Maximum worker launches per hour (well under the provider limit).",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "max_task_wall_clock_minutes": {
+          "type": "integer",
+          "description": "A task with no valid report after this long is marked stalled.",
+          "minimum": 5,
+          "maximum": 480
+        },
+        "max_review_calls_per_attempt": {
+          "type": "integer",
+          "description": "Maximum architect review calls per attempt.",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "max_attempts_per_task",
+        "max_tasks_per_day",
+        "max_concurrent_tasks",
+        "max_consecutive_auto_tasks",
+        "max_fires_per_hour",
+        "max_task_wall_clock_minutes",
+        "max_review_calls_per_attempt"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "description": "Budget controls (placeholders).",
+      "properties": {
+        "status": {
+          "const": "placeholder",
+          "description": "Budget values are placeholders until a human decides."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency of cap values.",
+          "minLength": 3,
+          "maxLength": 3
+        },
+        "openai": {
+          "type": "object",
+          "description": "OpenAI budget placeholders.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether OpenAI calls are allowed at all."
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Pinned model name, or null until chosen."
+            },
+            "daily_cap": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Daily spend cap, or null."
+            },
+            "monthly_cap": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Monthly spend cap, or null."
+            },
+            "hard_limit_required_at_provider": {
+              "type": "boolean",
+              "description": "A provider-side hard spend limit must exist before enabling."
+            }
+          },
+          "required": [
+            "enabled",
+            "model",
+            "daily_cap",
+            "monthly_cap",
+            "hard_limit_required_at_provider"
+          ],
+          "additionalProperties": false
+        },
+        "claude": {
+          "type": "object",
+          "description": "Claude usage placeholders.",
+          "properties": {
+            "daily_run_allowance": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Daily routine run allowance of the account, or null until confirmed."
+            },
+            "allowance_source": {
+              "type": "string",
+              "description": "Where the value must be confirmed.",
+              "minLength": 3,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "daily_run_allowance",
+            "allowance_source"
+          ],
+          "additionalProperties": false
+        },
+        "on_exhaustion": {
+          "const": "halt_and_notify",
+          "description": "Behavior when a budget is exhausted."
+        }
+      },
+      "required": [
+        "status",
+        "currency",
+        "openai",
+        "claude",
+        "on_exhaustion"
+      ],
+      "additionalProperties": false
+    },
+    "kill_switch": {
+      "type": "object",
+      "description": "Kill switch.",
+      "properties": {
+        "repository_variable": {
+          "type": "string",
+          "description": "Name of the repository variable that enables the system.",
+          "minLength": 3,
+          "maxLength": 60
+        },
+        "required_value": {
+          "type": "string",
+          "description": "Value that means enabled.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "default_when_unset": {
+          "const": "disabled",
+          "description": "Fail closed: an unset variable means disabled."
+        },
+        "kill_file": {
+          "type": "string",
+          "description": "Presence of this file halts the system.",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "state_branch_flag": {
+          "type": "string",
+          "description": "Flag name in the state store that halts the system.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "on_trigger": {
+          "type": "array",
+          "description": "Actions taken when triggered.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "stop_dispatching_new_tasks",
+              "stop_calling_external_apis",
+              "keep_writing_audit_log",
+              "require_human_resume"
+            ],
+            "description": "An action."
+          },
+          "minItems": 1
+        },
+        "resume": {
+          "const": "human_only",
+          "description": "Only a human may resume."
+        }
+      },
+      "required": [
+        "repository_variable",
+        "required_value",
+        "default_when_unset",
+        "kill_file",
+        "state_branch_flag",
+        "on_trigger",
+        "resume"
+      ],
+      "additionalProperties": false
+    },
+    "prohibited_operations": {
+      "type": "array",
+      "description": "Operations no autonomous run may perform. Detecting one makes the task class C and stops it.",
+      "items": {
+        "type": "object",
+        "description": "A prohibited operation.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier.",
+            "pattern": "^PROHIB-[0-9]{3}$"
+          },
+          "operation": {
+            "type": "string",
+            "description": "The prohibited operation.",
+            "minLength": 5,
+            "maxLength": 300
+          },
+          "class": {
+            "const": "C",
+            "description": "Always class C."
+          }
+        },
+        "required": [
+          "id",
+          "operation",
+          "class"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "memory_contract": {
+      "type": "object",
+      "description": "What the offline validator requires of project memory.",
+      "properties": {
+        "required_files": {
+          "type": "array",
+          "description": "Files that must exist.",
+          "items": {
+            "type": "string",
+            "description": "A repository-relative path."
+          },
+          "minItems": 1
+        },
+        "min_adr_count": {
+          "type": "integer",
+          "description": "Minimum number of ADR files.",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "required_requirement_ids": {
+          "type": "array",
+          "description": "Confirmed requirements that must not be silently removed.",
+          "items": {
+            "type": "string",
+            "description": "A requirement id.",
+            "pattern": "^REQ-[A-Z]{2,5}-[0-9]{3}$"
+          },
+          "minItems": 1
+        },
+        "required_requirement_text": {
+          "type": "array",
+          "description": "Guards against silent edits of confirmed facts.",
+          "items": {
+            "type": "object",
+            "description": "Text guard for a confirmed requirement.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Requirement id.",
+                "pattern": "^REQ-[A-Z]{2,5}-[0-9]{3}$"
+              },
+              "must_contain": {
+                "type": "array",
+                "description": "Substrings the requirement text must contain.",
+                "items": {
+                  "type": "string",
+                  "description": "A required substring (case-insensitive)."
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "id",
+              "must_contain"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "claude_md_required_headings": {
+          "type": "array",
+          "description": "Headings CLAUDE.md must contain.",
+          "items": {
+            "type": "string",
+            "description": "An exact heading line."
+          },
+          "minItems": 1
+        },
+        "content_scan": {
+          "type": "object",
+          "description": "Public-repository content scan.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Scan for secrets and business-sensitive patterns."
+            },
+            "scan_roots": {
+              "type": "array",
+              "description": "Roots to scan.",
+              "items": {
+                "type": "string",
+                "description": "A file or directory."
+              },
+              "minItems": 1
+            },
+            "allowed_emails": {
+              "type": "array",
+              "description": "Email addresses permitted in the public repository.",
+              "items": {
+                "type": "string",
+                "description": "An allowed address."
+              }
+            }
+          },
+          "required": [
+            "enabled",
+            "scan_roots",
+            "allowed_emails"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "required_files",
+        "min_adr_count",
+        "required_requirement_ids",
+        "required_requirement_text",
+        "claude_md_required_headings",
+        "content_scan"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "policy_id",
+    "policy_version",
+    "status",
+    "owner",
+    "provenance",
+    "task_id_prefixes",
+    "branches",
+    "risk_classes",
+    "risk_categories",
+    "path_rules",
+    "classification",
+    "approval",
+    "limits",
+    "budget",
+    "kill_switch",
+    "prohibited_operations",
+    "memory_contract"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "risk_class": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Risk class. The authoritative class is computed by trusted policy logic from policy.json; a value supplied by a task author, worker or model is advisory and can only raise the computed class."
+    },
+    "risk_category": {
+      "type": "string",
+      "enum": [
+        "docs_only",
+        "tests_only",
+        "ui_public_site",
+        "build_config",
+        "dependencies",
+        "ci_workflows",
+        "ops_control_plane",
+        "policy_or_schema",
+        "auth_or_sessions",
+        "database_schema",
+        "rls_or_authorization",
+        "loyalty_or_finance_logic",
+        "customer_data",
+        "external_api_integration",
+        "scope_creep",
+        "other",
+        "secrets_or_credentials",
+        "production_deploy",
+        "billing_or_paid_service",
+        "destructive_operation",
+        "infrastructure_settings"
+      ],
+      "description": "Risk category. Must be a key of policy.risk_categories."
+    },
+    "glob_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._@/*?+\\-]+$",
+      "description": "Repository-relative path glob. No leading slash and no '..'. Supports *, ** and ?."
+    },
+    "glob_pattern_or_wild": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._@/*?+\\-]+$",
+      "description": "Repository-relative path glob. Unlike task globs, a leading wildcard is allowed here because rules are evaluated against concrete paths."
+    }
+  }
+}

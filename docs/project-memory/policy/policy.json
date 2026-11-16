@@ -1,0 +1,239 @@
+{
+  "schema_version": "1",
+  "policy_id": "m1-autonomous-development-policy",
+  "policy_version": "0.1.0",
+  "status": "draft_pending_human_review",
+  "owner": "human",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations. The Phase 0 architecture was approved with modifications that were not itemised (HD-0002, OQ-0020), so every value here is a recommendation until a human sets status to active. Nothing in this file is a business decision.",
+  "task_id_prefixes": ["OPS", "PLAT"],
+  "branches": {
+    "production": "main",
+    "integration": "claude-dev",
+    "worker_branch_prefix": "claude/",
+    "worker_may_push": ["claude/**"],
+    "worker_must_not_push": ["main", "claude-dev"],
+    "merge_into_integration": "orchestrator_after_all_gates_pass",
+    "merge_into_production": "human_only",
+    "force_push": "never",
+    "pushes_currently_authorized": false
+  },
+  "risk_classes": {
+    "A": {
+      "name": "automatic",
+      "description": "Documentation, tests and run reports under project memory only. Eligible for automatic approval and automatic merge into the integration branch when every deterministic gate passes.",
+      "approval": "automatic_when_all_gates_pass",
+      "runs_without_human_approval": true,
+      "may_auto_merge_to_integration": true,
+      "max_changed_files": 40,
+      "max_changed_lines": 1500
+    },
+    "B": {
+      "name": "human_gated",
+      "description": "Application code, configuration, dependencies, workflows, authentication, database, authorization, loyalty or finance logic, customer data handling, external integrations, and the control plane itself. A human approves before the run and before any merge.",
+      "approval": "human_approval_before_run",
+      "runs_without_human_approval": false,
+      "may_auto_merge_to_integration": false,
+      "max_changed_files": null,
+      "max_changed_lines": null
+    },
+    "C": {
+      "name": "never_autonomous",
+      "description": "Production deploys, merges to the production branch, destructive operations, billing or plan changes, credentials, and infrastructure settings. Never performed by an autonomous run.",
+      "approval": "never_autonomous",
+      "runs_without_human_approval": false,
+      "may_auto_merge_to_integration": false,
+      "max_changed_files": null,
+      "max_changed_lines": null
+    }
+  },
+  "risk_categories": {
+    "docs_only": { "minimum_class": "A", "description": "Documentation and run reports with no behavioural effect." },
+    "tests_only": { "minimum_class": "A", "description": "Test files and fixtures with no production code change." },
+    "ui_public_site": { "minimum_class": "B", "description": "Public website source or assets. Held at B until automated visual-regression baselines exist (OQ-0027)." },
+    "build_config": { "minimum_class": "B", "description": "Build, lint, type-check, style or framework configuration." },
+    "dependencies": { "minimum_class": "B", "description": "Package manifests and lockfiles." },
+    "ci_workflows": { "minimum_class": "B", "description": "GitHub Actions workflows and repository automation." },
+    "ops_control_plane": { "minimum_class": "B", "description": "Orchestrator code, worker protocol, architect prompt and governed project memory." },
+    "policy_or_schema": { "minimum_class": "B", "description": "policy.json and the JSON schemas." },
+    "auth_or_sessions": { "minimum_class": "B", "description": "Authentication, sessions and account linking." },
+    "database_schema": { "minimum_class": "B", "description": "Database schema and migrations (writing a migration is B; applying one to production is a prohibited operation)." },
+    "rls_or_authorization": { "minimum_class": "B", "description": "Row-level security and authorization rules." },
+    "loyalty_or_finance_logic": { "minimum_class": "B", "description": "Loyalty ledger, point awarding and financial calculations." },
+    "customer_data": { "minimum_class": "B", "description": "Handling of personal or order data." },
+    "external_api_integration": { "minimum_class": "B", "description": "Calls to external services." },
+    "scope_creep": { "minimum_class": "B", "description": "Changes outside the task's declared scope." },
+    "other": { "minimum_class": "B", "description": "Anything unclassified defaults upward to B." },
+    "secrets_or_credentials": { "minimum_class": "C", "description": "Credentials, tokens, keys or environment files." },
+    "production_deploy": { "minimum_class": "C", "description": "Deploying or promoting to production." },
+    "billing_or_paid_service": { "minimum_class": "C", "description": "Creating or changing paid resources, plans or billing." },
+    "destructive_operation": { "minimum_class": "C", "description": "Deleting data, branches or history." },
+    "infrastructure_settings": { "minimum_class": "C", "description": "Hosting, DNS, project or provider settings." }
+  },
+  "path_rules": [
+    { "id": "PATH-001", "patterns": [".github/**"], "exclude": [], "category": "ci_workflows", "restriction": "control_plane", "note": "Workflows run with privileges; a worker must never be able to change them unreviewed." },
+    { "id": "PATH-002", "patterns": ["ops/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "Orchestrator and validator code." },
+    { "id": "PATH-003", "patterns": ["CLAUDE.md", "AGENTS.md", ".claude/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "Worker instructions." },
+    { "id": "PATH-004", "patterns": ["docs/project-memory/policy/**"], "exclude": [], "category": "policy_or_schema", "restriction": "control_plane", "note": "The deterministic policy." },
+    { "id": "PATH-005", "patterns": ["docs/project-memory/schemas/**"], "exclude": [], "category": "policy_or_schema", "restriction": "control_plane", "note": "The machine contracts." },
+    { "id": "PATH-006", "patterns": ["docs/project-memory/architect/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "The reviewer prompt." },
+    { "id": "PATH-007", "patterns": ["docs/project-memory/**"], "exclude": ["docs/project-memory/runs/**"], "category": "ops_control_plane", "restriction": "protected", "note": "Governed memory: requirements, decisions, architecture, roadmap, tasks." },
+    { "id": "PATH-008", "patterns": ["docs/project-memory/runs/**"], "exclude": [], "category": "docs_only", "restriction": "none", "note": "Where workers write run reports." },
+    { "id": "PATH-010", "patterns": ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"], "exclude": [], "category": "dependencies", "restriction": "protected", "note": "Dependency changes alter the production supply chain." },
+    { "id": "PATH-011", "patterns": ["next.config.*", "tsconfig*.json", "eslint.config.*", "postcss.config.*", "tailwind.config.*", ".gitignore", ".env.example"], "exclude": [], "category": "build_config", "restriction": "protected", "note": "Build and tooling configuration." },
+    { "id": "PATH-012", "patterns": ["vercel.json", ".vercel/**"], "exclude": [], "category": "infrastructure_settings", "restriction": "protected", "note": "Hosting configuration." },
+    { "id": "PATH-013", "patterns": [".env", ".env.*", "**/*.pem", "**/*.key", "**/id_rsa*"], "exclude": [".env.example"], "category": "secrets_or_credentials", "restriction": "immutable", "note": "Credentials never belong in the repository." },
+    { "id": "PATH-020", "patterns": ["supabase/**"], "exclude": [], "category": "database_schema", "restriction": "protected", "note": "Database definitions." },
+    { "id": "PATH-030", "patterns": ["src/**", "public/**"], "exclude": [], "category": "ui_public_site", "restriction": "protected", "note": "The production website." },
+    { "id": "PATH-031", "patterns": ["public/builds/**", "public/logo.png"], "exclude": [], "category": "ui_public_site", "restriction": "immutable", "note": "Standing rule: original build photos and the logo are never altered." },
+    { "id": "PATH-040", "patterns": ["creative/**"], "exclude": [], "category": "other", "restriction": "protected", "note": "Side projects (video work) outside the website; their fate is undecided (OQ-0019)." },
+    { "id": "PATH-050", "patterns": ["docs/**", "README.md"], "exclude": [], "category": "docs_only", "restriction": "none", "note": "General documentation." },
+    { "id": "PATH-051", "patterns": ["**/*.test.*", "**/*.spec.*", "tests/**", "e2e/**"], "exclude": [], "category": "tests_only", "restriction": "none", "note": "Test files." }
+  ],
+  "classification": {
+    "rule": "maximum_of_all_signals",
+    "signals": [
+      "path_rules_applied_to_actual_changed_paths",
+      "task_declared_class",
+      "worker_reported_class",
+      "architect_advised_class",
+      "prohibited_operation_detected"
+    ],
+    "model_self_classification": "advisory_may_raise_never_lower",
+    "authoritative_inputs": ["actual_changed_paths_from_git", "policy_json_from_the_default_branch"],
+    "prohibited_operation_class": "C",
+    "unmatched_path_category": "other"
+  },
+  "approval": {
+    "human_approval_before_run_for_classes": ["B", "C"],
+    "never_autonomous_for_classes": ["C"],
+    "human_approval_before_merge_for_restrictions": ["protected", "control_plane", "immutable"],
+    "milestone_gate_required_at_end_of_each_phase": true,
+    "channel": {
+      "status": "not_configured",
+      "planned": "A GitHub environment named human-approval with a required reviewer (not created; see OQ-0026).",
+      "interim": "An explicit message from the human in the working session, recorded as an entry in HUMAN_DECISIONS.md."
+    },
+    "approval_reference_format": "HD-<4 digits>"
+  },
+  "limits": {
+    "max_attempts_per_task": 3,
+    "max_tasks_per_day": 4,
+    "max_concurrent_tasks": 1,
+    "max_consecutive_auto_tasks": 3,
+    "max_fires_per_hour": 5,
+    "max_task_wall_clock_minutes": 90,
+    "max_review_calls_per_attempt": 2
+  },
+  "budget": {
+    "status": "placeholder",
+    "currency": "USD",
+    "openai": {
+      "enabled": false,
+      "model": null,
+      "daily_cap": null,
+      "monthly_cap": null,
+      "hard_limit_required_at_provider": true
+    },
+    "claude": {
+      "daily_run_allowance": null,
+      "allowance_source": "To be confirmed from the Claude account (OQ-0022)."
+    },
+    "on_exhaustion": "halt_and_notify"
+  },
+  "kill_switch": {
+    "repository_variable": "OPS_ENABLED",
+    "required_value": "true",
+    "default_when_unset": "disabled",
+    "kill_file": "ops/KILL",
+    "state_branch_flag": "halt",
+    "on_trigger": ["stop_dispatching_new_tasks", "stop_calling_external_apis", "keep_writing_audit_log", "require_human_resume"],
+    "resume": "human_only"
+  },
+  "prohibited_operations": [
+    { "id": "PROHIB-001", "operation": "Push to or merge into the production branch (main).", "class": "C" },
+    { "id": "PROHIB-002", "operation": "Deploy to production or promote a deployment.", "class": "C" },
+    { "id": "PROHIB-003", "operation": "Force-push, delete or rewrite the history of any shared branch or tag.", "class": "C" },
+    { "id": "PROHIB-004", "operation": "Change hosting project settings, environment variables, domains or DNS.", "class": "C" },
+    { "id": "PROHIB-005", "operation": "Apply migrations to, or otherwise modify, a production database.", "class": "C" },
+    { "id": "PROHIB-006", "operation": "Create, pause, delete or reconfigure backend projects, or anything that changes billing.", "class": "C" },
+    { "id": "PROHIB-007", "operation": "Create, rotate, read aloud or print credentials, tokens or keys.", "class": "C" },
+    { "id": "PROHIB-008", "operation": "Create or change repository secrets, variables, environments, rulesets or branch protection.", "class": "C" },
+    { "id": "PROHIB-009", "operation": "Change subscriptions, paid plans or payment settings.", "class": "C" },
+    { "id": "PROHIB-010", "operation": "Install or change GitHub Apps, connectors or scheduled tasks.", "class": "C" },
+    { "id": "PROHIB-011", "operation": "Send communications to customers or third parties.", "class": "C" },
+    { "id": "PROHIB-012", "operation": "Delete data, branches, artifacts or files outside the task's own work branch.", "class": "C" },
+    { "id": "PROHIB-013", "operation": "Modify original build photos under public/builds or public/logo.png.", "class": "C" },
+    { "id": "PROHIB-014", "operation": "Disable, weaken or bypass this policy, CI or the validators.", "class": "C" },
+    { "id": "PROHIB-015", "operation": "Commit secrets, customer data, supplier costs, margins or other business-sensitive information to this public repository.", "class": "C" }
+  ],
+  "memory_contract": {
+    "required_files": [
+      "CLAUDE.md",
+      "docs/project-memory/README.md",
+      "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+      "docs/project-memory/architecture/ARCHITECTURE.md",
+      "docs/project-memory/roadmap/ROADMAP.md",
+      "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "docs/project-memory/tasks/TEMPLATE.md",
+      "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+      "docs/project-memory/policy/policy.json",
+      "docs/project-memory/schemas/task.schema.json",
+      "docs/project-memory/schemas/run-report.schema.json",
+      "docs/project-memory/schemas/architect-decision.schema.json",
+      "docs/project-memory/schemas/policy.schema.json",
+      "ops/validate-memory.mjs"
+    ],
+    "min_adr_count": 5,
+    "required_requirement_ids": [
+      "REQ-PRES-001",
+      "REQ-PRES-002",
+      "REQ-PLAT-001",
+      "REQ-ACCT-001",
+      "REQ-ACCT-002",
+      "REQ-ORD-001",
+      "REQ-ORD-002",
+      "REQ-ORD-003",
+      "REQ-TRK-001",
+      "REQ-TRK-002",
+      "REQ-ADM-001",
+      "REQ-FIN-001",
+      "REQ-FIN-002",
+      "REQ-LOY-001",
+      "REQ-LOY-002",
+      "REQ-LOY-003",
+      "REQ-LOY-004",
+      "REQ-LOY-005",
+      "REQ-OPS-001",
+      "REQ-OPS-002",
+      "REQ-OPS-003",
+      "REQ-OPS-004"
+    ],
+    "required_requirement_text": [
+      { "id": "REQ-LOY-002", "must_contain": ["1 point", "QAR 10"] },
+      { "id": "REQ-LOY-003", "must_contain": ["QAR 0.10"] },
+      { "id": "REQ-LOY-004", "must_contain": ["fulfil"] },
+      { "id": "REQ-LOY-005", "must_contain": ["duplicate"] },
+      { "id": "REQ-LOY-001", "must_contain": ["ledger"] }
+    ],
+    "claude_md_required_headings": [
+      "## 1. Scope and authority",
+      "## 2. Production protection",
+      "## 3. Branches",
+      "## 4. Identifiers",
+      "## 5. Reading approved tasks",
+      "## 6. Working procedure",
+      "## 7. Verification and completion evidence",
+      "## 8. Run reports",
+      "## 9. Reports are claims; verified evidence comes from the orchestrator",
+      "## 10. Human authorization required",
+      "## 11. Stop conditions",
+      "## 12. Content policy for this public repository"
+    ],
+    "content_scan": {
+      "enabled": true,
+      "scan_roots": ["CLAUDE.md", "docs/project-memory", "ops"],
+      "allowed_emails": ["noreply@anthropic.com"]
+    }
+  }
+}
