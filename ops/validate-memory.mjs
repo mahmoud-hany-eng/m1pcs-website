@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { lintSchema, validate } from "./lib/json-schema.mjs";
+import { checkWorkflowFiles, checkWorkflowText } from "./lib/workflow-safety.mjs";
 import {
   CLASS_ORDER,
   classifyPath,
@@ -59,6 +60,16 @@ const CATEGORY_FLOORS = {
   external_api_integration: "B", scope_creep: "B", other: "B",
   secrets_or_credentials: "C", production_deploy: "C", billing_or_paid_service: "C", destructive_operation: "C", infrastructure_settings: "C",
 };
+
+/**
+ * Floors for policy.workflow_policy (OPS-0002). Lowering one needs a change to this (control-plane) file too, so the
+ * policy file alone cannot weaken the CI rules: these checks run on every `npm run ops:validate`.
+ */
+const CI_FORBIDDEN_TRIGGERS_FLOOR = ["pull_request_target", "workflow_run", "workflow_dispatch", "schedule"];
+const CI_REQUIRED_COMMANDS_FLOOR = ["npm run lint", "npx tsc --noEmit", "npm run ops:validate", "npm run ops:test", "npm run build"];
+const CI_ACTION_INPUT_FLOORS = { "actions/checkout": { "persist-credentials": "false" }, "actions/setup-node": { "package-manager-cache": "false" } };
+// "persist-credentials" is the switch that turns credential persistence OFF, so it is not a credential input.
+const CI_CREDENTIAL_INPUT_RE = /^(?!persist-credentials$).*(?:token|key|secret|password|credential|ssh|auth)/i;
 
 /** Golden classification cases: the policy must keep classifying these paths exactly like this. */
 const GOLDEN_PATHS = [
@@ -467,6 +478,41 @@ function checkPolicy(policy, schemas, f) {
   const rt = policy.reviewer_runtime;
   if (rt.selected !== null && !rt.allowed.includes(rt.selected)) err("POLICY-INVARIANT", `reviewer_runtime.selected "${rt.selected}" is not in reviewer_runtime.allowed`);
   if (policy.limits.max_review_sessions_per_attempt < 1) err("POLICY-INVARIANT", "limits.max_review_sessions_per_attempt must be at least 1");
+
+  // OPS-0002: the CI workflow policy may never be weakened by editing the policy file alone.
+  const wp = policy.workflow_policy;
+  for (const t of CI_FORBIDDEN_TRIGGERS_FLOOR) {
+    if (!wp.forbidden_triggers.includes(t)) err("POLICY-INVARIANT", `workflow_policy.forbidden_triggers must include "${t}"`);
+  }
+  for (const t of Object.keys(wp.allowed_triggers)) {
+    if (wp.forbidden_triggers.includes(t)) err("POLICY-INVARIANT", `workflow_policy: "${t}" is both allowed and forbidden`);
+  }
+  for (const glob of wp.allowed_triggers.push) {
+    if (matchesGlob(glob, branches.production) || /^\*+$/.test(glob)) err("POLICY-INVARIANT", `workflow_policy.allowed_triggers.push "${glob}" would run CI on pushes to the production branch or on every branch`);
+  }
+  if (wp.runners.some((r) => /self-hosted/i.test(r))) err("POLICY-INVARIANT", "workflow_policy.runners must not include a self-hosted runner");
+  for (const rel of wp.required_workflow_files) {
+    if (!wp.allowed_workflow_files.includes(rel)) err("POLICY-INVARIANT", `workflow_policy: required workflow ${rel} is not in allowed_workflow_files`);
+  }
+  for (const rel of [...wp.allowed_workflow_files, ...wp.required_workflow_files]) {
+    if (!rel.startsWith(`${wp.workflow_dir}/`) || !/\.ya?ml$/.test(rel) || rel.slice(wp.workflow_dir.length + 1).includes("/")) err("POLICY-INVARIANT", `workflow_policy: ${rel} must be a .yml or .yaml file directly inside ${wp.workflow_dir}`);
+  }
+  for (const c of CI_REQUIRED_COMMANDS_FLOOR) {
+    if (!wp.required_commands.includes(c)) err("POLICY-INVARIANT", `workflow_policy.required_commands must include "${c}"`);
+  }
+  if (!wp.required_commands.some((c) => c.startsWith("test -z") && c.includes("ANTHROPIC_API_KEY"))) {
+    err("POLICY-INVARIANT", "workflow_policy.required_commands must keep the guard that fails the job when a provider API key exists (REC-OPS-015)");
+  }
+  const repos = wp.approved_actions.map((a) => a.repository);
+  if (new Set(repos).size !== repos.length) err("POLICY-INVARIANT", "workflow_policy.approved_actions must not list a repository twice");
+  for (const a of wp.approved_actions) {
+    for (const [name, value] of Object.entries(CI_ACTION_INPUT_FLOORS[a.repository] || {})) {
+      if (!a.required_inputs.some((r) => r.name === name && r.value === value)) err("POLICY-INVARIANT", `workflow_policy: ${a.repository} must be called with "${name}: ${value}"`);
+    }
+    for (const r of a.required_inputs) {
+      if (CI_CREDENTIAL_INPUT_RE.test(r.name)) err("POLICY-INVARIANT", `workflow_policy: ${a.repository} input "${r.name}" looks like a credential; CI passes none`);
+    }
+  }
 
   for (const [p, cls, restriction] of GOLDEN_PATHS) {
     const got = classifyPath(p, policy);
@@ -902,6 +948,15 @@ export function validateMemory({ root = DEFAULT_ROOT } = {}) {
   // 8. public-repository content scan, and provider neutrality (HD-0010)
   scanContent(root, policy, f);
   checkProviderNeutrality(root, f);
+
+  // 9. GitHub Actions workflows (OPS-0002): the deterministic workflow-safety check, and the decision that approved it
+  if (!hdIds.has(policy.workflow_policy.approval_reference)) {
+    f.error("WF-POLICY", PATHS.policy, `workflow_policy.approval_reference ${policy.workflow_policy.approval_reference} does not exist in HUMAN_DECISIONS.md; a CI design is approved by a human, never by a worker`);
+  }
+  for (const issue of checkWorkflowFiles(root, policy)) {
+    f.files.add(issue.file);
+    f.error(issue.code, issue.file, issue.message, issue.line);
+  }
   return finish(f);
 }
 
@@ -919,7 +974,7 @@ export function validateSingleFile({ root = DEFAULT_ROOT, file, kind = null }) {
     return finish(f);
   }
   const rel = path.relative(root, path.resolve(file)).split(path.sep).join("/");
-  const inferred = kind || (rel.endsWith("/report.json") ? "report" : rel.endsWith(".md") ? "task" : "decision");
+  const inferred = kind || (/\.ya?ml$/i.test(rel) ? "workflow" : rel.endsWith("/report.json") ? "report" : rel.endsWith(".md") ? "task" : "decision");
   const tasks = new Map();
   for (const t of listFiles(root, PATHS.tasksDir, (p) => p.endsWith(".md") && !p.endsWith("/TEMPLATE.md"))) {
     const parsed = parseTaskFile(readIfExists(root, t));
@@ -949,6 +1004,11 @@ export function validateSingleFile({ root = DEFAULT_ROOT, file, kind = null }) {
   }
   f.files.add(rel);
   let issues = [];
+  if (inferred === "workflow") {
+    if (!policy.workflow_policy.allowed_workflow_files.includes(rel)) f.error("WF-FILE-UNAPPROVED", rel, "this workflow file is not listed in policy.workflow_policy.allowed_workflow_files");
+    for (const issue of checkWorkflowText(text, policy)) f.error(issue.code, rel, issue.message, issue.line);
+    return finish(f);
+  }
   if (inferred === "task") {
     const parsed = parseTaskFile(text);
     if (parsed.error) f.error("TASK-FRONTMATTER", rel, parsed.error);
@@ -997,15 +1057,15 @@ export function main(argv, out = process.stdout, errOut = process.stderr) {
       args[a.slice(2)] = value;
       i += 1;
     } else if (a === "--help" || a === "-h") {
-      out.write("usage: node ops/validate-memory.mjs [--root <dir>] [--json] [--file <path> [--kind task|report|decision]]\n");
+      out.write("usage: node ops/validate-memory.mjs [--root <dir>] [--json] [--file <path> [--kind task|report|decision|workflow]]\n");
       return 0;
     } else {
       errOut.write(`unknown argument: ${a}\n`);
       return 2;
     }
   }
-  if (args.kind && !["task", "report", "decision"].includes(args.kind)) {
-    errOut.write("--kind must be task, report or decision\n");
+  if (args.kind && !["task", "report", "decision", "workflow"].includes(args.kind)) {
+    errOut.write("--kind must be task, report, decision or workflow\n");
     return 2;
   }
   const root = path.resolve(args.root);

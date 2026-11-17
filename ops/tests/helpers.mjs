@@ -47,7 +47,7 @@ export function fixtureContext() {
 /** Copy the parts of the repository the validator reads into a temporary directory. */
 export function copyTree() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "m1-memory-"));
-  for (const rel of ["CLAUDE.md", "docs/project-memory", "ops"]) {
+  for (const rel of ["CLAUDE.md", "docs/project-memory", "ops", ".github"]) {
     fs.cpSync(path.join(ROOT, rel), path.join(dir, rel), { recursive: true });
   }
   return dir;

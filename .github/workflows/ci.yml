@@ -1,0 +1,49 @@
+# Baseline continuous integration (OPS-0002). Read-only and unprivileged: no secret, no write permission, no deployment.
+# The shape of this file is enforced by ops/lib/workflow-safety.mjs against policy.workflow_policy (run by `npm run ops:validate`).
+name: CI
+
+on:
+  push:
+    branches:
+      - "claude/**"
+      - claude-dev
+  pull_request:
+    branches:
+      - claude-dev
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Guard - no provider credential in this job
+        run: test -z "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}"
+      - name: Install dependencies without running install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Validate project memory and workflows
+        run: npm run ops:validate
+      - name: Run the operations tests
+        run: npm run ops:test
+      - name: Build
+        run: npm run build

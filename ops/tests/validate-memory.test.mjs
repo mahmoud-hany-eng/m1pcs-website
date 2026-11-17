@@ -223,7 +223,7 @@ test("ADRs, questions, decisions and roadmap", async (t) => {
   await t.test("too few ADRs is rejected", () => {
     const r = broken((d) => {
       const dir = path.join(d, `${MEM}/architecture/adr`);
-      for (const f of fs.readdirSync(dir).filter((n) => /^(000[5-9]|0010)/.test(n))) fs.rmSync(path.join(dir, f));
+      for (const f of fs.readdirSync(dir).filter((n) => Number(n.slice(0, 4)) >= 5)) fs.rmSync(path.join(dir, f));
     });
     assert.ok(has(r, "ADR-MISSING"), describeFindings(r));
   });

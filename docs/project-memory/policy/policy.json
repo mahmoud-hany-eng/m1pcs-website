@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "policy_id": "m1-autonomous-development-policy",
-  "policy_version": "0.2.0",
+  "policy_version": "0.3.0",
   "status": "draft_pending_human_review",
   "owner": "human",
-  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision.",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (policy version 0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits in it were read and verified from the actions' own repositories.",
   "task_id_prefixes": ["OPS", "PLAT"],
   "branches": {
     "production": "main",
@@ -161,6 +161,50 @@
     "decision_reference": null,
     "governing_question": "OQ-0031"
   },
+  "workflow_policy": {
+    "approval_reference": "HD-0013",
+    "workflow_dir": ".github/workflows",
+    "allowed_workflow_files": [".github/workflows/ci.yml"],
+    "required_workflow_files": [".github/workflows/ci.yml"],
+    "allowed_triggers": {
+      "push": ["claude/**", "claude-dev"],
+      "pull_request": ["claude-dev", "main"]
+    },
+    "forbidden_triggers": [
+      "pull_request_target", "workflow_run", "workflow_dispatch", "workflow_call", "schedule",
+      "repository_dispatch", "issue_comment", "issues", "pull_request_review",
+      "pull_request_review_comment", "release", "deployment", "deployment_status"
+    ],
+    "max_token_permissions": { "contents": "read" },
+    "runners": ["ubuntu-24.04"],
+    "max_timeout_minutes": 20,
+    "approved_actions": [
+      {
+        "repository": "actions/checkout",
+        "version": "v7.0.1",
+        "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "required_inputs": [{ "name": "persist-credentials", "value": "false" }]
+      },
+      {
+        "repository": "actions/setup-node",
+        "version": "v7.1.0",
+        "sha": "949feb2413d6458794dcd2491c4babbbce0c15c1",
+        "required_inputs": [
+          { "name": "node-version", "value": "22" },
+          { "name": "package-manager-cache", "value": "false" }
+        ]
+      }
+    ],
+    "required_commands": [
+      "test -z \"${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}\"",
+      "npm ci --ignore-scripts --no-audit --no-fund",
+      "npm run lint",
+      "npx tsc --noEmit",
+      "npm run ops:validate",
+      "npm run ops:test",
+      "npm run build"
+    ]
+  },
   "kill_switch": {
     "repository_variable": "OPS_ENABLED",
     "required_value": "true",
@@ -205,7 +249,9 @@
       "docs/project-memory/schemas/run-report.schema.json",
       "docs/project-memory/schemas/review-decision.schema.json",
       "docs/project-memory/schemas/policy.schema.json",
-      "ops/validate-memory.mjs"
+      "ops/validate-memory.mjs",
+      "ops/lib/mini-yaml.mjs",
+      "ops/lib/workflow-safety.mjs"
     ],
     "min_adr_count": 5,
     "required_requirement_ids": [
@@ -259,7 +305,7 @@
     ],
     "content_scan": {
       "enabled": true,
-      "scan_roots": ["CLAUDE.md", "docs/project-memory", "ops"],
+      "scan_roots": ["CLAUDE.md", "docs/project-memory", "ops", ".github"],
       "allowed_emails": ["noreply@anthropic.com"]
     }
   }

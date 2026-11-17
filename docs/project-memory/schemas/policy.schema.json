@@ -1232,6 +1232,204 @@
       ],
       "additionalProperties": false
     },
+    "workflow_policy": {
+      "type": "object",
+      "description": "What a workflow in .github/workflows may contain. The deterministic workflow-safety checker (ops/lib/workflow-safety.mjs) enforces it; changing it needs human approval.",
+      "properties": {
+        "approval_reference": {
+          "type": "string",
+          "description": "The human decision (HD-<4 digits>) that approved this CI design.",
+          "pattern": "^HD-[0-9]{4}$"
+        },
+        "workflow_dir": {
+          "type": "string",
+          "description": "The only directory that GitHub reads workflows from.",
+          "const": ".github/workflows"
+        },
+        "allowed_workflow_files": {
+          "type": "array",
+          "description": "Every workflow file that may exist. A new workflow needs a change to this list, which is a control-plane change that a human approves.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        },
+        "required_workflow_files": {
+          "type": "array",
+          "description": "Workflow files that must exist.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        },
+        "allowed_triggers": {
+          "type": "object",
+          "description": "The only events that may start a workflow, each with its exact branch filter.",
+          "properties": {
+            "push": {
+              "type": "array",
+              "description": "Branch filters for push.",
+              "items": {
+                "type": "string",
+                "description": "An entry.",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "minItems": 1
+            },
+            "pull_request": {
+              "type": "array",
+              "description": "Branch filters for pull_request.",
+              "items": {
+                "type": "string",
+                "description": "An entry.",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "push",
+            "pull_request"
+          ],
+          "additionalProperties": false
+        },
+        "forbidden_triggers": {
+          "type": "array",
+          "description": "Events that are never allowed. The list is a floor: pull_request_target and workflow_run must stay in it.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        },
+        "max_token_permissions": {
+          "type": "object",
+          "description": "The only GITHUB_TOKEN permissions a workflow may request. Anything not listed is none.",
+          "properties": {
+            "contents": {
+              "type": "string",
+              "description": "Repository contents access: read only.",
+              "const": "read"
+            }
+          },
+          "required": [
+            "contents"
+          ],
+          "additionalProperties": false
+        },
+        "runners": {
+          "type": "array",
+          "description": "Allowed runs-on labels (GitHub-hosted only; never self-hosted).",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        },
+        "max_timeout_minutes": {
+          "type": "integer",
+          "description": "Upper bound for timeout-minutes of a job.",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "approved_actions": {
+          "type": "array",
+          "description": "The only actions a workflow may use, each pinned to one verified commit.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "description": "An approved action.",
+            "properties": {
+              "repository": {
+                "type": "string",
+                "description": "owner/name of the action.",
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+              },
+              "version": {
+                "type": "string",
+                "description": "The release tag that the commit is.",
+                "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+              },
+              "sha": {
+                "type": "string",
+                "description": "The full 40-character commit that the workflow must pin.",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "required_inputs": {
+                "type": "array",
+                "description": "The exact inputs (and values) the workflow must pass, and no others.",
+                "items": {
+                  "type": "object",
+                  "description": "One input.",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Input name.",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Input value, compared as text.",
+                      "minLength": 1,
+                      "maxLength": 80
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "repository",
+              "version",
+              "sha",
+              "required_inputs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required_commands": {
+          "type": "array",
+          "description": "The exact run commands of the workflow, in order. Nothing else may be run.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "approval_reference",
+        "workflow_dir",
+        "allowed_workflow_files",
+        "required_workflow_files",
+        "allowed_triggers",
+        "forbidden_triggers",
+        "max_token_permissions",
+        "runners",
+        "max_timeout_minutes",
+        "approved_actions",
+        "required_commands"
+      ],
+      "additionalProperties": false
+    },
     "kill_switch": {
       "type": "object",
       "description": "Kill switch.",
@@ -1457,6 +1655,7 @@
     "budget",
     "roles",
     "reviewer_runtime",
+    "workflow_policy",
     "kill_switch",
     "prohibited_operations",
     "memory_contract"
