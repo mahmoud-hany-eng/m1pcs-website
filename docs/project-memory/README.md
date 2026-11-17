@@ -23,7 +23,9 @@ The shared, versioned memory of the M1 Gaming PCs development system. Humans, th
 | [roadmap/GITHUB_SETTINGS_GUIDE.md](roadmap/GITHUB_SETTINGS_GUIDE.md) | Exact branch rules for `main` and `claude-dev`, what is observable, how rules interact with Claude's workflow, the Reel commits | Humans |
 | [roadmap/OPS-0004-PROPOSAL.md](roadmap/OPS-0004-PROPOSAL.md) | The larger OPS-0004 proposal (completion detector, review packet and decision gate). Only the reduced scope was authorised (HD-0017) | Humans |
 | [architecture/REVIEW_PACKET.md](architecture/REVIEW_PACKET.md) | The review packet and the deterministic decision gate: layout, what each checks, what a passing result means (nothing is approved), limits (OPS-0004) | Humans, on a reviewed task |
-| [reviewer/FIRST_REVIEW_RUNBOOK.md](reviewer/FIRST_REVIEW_RUNBOOK.md) | How a person runs the first manual, subscription-only review of OPS-0003, with the exact launch message (OPS-0005 prepares it; nothing has been run) | Humans |
+| [architecture/BROWSER_REVIEW.md](architecture/BROWSER_REVIEW.md) | Claude Code on the web as the reviewer's runtime: what is documented, observed and unverified; how the packet reaches a separate browser session; what is enforced versus only instructed (OPS-0004 correction) | Humans, on a reviewed task |
+| [roadmap/INSTAGRAM_SEPARATION_PLAN.md](roadmap/INSTAGRAM_SEPARATION_PLAN.md) | The plan to keep Instagram and video production out of this repository: what exists, classification, phases, what stays in history (plan only; HD-0019) | Humans |
+| [reviewer/FIRST_REVIEW_RUNBOOK.md](reviewer/FIRST_REVIEW_RUNBOOK.md) | The browser procedure for the first reviewer test of OPS-0003 with the exact launch message, plus an optional terminal procedure (OPS-0005 runs it; nothing has been run) | Humans |
 | `reviews/<task id>/<attempt id>/review.json` | Reviewer decisions (unverified reviewer claims) | The orchestrator, in a later stage |
 | [policy/policy.json](policy/policy.json) | The deterministic policy | Humans only |
 | [schemas/](schemas/) | Strict, provider-neutral JSON contracts for tasks, run reports, reviewer decisions and the policy | Humans only |

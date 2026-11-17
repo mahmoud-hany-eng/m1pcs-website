@@ -4,7 +4,7 @@ Unresolved business and technical decisions. **No task may assume an answer.** A
 
 Each entry has a status (`open` or `resolved`), what it blocks, the question, and where it came from. A `Recommendation` line is a suggestion for the human to accept or reject, never a decision. A resolved entry points to the human decision that resolved it.
 
-Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 to 34 were added by the automation audit, OPS-0001 and OPS-0002; 35 and 36 by OPS-0003; 37 by OPS-0004.
+Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 to 34 were added by the automation audit, OPS-0001 and OPS-0002; 35 and 36 by OPS-0003; 37 by OPS-0004; 38 and 39 by the OPS-0004 correction.
 
 ### OQ-0001 — Paid hosting plans for production
 - **Status:** open
@@ -253,6 +253,21 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 ### OQ-0037 — How is the first manual reviewer session hosted and fed?
 - **Status:** open
 - **Blocks:** OPS-0005 (the first manual review)
-- **Question:** The first review test is manual and subscription-only (HD-0017). The reviewer must work from a clean checkout of the trusted baseline (the reviewed OPS-0004 commit), and the packet must reach the machine that runs the separate Claude Code session. How does the owner want to do it? (1) Authorise a one-time push of the branch claude/ops-0004-review-foundation (it also publishes the OPS-0004 commits; the packet itself is not committed), and follow the runbook on the owner's own computer. (2) Ask for a git bundle of the branch instead, so nothing is published. (3) Another arrangement. Either way the owner runs the packet builder, the reviewer session and the gate, and no token or credential is created.
-- **Recommendation:** (2) if the owner prefers nothing more to be public, otherwise (1); and run the session locally with the restricted flags in the runbook.
-- **Source:** OPS-0004; HD-0017.
+- **Question:** The first review test is manual and subscription-only (HD-0017). The reviewer must work from a clean checkout of the trusted baseline (the reviewed OPS-0004 commit), and the packet must reach the machine that runs the separate Claude Code session. How does the owner want to do it? (1) Authorise a one-time push of the branch claude/ops-0004-review-foundation (it also publishes the OPS-0004 commits; the packet itself is not committed). (2) A git bundle, which works only for a terminal user. (3) Another arrangement. No token or credential is created in any case.
+- **Update (OPS-0004 correction, HD-0020):** the owner uses Claude Code in a browser (REQ-OPS-013). A browser session can reach only what GitHub holds, and a bundle upload is a terminal feature, so option (2) is not available to the owner. The browser reviewer rebuilds the packet itself inside its own session from the pushed baseline branch, the pushed OPS-0003 branch and GitHub's own CI data ([BROWSER_REVIEW.md](../architecture/BROWSER_REVIEW.md), [FIRST_REVIEW_RUNBOOK.md](../reviewer/FIRST_REVIEW_RUNBOOK.md)). The one human action that cannot be avoided is the push in option (1).
+- **Recommendation:** (1): authorise one normal push of exactly claude/ops-0004-review-foundation, naming the branch, immediately before OPS-0005. The push adds only the OPS-0004 commits on top of the already published OPS-0003 branch.
+- **Source:** OPS-0004; HD-0017; HD-0020.
+
+### OQ-0038 — Where does the Instagram production work live, and is website-showreel marketing production?
+- **Status:** open
+- **Blocks:** the preservation and removal steps of the Instagram separation plan (HD-0019)
+- **Question:** The Instagram Reel work must live outside the website repository (REQ-OPS-012). The tracked part is small (about 1.6 MB of scripts, text and code), but 5.4 GB of renders, exports, frames and audio exist only on the development container's disk and are in no Git history. Where should the work live: (1) a separate private GitHub repository the owner creates, (2) the owner's own storage by download from a session, or (3) another arrangement? Does the owner also confirm that `creative/website-showreel/` (a 9:16 Remotion and Three.js product film built from site captures, imported by nothing in the website) counts as marketing video production and is to be separated too? Which renders are kept: the 14 final MP4 files and their stems (about 711 MB) are the originals; the 4.1 GB of render frames and the 276 MB of installed packages can be regenerated.
+- **Recommendation:** (1) for the sources and the final MP4 files, a private repository dedicated to Instagram production, with the large media kept as release assets or under Git LFS; keep `out/` and `node_modules/` only if re-rendering for hours is unacceptable. Until a home exists the container is the single copy, so the owner should say soon.
+- **Source:** OPS-0004 correction; HD-0019; [INSTAGRAM_SEPARATION_PLAN.md](../roadmap/INSTAGRAM_SEPARATION_PLAN.md).
+
+### OQ-0039 — History: rewrite the published history, and what happens to the local claude-dev branch
+- **Status:** open
+- **Blocks:** nothing now; needed before the removal of `creative/` is finished
+- **Question:** (a) The 140 Instagram files stay in the published history of `claude-dev` and of the OPS-0002 and OPS-0003 branches after they are removed from the branch tip. Rewriting that published history (and force-pushing) would change every later commit id, break the recorded CI run and review-packet hashes, and still not remove forks or caches. Does the owner want it? (b) After the originals are archived and the archive is confirmed, should the local `claude-dev` branch with the eight unpublished Reel commits be kept as a local archive branch that is never pushed, or reset to `origin/claude-dev`?
+- **Recommendation:** (a) no rewrite; the scan found no credential or customer data, and `main` has never contained these files. (b) Keep the local branch until the archive is confirmed, then decide; the commits are preserved by the bundle either way. Neither is done without the owner's explicit message.
+- **Source:** OPS-0004 correction; HD-0019; [INSTAGRAM_SEPARATION_PLAN.md](../roadmap/INSTAGRAM_SEPARATION_PLAN.md).

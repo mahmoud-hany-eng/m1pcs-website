@@ -3,12 +3,30 @@
   "schema_version": "1",
   "task_id": "OPS-0004",
   "title": "Review packet, deterministic decision gate and first manual-review preparation",
-  "objective": "Build the minimum offline infrastructure for the first genuine developer-to-reviewer experiment: a review packet builder that binds everything a reviewer may read to one commit, one task and one attempt with the reviewer's instructions taken from a trusted baseline; a deterministic decision gate that judges a reviewer's structured decision and never approves anything; negative security tests and a mutation check; and a runbook for the first manual, subscription-only reviewer session. Implement locally only: nothing is pushed, merged, deployed or activated, no reviewer is run and no credential is created.",
-  "depends_on": ["OPS-0003"],
+  "objective": "Build the minimum offline infrastructure for the first genuine developer-to-reviewer experiment: a review packet builder that binds everything a reviewer may read to one commit, one task and one attempt with the reviewer's instructions taken from a trusted baseline; a deterministic decision gate that judges a reviewer's structured decision and never approves anything; negative security tests and a mutation check; and a runbook for the first manual, subscription-only reviewer session. Implement locally only: nothing is pushed, merged, deployed or activated, no reviewer is run and no credential is created. Attempt 2 (HD-0020) corrects it for the owner's actual workflow, a browser at claude.ai/code: a browser-native procedure for the first reviewer test with the exact prompt, the permanent branch structure and Instagram separation recorded in the requirements, decisions, CLAUDE.md and architecture, an investigation of the tracked creative/ files and the unpublished Reel commits with a remediation plan only, and an updated runbook. Still local only; nothing under creative/ and none of the Reel commits is touched.",
+  "depends_on": [
+    "OPS-0003"
+  ],
   "blocked_by_open_questions": [],
-  "requirement_refs": ["REQ-PRES-001", "REQ-OPS-001", "REQ-OPS-003", "REQ-OPS-007", "REQ-OPS-008", "REQ-OPS-009", "REQ-OPS-010"],
+  "requirement_refs": [
+    "REQ-PRES-001",
+    "REQ-OPS-001",
+    "REQ-OPS-003",
+    "REQ-OPS-007",
+    "REQ-OPS-008",
+    "REQ-OPS-009",
+    "REQ-OPS-010",
+    "REQ-OPS-011",
+    "REQ-OPS-012",
+    "REQ-OPS-013"
+  ],
   "declared_risk_class": "B",
-  "declared_risk_categories": ["ops_control_plane", "policy_or_schema", "tests_only", "docs_only"],
+  "declared_risk_categories": [
+    "ops_control_plane",
+    "policy_or_schema",
+    "tests_only",
+    "docs_only"
+  ],
   "base_branch": "claude-dev",
   "branch": "claude/ops-0004-review-foundation",
   "files_allowed": [
@@ -21,14 +39,15 @@
     "docs/project-memory/roadmap/**",
     "docs/project-memory/decisions/**",
     "docs/project-memory/tasks/**",
-    "docs/project-memory/runs/**"
+    "docs/project-memory/runs/**",
+    "CLAUDE.md",
+    "docs/project-memory/requirements/**"
   ],
   "files_forbidden": [
     ".github/**",
     "src/**",
     "public/**",
     "creative/**",
-    "CLAUDE.md",
     "package.json",
     "package-lock.json",
     "next.config.ts",
@@ -44,7 +63,9 @@
     "Any change to .github/workflows/ci.yml",
     "Any change to the production website source, assets or build configuration",
     "Touching the eight unpushed Reel commits or the creative project",
-    "New business requirements or changes to confirmed M1 customer-platform requirements"
+    "New business requirements or changes to confirmed M1 customer-platform requirements",
+    "Moving, deleting, resetting, rebasing, rewriting or modifying anything under creative/ or any of the eight unpublished Reel commits; pushing any Reel content (attempt 2 only plans the separation)",
+    "Changing the validator, the gate, the packet builder, the schemas or any test (attempt 2 changes documents, the reviewer prompt text and the policy's memory contract and prohibited list only)"
   ],
   "acceptance_criteria": [
     {
@@ -106,22 +127,70 @@
       "statement": "A run report for this attempt exists and validates against the run-report schema.",
       "verification_method": "command",
       "command": "node ops/validate-memory.mjs --file docs/project-memory/runs/OPS-0004/OPS-0004-a1/report.json"
+    },
+    {
+      "id": "AC-11",
+      "statement": "A browser-native procedure for the first reviewer test exists, grounded in the official documentation with evidence tags: how the review packet reaches a separate browser session without assuming a shared filesystem or CLI flags, what is technically enforced versus only instructed, which features are unverified, which human actions are necessary, and an exact copy-paste prompt. The terminal procedure is kept only as a clearly marked optional alternative. No reviewer is launched.",
+      "verification_method": "inspection",
+      "command": null
+    },
+    {
+      "id": "AC-12",
+      "statement": "The permanent branch structure (claude/** features, claude-dev staging, main production; staging before production; only the owner's explicit approval authorizes a production merge or deployment; stacked branches never replace staging) and the permanent separation of Instagram and video production from the repository are recorded in MASTER_REQUIREMENTS.md, HUMAN_DECISIONS.md, CLAUDE.md and the architecture documentation, and the policy requires them.",
+      "verification_method": "command",
+      "command": "node ops/validate-memory.mjs"
+    },
+    {
+      "id": "AC-13",
+      "statement": "A remediation plan for the tracked creative/ files and the eight unpublished Reel commits exists (preserve outside the repository, prevent recurrence, remove after approval, what remains in history, no history rewrite without separate approval, website files unchanged), and nothing under creative/, no Reel commit and no remote ref was changed.",
+      "verification_method": "inspection",
+      "command": null
+    },
+    {
+      "id": "AC-14",
+      "statement": "A run report for attempt 2 exists and validates against the run-report schema.",
+      "verification_method": "command",
+      "command": "node ops/validate-memory.mjs --file docs/project-memory/runs/OPS-0004/OPS-0004-a2/report.json"
     }
   ],
   "required_checks": [
-    { "id": "lint", "command": "npm run lint", "description": "ESLint over the repository", "must_pass": true },
-    { "id": "typecheck", "command": "npx tsc --noEmit", "description": "TypeScript type check", "must_pass": true },
-    { "id": "build", "command": "npm run build", "description": "Production build of the website", "must_pass": true },
-    { "id": "ops-validate", "command": "npm run ops:validate", "description": "Offline project-memory and workflow validation", "must_pass": true },
-    { "id": "ops-test", "command": "npm run ops:test", "description": "Validator, checker, parser, trusted-base, CI evidence, review packet and decision gate tests", "must_pass": true }
+    {
+      "id": "lint",
+      "command": "npm run lint",
+      "description": "ESLint over the repository",
+      "must_pass": true
+    },
+    {
+      "id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "description": "TypeScript type check",
+      "must_pass": true
+    },
+    {
+      "id": "build",
+      "command": "npm run build",
+      "description": "Production build of the website",
+      "must_pass": true
+    },
+    {
+      "id": "ops-validate",
+      "command": "npm run ops:validate",
+      "description": "Offline project-memory and workflow validation",
+      "must_pass": true
+    },
+    {
+      "id": "ops-test",
+      "command": "npm run ops:test",
+      "description": "Validator, checker, parser, trusted-base, CI evidence, review packet and decision gate tests",
+      "must_pass": true
+    }
   ],
   "max_attempts": 3,
-  "approval_reference": "HD-0017",
+  "approval_reference": "HD-0020",
   "created_at": "2026-11-17T13:10:00Z",
   "created_by": "worker"
 }
 ---
-
 # OPS-0004 — Review packet, deterministic decision gate and first manual-review preparation
 
 This file records the task that builds the minimum offline infrastructure for the first developer-to-reviewer experiment. It was transcribed by a worker session from the human's OPS-0004 instruction; the instruction, not this file, is the authority, and it is recorded as HD-0017. The original, larger proposal is [OPS-0004-PROPOSAL.md](../roadmap/OPS-0004-PROPOSAL.md); the owner authorised only a reduced scope.
@@ -147,3 +216,13 @@ See the front matter. In particular: no push, no pull request, no change to GitH
 ## How completion is shown
 
 The five required checks with their exit codes, the three new test files and the mutation check, a simulated run of the workflow's command sequence in a clean checkout with no credentials, the preservation evidence, and the status of the real OPS-0003 packet, all recorded in the run report at `docs/project-memory/runs/OPS-0004/OPS-0004-a1/report.json`.
+
+## Attempt 2: the browser and permanent-rules correction (HD-0020)
+
+The architecture lead provisionally accepted attempt 1 and required three corrections before OPS-0005: a browser-native reviewer procedure (the owner uses claude.ai/code, not a terminal), the permanent branch structure and Instagram separation recorded as owner decisions, and an investigation of the tracked `creative/` files and the eight unpublished Reel commits that ends in a plan. The owner authorized this correction locally only (HD-0020); the task's authorization fields were updated for attempt 2 by that decision, as in OPS-0001 attempt 2. Added to `files_allowed`: `CLAUDE.md` (the owner asked for the rules to be recorded there) and the requirements directory.
+
+1. Research Claude Code on the web from the official documentation and by observation in the development session; do not assume a shared filesystem, the CLI's restricted-mode flags, or any undocumented session interface.
+2. Rewrite the runbook so the browser procedure leads and the terminal procedure is an optional alternative; update the reviewer prompt so that it states what is enforced and what is only instructed.
+3. Record HD-0018, HD-0019, HD-0020, REQ-OPS-011 to REQ-OPS-013, ADR-0014, CLAUDE.md sections 3, 13 and 14, and policy 0.6.0 (PROHIB-017, required files, requirements and headings).
+4. Investigate `creative/` and the Reel commits read-only and write the plan; make read-only copies of the tracked Instagram work outside the repository.
+5. Verify, commit locally, rebuild the OPS-0003 packet from the new baseline, and write the attempt 2 report as a separate final commit. Do not start OPS-0005.

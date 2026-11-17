@@ -4,6 +4,8 @@
 
 **Evidence tags:** **[D]** official GitHub documentation read on 2026-11-17 (menu labels change; match by meaning). **[O]** observed through read-only GitHub access in this session. **[T]** tested here. **[U]** cannot be observed from here: the owner must check it.
 
+**Branch roles (permanent, REQ-OPS-011, HD-0018):** `claude/**` are isolated feature branches, `claude-dev` is the staging and integration-testing environment, `main` is production. Every website feature is tested on `claude-dev` before its production release, and only the owner's explicit approval authorizes a production merge or deployment. The rules below protect those roles; none of them is applied yet. The GitHub proxy used by browser sessions "doesn't limit which branches a push can update" (official documentation), so branch protection or rulesets are the only technical way to stop a session from writing to `claude-dev` or `main` (BROWSER_REVIEW.md).
+
 ## 1. What can be observed from here
 
 | Item | Observation |

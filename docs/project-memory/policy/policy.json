@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "policy_id": "m1-autonomous-development-policy",
-  "policy_version": "0.5.0",
+  "policy_version": "0.6.0",
   "status": "draft_pending_human_review",
   "owner": "human",
-  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (policy version 0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits in it were read and verified from the actions' own repositories. Version 0.4.0 (OPS-0003, HD-0015) only extends the memory contract with the trusted-base verification and CI evidence files and documents; no rule was relaxed. Version 0.5.0 (OPS-0004, HD-0017) adds the review packet and decision gate files and documents to the memory contract and the manual_session reviewer runtime to the allowed list (selected stays null); no rule was relaxed.",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (policy version 0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits in it were read and verified from the actions' own repositories. Version 0.4.0 (OPS-0003, HD-0015) only extends the memory contract with the trusted-base verification and CI evidence files and documents; no rule was relaxed. Version 0.5.0 (OPS-0004, HD-0017) adds the review packet and decision gate files and documents to the memory contract and the manual_session reviewer runtime to the allowed list (selected stays null); no rule was relaxed. Version 0.6.0 (OPS-0004 correction, HD-0018, HD-0019, HD-0020) records the permanent repository rules: it adds prohibited operation PROHIB-017 (Instagram and video-production files), requires requirements REQ-OPS-011 to REQ-OPS-013 and CLAUDE.md sections 13 and 14, and adds the browser-review and Instagram-separation documents to the memory contract; no rule was relaxed.",
   "task_id_prefixes": ["OPS", "PLAT"],
   "branches": {
     "production": "main",
@@ -230,7 +230,8 @@
     { "id": "PROHIB-013", "operation": "Modify original build photos under public/builds or public/logo.png.", "class": "C" },
     { "id": "PROHIB-014", "operation": "Disable, weaken or bypass this policy, CI or the validators.", "class": "C" },
     { "id": "PROHIB-015", "operation": "Commit secrets, customer data, supplier costs, margins or other business-sensitive information to this public repository.", "class": "C" },
-    { "id": "PROHIB-016", "operation": "Use any paid or metered AI service or API-key billing from any provider, or enable paid extra usage on the subscription.", "class": "C" }
+    { "id": "PROHIB-016", "operation": "Use any paid or metered AI service or API-key billing from any provider, or enable paid extra usage on the subscription.", "class": "C" },
+    { "id": "PROHIB-017", "operation": "Add Instagram advertising or video-production files to this repository: rendered videos, Instagram or marketing video projects (for example Remotion), video-generation scripts used only for marketing, temporary video exports or generated Reel assets.", "class": "C" }
   ],
   "memory_contract": {
     "required_files": [
@@ -242,6 +243,8 @@
       "docs/project-memory/architecture/TRUSTED_CI.md",
       "docs/project-memory/architecture/CI_EVIDENCE.md",
       "docs/project-memory/architecture/REVIEW_PACKET.md",
+      "docs/project-memory/architecture/BROWSER_REVIEW.md",
+      "docs/project-memory/roadmap/INSTAGRAM_SEPARATION_PLAN.md",
       "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
       "docs/project-memory/roadmap/ROADMAP.md",
       "docs/project-memory/decisions/HUMAN_DECISIONS.md",
@@ -293,7 +296,10 @@
       "REQ-OPS-003",
       "REQ-OPS-004",
       "REQ-OPS-008",
-      "REQ-OPS-009"
+      "REQ-OPS-009",
+      "REQ-OPS-011",
+      "REQ-OPS-012",
+      "REQ-OPS-013"
     ],
     "required_requirement_text": [
       { "id": "REQ-LOY-002", "must_contain": ["1 point", "QAR 10"] },
@@ -302,7 +308,10 @@
       { "id": "REQ-LOY-005", "must_contain": ["duplicate"] },
       { "id": "REQ-LOY-001", "must_contain": ["ledger"] },
       { "id": "REQ-OPS-008", "must_contain": ["Claude subscription", "paid AI services"] },
-      { "id": "REQ-OPS-009", "must_contain": ["low-risk", "production"] }
+      { "id": "REQ-OPS-009", "must_contain": ["low-risk", "production"] },
+      { "id": "REQ-OPS-011", "must_contain": ["claude-dev", "staging", "explicit approval"] },
+      { "id": "REQ-OPS-012", "must_contain": ["Instagram", "separate", "Remotion"] },
+      { "id": "REQ-OPS-013", "must_contain": ["browser", "claude.ai/code"] }
     ],
     "claude_md_required_headings": [
       "## 1. Scope and authority",
@@ -316,7 +325,9 @@
       "## 9. Reports are claims; verified evidence comes from the orchestrator",
       "## 10. Human authorization required",
       "## 11. Stop conditions",
-      "## 12. Content policy for this public repository"
+      "## 12. Content policy for this public repository",
+      "## 13. Instagram and video production stay out of this repository",
+      "## 14. If you were started as a reviewer"
     ],
     "content_scan": {
       "enabled": true,

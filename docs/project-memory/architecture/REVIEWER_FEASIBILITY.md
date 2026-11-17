@@ -2,6 +2,8 @@
 
 **Assessed:** 2026-11-17, for OPS-0001B. **Question:** can the owner's seven-step process run on the existing Claude subscription alone, using only documented interfaces (HD-0010, ADR-0009)? **Decision it supports:** OQ-0031, OQ-0032, OQ-0033. Nothing here selects a runtime or approves anything.
 
+> **Later research (OPS-0004 correction):** [BROWSER_REVIEW.md](BROWSER_REVIEW.md) assesses Claude Code on the web, the owner's actual workflow, as the runtime of the first manual reviewer (`manual_session`): what is documented, observed and unverified, and why read-only isolation is instructed and not enforced there.
+
 ## 1. Verdict
 
 **The process as worded is not fully supported by documented features. A close variant is.**
