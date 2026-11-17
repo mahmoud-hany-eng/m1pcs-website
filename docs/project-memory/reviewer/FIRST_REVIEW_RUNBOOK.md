@@ -43,6 +43,7 @@ Everything below that says `node ops/...` is run from this checkout. The tools r
 ### 3.2 Build the packet (you do this, not the reviewer)
 
 ```
+mkdir -p ../m1-review/OPS-0003-a1
 node ops/review-packet.mjs build \
   --repo-dir . \
   --baseline <BASELINE_COMMIT> \
@@ -53,7 +54,7 @@ node ops/review-packet.mjs build \
   --out ../m1-review/OPS-0003-a1/packet
 ```
 
-Put the packet **outside any repository**, so that no project instruction file is picked up as context. The command prints a JSON summary and the packet's `manifest_sha256`. The OPS-0004 report lists the `manifest_sha256` that the same command produced on the developer side: they must be identical (the packet is deterministic). If they differ, stop: something in the inputs is not the same.
+Put the packet **outside any repository**, so that no project instruction file is picked up as context (the folders `m1-baseline` and `m1-review` sit side by side; the output folder's parent must already exist, hence the `mkdir`). The command prints a JSON summary and the packet's `manifest_sha256`. The OPS-0004 report lists the `manifest_sha256` that the same command produced on the developer side: they must be identical (the packet is deterministic). If they differ, stop: something in the inputs is not the same.
 
 Verify it:
 
@@ -111,12 +112,12 @@ The launch message and the instructions are the only things that can instruct th
 
 ### 3.5 Save the decision
 
-When the session prints the JSON object, copy **only** that object into `../m1-review/OPS-0003-a1/review.json` (no code fence, no commentary). Keep the whole session transcript too, for your own judgement of it. End the session.
+When the session prints the JSON object, copy **only** that object into the file `review.json` that sits next to the `packet` folder (`m1-review/OPS-0003-a1/review.json`; no code fence, no commentary). Keep the whole session transcript too, for your own judgement of it. End the session.
 
 ### 3.6 Run the gate (from the baseline checkout)
 
 ```
-cd ../../m1-baseline
+cd ../../../m1-baseline
 node ops/decision-gate.mjs \
   --packet ../m1-review/OPS-0003-a1/packet \
   --decision ../m1-review/OPS-0003-a1/review.json \
