@@ -82,6 +82,14 @@
       ]
     },
     {
+      "file": "invalid/task-author-is-a-provider.json",
+      "kind": "task",
+      "why": "created_by is a role (human, planner, reviewer, worker), never a provider name.",
+      "expect": [
+        "is not one of"
+      ]
+    },
+    {
       "file": "invalid/report-claims-verified.json",
       "kind": "report",
       "why": "A worker report can never claim to be verified.",
@@ -95,6 +103,14 @@
       "why": "A worker report is always an unverified claim.",
       "expect": [
         "must be \"unverified_worker_claim\""
+      ]
+    },
+    {
+      "file": "invalid/report-old-kind.json",
+      "kind": "report",
+      "why": "The document kind is provider-neutral; the old provider-specific kind is rejected.",
+      "expect": [
+        "must be \"worker_run_report\""
       ]
     },
     {
@@ -255,6 +271,62 @@
       "why": "There is no verdict that overrides policy.",
       "expect": [
         "is not one of"
+      ]
+    },
+    {
+      "file": "invalid/decision-claims-verified.json",
+      "kind": "decision",
+      "why": "A review is an unverified claim and can never present itself as verified evidence.",
+      "expect": [
+        "must be false"
+      ]
+    },
+    {
+      "file": "invalid/decision-wrong-trust-level.json",
+      "kind": "decision",
+      "why": "A review's trust level is fixed.",
+      "expect": [
+        "must be \"unverified_reviewer_claim\""
+      ]
+    },
+    {
+      "file": "invalid/decision-reviewer-role-is-worker.json",
+      "kind": "decision",
+      "why": "The role that wrote a review is always the reviewer role.",
+      "expect": [
+        "must be \"reviewer\""
+      ]
+    },
+    {
+      "file": "invalid/decision-same-session-as-worker.json",
+      "kind": "decision",
+      "why": "A reviewer may never be the worker's own session.",
+      "expect": [
+        "must be a separate session"
+      ]
+    },
+    {
+      "file": "invalid/decision-reviewed-other-commit.json",
+      "kind": "decision",
+      "why": "A review must be of the work head that was reported.",
+      "expect": [
+        "differs from the report's head_sha"
+      ]
+    },
+    {
+      "file": "invalid/decision-unknown-runtime.json",
+      "kind": "decision",
+      "why": "Only runtimes that policy lists may host a reviewer.",
+      "expect": [
+        "is not one of"
+      ]
+    },
+    {
+      "file": "invalid/decision-old-kind.json",
+      "kind": "decision",
+      "why": "The old document kind is rejected.",
+      "expect": [
+        "must be \"review_decision\""
       ]
     }
   ]

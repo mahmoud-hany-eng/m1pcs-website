@@ -53,7 +53,7 @@ function resolveRef(root, ref) {
 
 /**
  * Check that a schema only uses supported keywords and, when strict, follows the strict-object convention
- * (every property required, additionalProperties false) that also makes it usable as a strict structured-output schema.
+ * (every property required, additionalProperties false), which keeps a contract easy to enforce with any structured-output facility.
  * Returns a list of human-readable problems (empty when fine).
  */
 export function lintSchema(root, { strict = true } = {}) {

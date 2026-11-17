@@ -4,7 +4,7 @@
 //   node ops/validate-memory.mjs                      validate the whole project memory
 //   node ops/validate-memory.mjs --json               machine-readable result
 //   node ops/validate-memory.mjs --file <path> [--kind task|report|decision]
-//                                                     validate one task file, run report or architect decision
+//                                                     validate one task file, run report or reviewer decision
 //   node ops/validate-memory.mjs --root <dir>         validate another checkout
 //
 // Exit codes: 0 valid, 1 validation errors, 2 usage or internal error.
@@ -36,7 +36,7 @@ export const PATHS = {
   schemas: {
     task: `${MEM}/schemas/task.schema.json`,
     report: `${MEM}/schemas/run-report.schema.json`,
-    decision: `${MEM}/schemas/architect-decision.schema.json`,
+    decision: `${MEM}/schemas/review-decision.schema.json`,
     policy: `${MEM}/schemas/policy.schema.json`,
   },
   requirements: `${MEM}/requirements/MASTER_REQUIREMENTS.md`,
@@ -68,7 +68,8 @@ const GOLDEN_PATHS = [
   ["CLAUDE.md", "B", "control_plane"],
   ["docs/project-memory/policy/policy.json", "B", "control_plane"],
   ["docs/project-memory/schemas/task.schema.json", "B", "control_plane"],
-  ["docs/project-memory/architect/ARCHITECT_PROMPT.md", "B", "control_plane"],
+  ["docs/project-memory/reviewer/REVIEWER_PROMPT.md", "B", "control_plane"],
+  ["docs/project-memory/reviews/OPS-0001/OPS-0001-a1/review.json", "B", "protected"],
   ["docs/project-memory/requirements/MASTER_REQUIREMENTS.md", "B", "protected"],
   ["docs/project-memory/runs/OPS-0001/OPS-0001-a1/report.json", "A", "none"],
   ["docs/example-guide.md", "A", "none"],
@@ -318,11 +319,12 @@ export function validateReportDocument(report, ctx, { location = null } = {}) {
   return out;
 }
 
-/* ------------------------------------------------------ architect decisions */
+/* ------------------------------------------------------- reviewer decisions */
 
-export function validateDecisionDocument(decision, ctx) {
+export function validateDecisionDocument(decision, ctx, { location = null } = {}) {
   const out = [];
   const err = (code, message) => out.push({ severity: "error", code, message });
+  const warn = (code, message) => out.push({ severity: "warning", code, message });
 
   const schemaResult = validate(ctx.schemas.decision, decision);
   for (const m of schemaResult.errors) err("DECISION-SCHEMA", m);
@@ -330,6 +332,24 @@ export function validateDecisionDocument(decision, ctx) {
 
   const { policy } = ctx;
   if (!decision.attempt_id.startsWith(`${decision.task_id}-a`)) err("DECISION-IDS", `attempt_id ${decision.attempt_id} must start with "${decision.task_id}-a"`);
+  if (location) {
+    const expected = `${PATHS.reviewsDir}/${decision.task_id}/${decision.attempt_id}/review.json`;
+    if (location !== expected) err("REVIEW-LOCATION", `review must live at ${expected}, found ${location}`);
+  }
+
+  // role separation: a reviewer is never the worker's session, and reviews the work that was actually reported
+  const runtimePolicy = policy.reviewer_runtime;
+  if (!runtimePolicy.allowed.includes(decision.reviewer.runtime)) err("DECISION-RUNTIME", `reviewer runtime "${decision.reviewer.runtime}" is not in policy.reviewer_runtime.allowed`);
+  if (runtimePolicy.selected === null) warn("DECISION-RUNTIME-UNDECIDED", "no reviewer runtime has been selected by a human yet (OQ-0031); this review is a trial and cannot be relied on");
+  else if (decision.reviewer.runtime !== runtimePolicy.selected) err("DECISION-RUNTIME", `reviewer ran on "${decision.reviewer.runtime}" but the policy selects "${runtimePolicy.selected}"`);
+  const report = ctx.reports ? ctx.reports.get(decision.attempt_id) : undefined;
+  if (report) {
+    if (decision.reviewed.head_sha !== report.head_sha) err("DECISION-HEAD", `reviewed.head_sha ${decision.reviewed.head_sha.slice(0, 7)} differs from the report's head_sha ${report.head_sha.slice(0, 7)}`);
+    const dev = report.session.id;
+    const rev = decision.reviewer.session.id;
+    if (dev !== null && rev !== null && dev === rev) err("DECISION-SEPARATION", "the reviewer session is the same session that did the work; a reviewer must be a separate session");
+    if (rev === null) warn("DECISION-SEPARATION-UNVERIFIED", "reviewer.session.id is null, so separation from the worker session cannot be verified");
+  }
 
   const severe = decision.findings.filter((f) => f.severity === "blocker" || f.severity === "major");
   const ids = decision.findings.map((f) => f.id);
@@ -436,9 +456,17 @@ function checkPolicy(policy, schemas, f) {
   }
   if (!policy.kill_switch.on_trigger.includes("require_human_resume")) err("POLICY-INVARIANT", "kill_switch.on_trigger must include require_human_resume");
   if (policy.limits.max_concurrent_tasks > 1) f.warn("POLICY-LIMITS", file, "max_concurrent_tasks above 1 has not been reviewed in the architecture (ADR-0002 assumes one task in flight)");
-  if (policy.budget.openai.enabled && (policy.budget.openai.model === null || policy.budget.openai.monthly_cap === null || !policy.budget.openai.hard_limit_required_at_provider)) {
-    err("POLICY-INVARIANT", "budget.openai cannot be enabled without a pinned model, a monthly cap and a provider-side hard limit");
+  // Owner decision HD-0010: the existing Claude subscription only; no paid AI service of any kind.
+  if (policy.budget.paid_ai_services_allowed !== false || policy.budget.api_billing_allowed !== false) {
+    err("POLICY-INVARIANT", "budget must not allow paid AI services or API-key billing (owner decision HD-0010)");
   }
+  if (!policy.budget.claude_subscription.extra_usage_must_stay_disabled) err("POLICY-INVARIANT", "budget.claude_subscription.extra_usage_must_stay_disabled must be true (metered overage is API-rate billing)");
+  if (!policy.prohibited_operations.some((p) => /paid|metered/i.test(p.operation) && /AI/.test(p.operation))) {
+    err("POLICY-INVARIANT", "prohibited_operations must forbid paid or metered AI services (owner decision HD-0010)");
+  }
+  const rt = policy.reviewer_runtime;
+  if (rt.selected !== null && !rt.allowed.includes(rt.selected)) err("POLICY-INVARIANT", `reviewer_runtime.selected "${rt.selected}" is not in reviewer_runtime.allowed`);
+  if (policy.limits.max_review_sessions_per_attempt < 1) err("POLICY-INVARIANT", "limits.max_review_sessions_per_attempt must be at least 1");
 
   for (const [p, cls, restriction] of GOLDEN_PATHS) {
     const got = classifyPath(p, policy);
@@ -559,6 +587,38 @@ function scanContent(root, policy, f) {
   }
 }
 
+/* ------------------------------------------------- provider neutrality (HD-0010) */
+
+// Owner decision HD-0010: the active architecture uses only the existing Claude subscription, and the contracts stay
+// provider-neutral. Contracts, policy, worker instructions and the active documents must therefore not depend on, or
+// even name, an external AI provider. Records of the decision itself, and historical run reports, are exempt.
+const EXTERNAL_AI_RE = /\b(?:openai|chatgpt|gpt(?:-[\w.]+)?)\b|responses api/i;
+const NEUTRALITY_EXEMPT = [
+  `${MEM}/decisions/`,
+  `${MEM}/runs/`,
+  PATHS.requirements,
+  `${PATHS.adrDir}/0009-`,
+];
+
+function checkProviderNeutrality(root, f) {
+  const files = [
+    PATHS.claudeMd,
+    PATHS.policy,
+    ...Object.values(PATHS.schemas),
+    ...listFiles(root, MEM, (p) => p.endsWith(".md")),
+  ];
+  for (const rel of [...new Set(files)]) {
+    if (NEUTRALITY_EXEMPT.some((prefix) => rel === prefix || rel.startsWith(prefix))) continue;
+    const text = readIfExists(root, rel);
+    if (text === null) continue;
+    text.split(/\r?\n/).forEach((line, i) => {
+      if (EXTERNAL_AI_RE.test(line)) {
+        f.error("PROVIDER-NEUTRAL", rel, "names an external AI provider or API; the active architecture uses only the existing Claude subscription and provider-neutral contracts (owner decision HD-0010). Record exclusions only in decision records", i + 1);
+      }
+    });
+  }
+}
+
 /* ------------------------------------------------------------------ the run */
 
 function loadSchemas(root, f) {
@@ -571,6 +631,11 @@ function loadSchemas(root, f) {
     for (const problem of lintSchema(schema, { strict: true })) f.error("SCHEMA-LINT", rel, problem);
     if (!schema.properties || !schema.properties.schema_version || schema.properties.schema_version.const !== "1") {
       f.error("SCHEMA-VERSION", rel, 'property schema_version must be declared as {"const": "1"}');
+    }
+    // Found by an offline test of the installed CLI (OPS-0001B): its structured-output schema validator rejects a
+    // schema that declares the 2020-12 dialect URI ("no schema with key or ref ...") but accepts the same schema without it.
+    if (schema.$schema !== undefined) {
+      f.error("SCHEMA-CLI-COMPAT", rel, 'remove the "$schema" keyword: the CLI\'s structured-output validator rejects schemas that declare the 2020-12 dialect URI, and the contracts are meant to be usable with it');
     }
   }
   const defs = new Map();
@@ -768,8 +833,17 @@ export function validateMemory({ root = DEFAULT_ROOT } = {}) {
     parsedTasks.push({ rel, ...parsed });
   }
   const ctx = {
-    schemas, policy, tasks, taskIds: new Set(tasks.keys()), reqIds: new Set(requirements.keys()), oqIds, hdIds,
+    schemas, policy, tasks, taskIds: new Set(tasks.keys()), reqIds: new Set(requirements.keys()), oqIds, hdIds, reports: new Map(),
   };
+
+  // the reviewer runtime may only be selected by a recorded human decision (no invented approvals)
+  const rr = policy.reviewer_runtime;
+  if (!oqIds.has(rr.governing_question)) f.error("REVIEWER-RUNTIME", PATHS.policy, `reviewer_runtime.governing_question ${rr.governing_question} does not exist in OPEN_QUESTIONS.md`);
+  if (rr.selected !== null && (rr.decision_reference === null || !hdIds.has(rr.decision_reference))) {
+    f.error("REVIEWER-RUNTIME", PATHS.policy, `reviewer_runtime.selected is "${rr.selected}" but decision_reference does not point to an existing human decision; a runtime is chosen by a human, never by a worker`);
+  }
+  if (rr.selected === null && rr.decision_reference !== null) f.error("REVIEWER-RUNTIME", PATHS.policy, "reviewer_runtime.decision_reference is set although no runtime is selected");
+
   if (schemas.task) {
     for (const t of parsedTasks) {
       for (const issue of validateTaskDocument(t.data, ctx, { filename: path.posix.basename(t.rel), body: t.body })) f.add(issue.severity, issue.code, t.rel, issue.message);
@@ -800,7 +874,7 @@ export function validateMemory({ root = DEFAULT_ROOT } = {}) {
   };
   for (const id of tasks.keys()) visit(id, []);
 
-  // 7. run reports and architect decisions
+  // 7. run reports and reviewer decisions (reports are loaded first so a review can be compared with its report)
   if (schemas.report) {
     for (const rel of listFiles(root, PATHS.runsDir, (p) => p.endsWith(".json"))) {
       f.files.add(rel);
@@ -809,19 +883,25 @@ export function validateMemory({ root = DEFAULT_ROOT } = {}) {
         continue;
       }
       const report = readJson(root, rel, f);
+      if (report && typeof report.attempt_id === "string") ctx.reports.set(report.attempt_id, report);
       if (report) for (const issue of validateReportDocument(report, ctx, { location: rel })) f.add(issue.severity, issue.code, rel, issue.message);
     }
   }
   if (schemas.decision) {
     for (const rel of listFiles(root, PATHS.reviewsDir, (p) => p.endsWith(".json"))) {
       f.files.add(rel);
+      if (!rel.endsWith("/review.json")) {
+        f.error("REVIEW-LOCATION", rel, 'only "review.json" files belong under reviews/<task id>/<attempt id>/');
+        continue;
+      }
       const decision = readJson(root, rel, f);
-      if (decision) for (const issue of validateDecisionDocument(decision, ctx)) f.add(issue.severity, issue.code, rel, issue.message);
+      if (decision) for (const issue of validateDecisionDocument(decision, ctx, { location: rel })) f.add(issue.severity, issue.code, rel, issue.message);
     }
   }
 
-  // 8. public-repository content scan
+  // 8. public-repository content scan, and provider neutrality (HD-0010)
   scanContent(root, policy, f);
+  checkProviderNeutrality(root, f);
   return finish(f);
 }
 
@@ -847,8 +927,17 @@ export function validateSingleFile({ root = DEFAULT_ROOT, file, kind = null }) {
   }
   const ids = (text, pattern) => new Set(text === null ? [] : parseEntries(text, pattern).map((e) => e.id));
   const reqText = readIfExists(root, PATHS.requirements);
+  const reports = new Map();
+  for (const r of listFiles(root, PATHS.runsDir, (p) => p.endsWith("/report.json"))) {
+    try {
+      const doc = JSON.parse(readIfExists(root, r));
+      if (doc && typeof doc.attempt_id === "string") reports.set(doc.attempt_id, doc);
+    } catch {
+      // an unreadable report is reported by the full validation; it just cannot be compared here
+    }
+  }
   const ctx = {
-    schemas, policy, tasks, taskIds: new Set(tasks.keys()),
+    schemas, policy, tasks, taskIds: new Set(tasks.keys()), reports,
     reqIds: new Set(reqText === null ? [] : [...reqText.matchAll(/^- \*\*(REQ-[A-Z]{2,5}-\d{3})\*\*/gm)].map((m) => m[1])),
     oqIds: ids(readIfExists(root, PATHS.openQuestions), "OQ-\\d{4}"),
     hdIds: ids(readIfExists(root, PATHS.humanDecisions), "HD-\\d{4}"),
@@ -872,7 +961,7 @@ export function validateSingleFile({ root = DEFAULT_ROOT, file, kind = null }) {
       f.error("MEM-JSON-PARSE", rel, `not valid JSON: ${err.message}`);
       return finish(f);
     }
-    issues = inferred === "report" ? validateReportDocument(data, ctx, { location: rel.startsWith(`${PATHS.runsDir}/`) ? rel : null }) : validateDecisionDocument(data, ctx);
+    issues = inferred === "report" ? validateReportDocument(data, ctx, { location: rel.startsWith(`${PATHS.runsDir}/`) ? rel : null }) : validateDecisionDocument(data, ctx, { location: rel.startsWith(`${PATHS.reviewsDir}/`) ? rel : null });
   }
   for (const issue of issues) f.add(issue.severity, issue.code, rel, issue.message);
   return finish(f);

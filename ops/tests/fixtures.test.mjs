@@ -18,7 +18,7 @@ const text = (issues) => errorsOf(issues).map((i) => `[${i.code}] ${i.message}`)
 test("valid fixtures are accepted without errors", async (t) => {
   await t.test("task", () => assert.deepEqual(errorsOf(run.task(fixture("valid/task.json"))), []));
   await t.test("run report", () => assert.deepEqual(errorsOf(run.report(fixture("valid/run-report.json"))), []));
-  await t.test("architect decision", () => assert.deepEqual(errorsOf(run.decision(fixture("valid/architect-decision.json"))), []));
+  await t.test("reviewer decision", () => assert.deepEqual(errorsOf(run.decision(fixture("valid/review-decision.json"))), []));
 });
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "ops/tests/fixtures/manifest.json"), "utf8"));

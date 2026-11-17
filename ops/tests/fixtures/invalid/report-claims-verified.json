@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "report_kind": "claude_run_report",
+  "report_kind": "worker_run_report",
   "task_id": "OPS-9001",
   "attempt_id": "OPS-9001-a1",
   "attempt_number": 1,
@@ -9,7 +9,7 @@
     "verified_by_orchestrator": true
   },
   "session": {
-    "id": null,
+    "id": "session_fixture_worker_01",
     "url": null
   },
   "branch": "claude/ops-9001-example-guide",

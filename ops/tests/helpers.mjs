@@ -15,7 +15,7 @@ export function loadSchemas(root = ROOT) {
   return {
     task: readJson("docs/project-memory/schemas/task.schema.json", root),
     report: readJson("docs/project-memory/schemas/run-report.schema.json", root),
-    decision: readJson("docs/project-memory/schemas/architect-decision.schema.json", root),
+    decision: readJson("docs/project-memory/schemas/review-decision.schema.json", root),
     policy: readJson("docs/project-memory/schemas/policy.schema.json", root),
   };
 }
@@ -31,10 +31,12 @@ export function fixture(rel) {
 /** A validation context built around the fixture task OPS-9001. */
 export function fixtureContext() {
   const task = fixture("valid/task.json");
+  const report = fixture("valid/run-report.json");
   return {
     schemas: loadSchemas(),
     policy: loadPolicy(),
     tasks: new Map([[task.task_id, task]]),
+    reports: new Map([[report.attempt_id, report]]),
     taskIds: new Set([task.task_id]),
     reqIds: new Set(),
     oqIds: new Set(),

@@ -5,9 +5,10 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { main, validateMemory } from "../validate-memory.mjs";
+import { classifyPath } from "../lib/policy.mjs";
+import { main, validateDecisionDocument, validateMemory } from "../validate-memory.mjs";
 import {
-  ROOT, addFixtureReport, addFixtureTask, cleanup, copyTree, describeFindings, edit, editJson, fixture, has, read, sink, write,
+  ROOT, addFixtureReport, addFixtureTask, cleanup, copyTree, describeFindings, edit, editJson, fixture, fixtureContext, has, read, sink, write,
 } from "./helpers.mjs";
 
 const MEM = "docs/project-memory";
@@ -97,9 +98,25 @@ test("policy", async (t) => {
     const r = broken((d) => editJson(d, POLICY, (p) => { p.classification.unmatched_path_category = "docs_only"; }));
     assert.ok(has(r, "POLICY-INVARIANT", { contains: "default to class B" }));
   });
-  await t.test("OpenAI cannot be enabled without a model, a cap and a provider limit", () => {
-    const r = broken((d) => editJson(d, POLICY, (p) => { p.budget.openai.enabled = true; }));
-    assert.ok(has(r, "POLICY-INVARIANT", { contains: "budget.openai cannot be enabled" }));
+  await t.test("paid AI services and API-key billing cannot be switched on (HD-0010)", () => {
+    for (const key of ["paid_ai_services_allowed", "api_billing_allowed"]) {
+      const r = broken((d) => editJson(d, POLICY, (p) => { p.budget[key] = true; }));
+      assert.equal(r.ok, false, `${key} = true was accepted`);
+      assert.ok(has(r, "POLICY-SCHEMA", { contains: `/budget/${key}` }), describeFindings(r));
+    }
+  });
+  await t.test("paid extra usage on the subscription cannot be allowed", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.budget.claude_subscription.extra_usage_must_stay_disabled = false; }));
+    assert.equal(r.ok, false);
+    assert.ok(has(r, "POLICY-SCHEMA", { contains: "extra_usage_must_stay_disabled" }), describeFindings(r));
+  });
+  await t.test("the prohibition on paid or metered AI cannot be removed", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.prohibited_operations = p.prohibited_operations.filter((o) => o.id !== "PROHIB-016"); }));
+    assert.ok(has(r, "POLICY-INVARIANT", { contains: "must forbid paid or metered AI services" }), describeFindings(r));
+  });
+  await t.test("a reviewer runtime that is not in the allowed list cannot be selected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.selected = "local_script"; }));
+    assert.equal(r.ok, false);
   });
   await t.test("a model-declared class that is not in the schemas is a drift error", () => {
     const r = broken((d) => editJson(d, POLICY, (p) => { p.risk_categories.brand_new = { minimum_class: "A", description: "invented category" }; }));
@@ -127,14 +144,14 @@ test("schemas", async (t) => {
   });
   await t.test("a risk category missing from the schemas but present in policy is rejected", () => {
     const r = broken((d) => {
-      for (const f of ["task", "run-report", "architect-decision"]) {
+      for (const f of ["task", "run-report", "review-decision"]) {
         editJson(d, `${MEM}/schemas/${f}.schema.json`, (s) => { s.$defs.risk_category.enum = s.$defs.risk_category.enum.filter((c) => c !== "other"); });
       }
     });
     assert.ok(has(r, "POLICY-SCHEMA-SYNC"), describeFindings(r));
   });
-  await t.test("the architect proposal must stay in step with the task schema", () => {
-    const r = broken((d) => editJson(d, `${MEM}/schemas/architect-decision.schema.json`, (s) => {
+  await t.test("the reviewer proposal must stay in step with the task schema", () => {
+    const r = broken((d) => editJson(d, `${MEM}/schemas/review-decision.schema.json`, (s) => {
       s.properties.next_step.properties.next_task.anyOf[0].properties.max_attempts.maximum = 9;
     }));
     assert.ok(has(r, "SCHEMA-PROPOSAL", { contains: "max_attempts" }), describeFindings(r));
@@ -142,6 +159,12 @@ test("schemas", async (t) => {
   await t.test("the schema version cannot be dropped", () => {
     const r = broken((d) => editJson(d, TASK, (s) => { s.properties.schema_version = { type: "string", description: "x" }; }));
     assert.ok(has(r, "SCHEMA-VERSION"));
+  });
+  await t.test("a schema that declares $schema is rejected (the CLI's structured-output validator refuses the dialect URI)", () => {
+    for (const f of ["task", "run-report", "review-decision", "policy"]) {
+      const r = broken((d) => editJson(d, `${MEM}/schemas/${f}.schema.json`, (s) => { s.$schema = "https://json-schema.org/draft/2020-12/schema"; }));
+      assert.ok(has(r, "SCHEMA-CLI-COMPAT", { file: `${MEM}/schemas/${f}.schema.json` }), `${f}: ${describeFindings(r)}`);
+    }
   });
 });
 
@@ -200,7 +223,7 @@ test("ADRs, questions, decisions and roadmap", async (t) => {
   await t.test("too few ADRs is rejected", () => {
     const r = broken((d) => {
       const dir = path.join(d, `${MEM}/architecture/adr`);
-      for (const f of fs.readdirSync(dir).filter((n) => /^000[5-8]/.test(n))) fs.rmSync(path.join(dir, f));
+      for (const f of fs.readdirSync(dir).filter((n) => /^(000[5-9]|0010)/.test(n))) fs.rmSync(path.join(dir, f));
     });
     assert.ok(has(r, "ADR-MISSING"), describeFindings(r));
   });
@@ -437,4 +460,179 @@ test("command line interface", async (t) => {
     }
     assert.equal(read(ROOT, "package.json").includes('"ops:test"'), true);
   });
+});
+
+test("provider neutrality (owner decision HD-0010)", async (t) => {
+  const SCHEMA = `${MEM}/schemas/task.schema.json`;
+  const HD = `${MEM}/decisions/HUMAN_DECISIONS.md`;
+  await t.test("a provider name or API in a contract is rejected", () => {
+    const r = broken((d) => editJson(d, SCHEMA, (s) => { s.description = "Compatible with the OpenAI Responses API."; }));
+    assert.ok(has(r, "PROVIDER-NEUTRAL", { file: SCHEMA }), describeFindings(r));
+  });
+  await t.test("a provider name in the policy is rejected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.budget.note = "GPT-4 could be enabled later"; }));
+    assert.equal(r.ok, false);
+  });
+  await t.test("a provider name in an active document is rejected, with its line", () => {
+    const r = broken((d) => edit(d, `${MEM}/architecture/ARCHITECTURE.md`, (x) => `${x}\nA ChatGPT step reviews each run.\n`));
+    assert.ok(has(r, "PROVIDER-NEUTRAL", { file: `${MEM}/architecture/ARCHITECTURE.md` }), describeFindings(r));
+    assert.ok(r.findings.items.some((i) => i.code === "PROVIDER-NEUTRAL" && i.line > 1));
+  });
+  await t.test("a provider name in CLAUDE.md is rejected", () => {
+    const r = broken((d) => edit(d, "CLAUDE.md", (x) => `${x}\nSend the report to the OpenAI API.\n`));
+    assert.ok(has(r, "PROVIDER-NEUTRAL", { file: "CLAUDE.md" }), describeFindings(r));
+  });
+  await t.test("decision records, historic run reports and the requirements may name what was excluded", () => {
+    const r = broken((d) => {
+      edit(d, HD, (x) => `${x}\n\nThe owner excluded the OpenAI API and ChatGPT as automation components.\n`);
+      editJson(d, `${MEM}/runs/OPS-0001/OPS-0001-a1/report.json`, (rep) => { rep.summary = `${rep.summary} Historic note: an OpenAI design was proposed then.`; });
+    });
+    assert.equal(has(r, "PROVIDER-NEUTRAL"), false, describeFindings(r));
+  });
+  await t.test("an ordinary word that merely resembles a provider name is not flagged", () => {
+    const r = broken((d) => edit(d, `${MEM}/architecture/ARCHITECTURE.md`, (x) => `${x}\nThe gptable and openair labels are unrelated words.\n`));
+    assert.equal(has(r, "PROVIDER-NEUTRAL"), false, describeFindings(r));
+  });
+});
+
+test("reviewer runtime is a human decision, never a worker's", async (t) => {
+  await t.test("selecting a runtime without a recorded human decision is rejected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.selected = "actions_hosted_session"; }));
+    assert.ok(has(r, "REVIEWER-RUNTIME", { contains: "decision_reference" }), describeFindings(r));
+  });
+  await t.test("a decision reference to a human decision that does not exist is rejected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.selected = "actions_hosted_session"; p.reviewer_runtime.decision_reference = "HD-9999"; }));
+    assert.ok(has(r, "REVIEWER-RUNTIME", { contains: "existing human decision" }), describeFindings(r));
+  });
+  await t.test("a decision reference with no selected runtime is rejected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.decision_reference = "HD-0010"; }));
+    assert.ok(has(r, "REVIEWER-RUNTIME", { contains: "no runtime is selected" }), describeFindings(r));
+  });
+  await t.test("a runtime selected by an existing human decision is accepted", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.selected = "actions_hosted_session"; p.reviewer_runtime.decision_reference = "HD-0010"; }));
+    assert.equal(has(r, "REVIEWER-RUNTIME"), false, describeFindings(r));
+  });
+  await t.test("a governing question that does not exist is rejected", () => {
+    const r = broken((d) => editJson(d, POLICY, (p) => { p.reviewer_runtime.governing_question = "OQ-9999"; }));
+    assert.ok(has(r, "REVIEWER-RUNTIME", { contains: "OQ-9999" }), describeFindings(r));
+  });
+  await t.test("with no runtime selected, a review is accepted only with a warning that it cannot be relied on", () => {
+    const ctx = fixtureContextWithReport();
+    const issues = validateDecisionDocument(fixture("valid/review-decision.json"), ctx);
+    assert.deepEqual(issues.filter((i) => i.severity === "error"), []);
+    assert.ok(issues.some((i) => i.code === "DECISION-RUNTIME-UNDECIDED" && i.severity === "warning"));
+  });
+  await t.test("once a runtime is selected, a review from a different runtime is rejected", () => {
+    const ctx = fixtureContextWithReport();
+    ctx.policy.reviewer_runtime.selected = "cloud_routine_session";
+    const issues = validateDecisionDocument(fixture("valid/review-decision.json"), ctx);
+    assert.ok(issues.some((i) => i.code === "DECISION-RUNTIME" && i.severity === "error" && i.message.includes("policy selects")));
+  });
+});
+
+function fixtureContextWithReport() {
+  const ctx = fixtureContext();
+  ctx.policy = JSON.parse(JSON.stringify(ctx.policy));
+  return ctx;
+}
+
+test("role separation between worker and reviewer", async (t) => {
+  await t.test("a reviewer with an unknown session id is accepted only with a warning that separation is unverified", () => {
+    const ctx = fixtureContextWithReport();
+    const doc = fixture("valid/review-decision.json");
+    doc.reviewer.session.id = null;
+    const issues = validateDecisionDocument(doc, ctx);
+    assert.deepEqual(issues.filter((i) => i.severity === "error"), []);
+    assert.ok(issues.some((i) => i.code === "DECISION-SEPARATION-UNVERIFIED" && i.severity === "warning"));
+  });
+  await t.test("the same session id for worker and reviewer is an error", () => {
+    const ctx = fixtureContextWithReport();
+    const doc = fixture("valid/review-decision.json");
+    doc.reviewer.session.id = fixture("valid/run-report.json").session.id;
+    assert.ok(validateDecisionDocument(doc, ctx).some((i) => i.code === "DECISION-SEPARATION" && i.severity === "error"));
+  });
+  await t.test("a review of a different head than the report's is an error", () => {
+    const ctx = fixtureContextWithReport();
+    const doc = fixture("valid/review-decision.json");
+    doc.reviewed.head_sha = "9".repeat(40);
+    assert.ok(validateDecisionDocument(doc, ctx).some((i) => i.code === "DECISION-HEAD" && i.severity === "error"));
+  });
+  await t.test("a review of an attempt that has no report is checked on its own content only", () => {
+    const ctx = fixtureContextWithReport();
+    ctx.reports = new Map();
+    const issues = validateDecisionDocument(fixture("valid/review-decision.json"), ctx);
+    assert.deepEqual(issues.filter((i) => i.severity === "error"), []);
+  });
+  await t.test("the policy keeps the roles apart and cannot grant a reviewer authority", () => {
+    for (const [pathInPolicy, value] of [
+      [["roles", "reviewer", "may_approve"], true],
+      [["roles", "reviewer", "may_merge"], true],
+      [["roles", "reviewer", "may_launch_tasks"], true],
+      [["roles", "reviewer", "may_change_code"], true],
+      [["roles", "reviewer", "tool_access"], "read_write"],
+      [["roles", "reviewer", "must_be_separate_session"], false],
+      [["roles", "developer", "may_review_own_work"], true],
+      [["roles", "policy_engine", "uses_models"], true],
+    ]) {
+      const r = broken((d) => editJson(d, POLICY, (p) => {
+        let node = p;
+        for (const k of pathInPolicy.slice(0, -1)) node = node[k];
+        node[pathInPolicy.at(-1)] = value;
+      }));
+      assert.equal(r.ok, false, `${pathInPolicy.join(".")} = ${JSON.stringify(value)} was accepted`);
+    }
+  });
+});
+
+test("review artifacts", async (t) => {
+  const GOOD = `${MEM}/reviews/OPS-9001/OPS-9001-a1/review.json`;
+  function addFixtureReview(dir, rel = GOOD, mutate = () => {}) {
+    const doc = fixture("valid/review-decision.json");
+    mutate(doc);
+    write(dir, rel, `${JSON.stringify(doc, null, 2)}\n`);
+  }
+  await t.test("a valid review at the right path is accepted", () => {
+    const r = broken((d) => { addFixtureTask(d); addFixtureReport(d); addFixtureReview(d); });
+    assert.equal(r.ok, true, describeFindings(r));
+  });
+  await t.test("a review at the wrong path is rejected", () => {
+    const r = broken((d) => { addFixtureTask(d); addFixtureReport(d); addFixtureReview(d, `${MEM}/reviews/OPS-9001/OPS-9001-a1/notes.json`); });
+    assert.ok(has(r, "REVIEW-LOCATION"), describeFindings(r));
+  });
+  await t.test("a review stored under another attempt's folder is rejected", () => {
+    const r = broken((d) => { addFixtureTask(d); addFixtureReport(d); addFixtureReview(d, `${MEM}/reviews/OPS-9001/OPS-9001-a2/review.json`); });
+    assert.ok(has(r, "REVIEW-LOCATION", { contains: "must live at" }), describeFindings(r));
+  });
+  await t.test("a review by the worker's own session is rejected when the tree is validated", () => {
+    const r = broken((d) => {
+      addFixtureTask(d);
+      addFixtureReport(d);
+      addFixtureReview(d, GOOD, (doc) => { doc.reviewer.session.id = fixture("valid/run-report.json").session.id; });
+    });
+    assert.ok(has(r, "DECISION-SEPARATION"), describeFindings(r));
+    assert.equal(r.ok, false);
+  });
+  await t.test("--file validates a review and reports a separation failure", () => {
+    const dir = copyTree();
+    try {
+      addFixtureTask(dir);
+      addFixtureReport(dir);
+      addFixtureReview(dir);
+      assert.equal(main(["--root", dir, "--file", path.join(dir, GOOD)], sink(), sink()), 0);
+      addFixtureReview(dir, GOOD, (doc) => { doc.reviewer.session.id = fixture("valid/run-report.json").session.id; });
+      const out = sink();
+      assert.equal(main(["--root", dir, "--file", path.join(dir, GOOD)], out, sink()), 1);
+      assert.match(out.text(), /DECISION-SEPARATION/);
+    } finally {
+      cleanup(dir);
+    }
+  });
+});
+
+test("the classification policy keeps the reviewer's own files under human control", () => {
+  const policy = JSON.parse(fs.readFileSync(path.join(ROOT, POLICY), "utf8"));
+  const cls = (p) => classifyPath(p, policy);
+  assert.deepEqual([cls(`${MEM}/reviewer/REVIEWER_PROMPT.md`).class, cls(`${MEM}/reviewer/REVIEWER_PROMPT.md`).restriction], ["B", "control_plane"]);
+  assert.deepEqual([cls(`${MEM}/reviews/OPS-0001/OPS-0001-a1/review.json`).class, cls(`${MEM}/reviews/OPS-0001/OPS-0001-a1/review.json`).restriction], ["B", "protected"]);
+  assert.equal(cls(`${MEM}/schemas/review-decision.schema.json`).restriction, "control_plane");
 });
