@@ -15,6 +15,9 @@ The shared, versioned memory of the M1 Gaming PCs development system. Humans, th
 | [tasks/](tasks/) | One file per task, plus [TEMPLATE.md](tasks/TEMPLATE.md) | Humans, or the reviewer through a reviewed proposal |
 | [reviewer/REVIEWER_PROMPT.md](reviewer/REVIEWER_PROMPT.md) | Instructions for the separate, read-only reviewer session | Humans |
 | [architecture/REVIEWER_FEASIBILITY.md](architecture/REVIEWER_FEASIBILITY.md) | Whether a Claude-only review loop is supported, with the evidence | Humans, on a reviewed task |
+| [architecture/CI_ARCHITECTURE.md](architecture/CI_ARCHITECTURE.md) | The baseline CI design, its security decisions, test coverage and limits (OPS-0002) | Humans, on a reviewed task |
+| [roadmap/OPS-0002-ACTIVATION.md](roadmap/OPS-0002-ACTIVATION.md) | What activating the CI workflow needs: branches, settings, protection rules, plan, preview builds | Humans |
+| [roadmap/OPS-0003-PROPOSAL.md](roadmap/OPS-0003-PROPOSAL.md) | Proposed next scope after CI (not approved) | Humans |
 | `reviews/<task id>/<attempt id>/review.json` | Reviewer decisions (unverified reviewer claims) | The orchestrator, in a later stage |
 | [policy/policy.json](policy/policy.json) | The deterministic policy | Humans only |
 | [schemas/](schemas/) | Strict, provider-neutral JSON contracts for tasks, run reports, reviewer decisions and the policy | Humans only |

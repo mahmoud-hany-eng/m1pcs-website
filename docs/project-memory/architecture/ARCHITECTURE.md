@@ -38,7 +38,7 @@ Each recommendation has an id (`REC-<AREA>-<NNN>`). The reasoning behind the lar
 
 ## 4. Automation recommendations
 
-The automation is built in stages (see the roadmap). OPS-0001 delivers only the memory, contracts, policy and an offline validator _(workflows and API integrations are not built)_.
+The automation is built in stages (see the roadmap). OPS-0001 delivered the memory, contracts, policy and an offline validator. OPS-0002 adds the baseline CI workflow and its deterministic safety checker _(implemented on a local branch only; not pushed and not active; see [CI_ARCHITECTURE.md](CI_ARCHITECTURE.md))_. Orchestration workflows and model integrations are not built.
 
 - **REC-OPS-001** (recommendation) — Git is the shared memory. Humans govern requirements, decisions, policy and architecture. Machine-written run state lives in a separate branch written only by privileged workflows _(not built)_.
 - **REC-OPS-002** (recommendation) — GitHub Actions is the only orchestrator, and deterministic code, not a model, decides routing _(not built)_.
@@ -56,6 +56,11 @@ The automation is built in stages (see the roadmap). OPS-0001 delivers only the 
 - **REC-OPS-014** (recommendation) — Govern subscription usage instead of buying capacity. Run limits come from policy, a plan's real limits are confirmed by the owner (OQ-0022), the extra-usage setting stays off so that reaching a limit stops work, and an exhausted allowance halts the loop and tells a human.
 - **REC-OPS-015** (recommendation) — Never let a stray API key silently change billing. A non-interactive Claude session uses an API key in preference to a subscription token when both exist, so any automated job that uses the subscription must run in an environment where no API key is defined, and a guard step must fail the job if one is.
 - **REC-OPS-016** (recommendation) — Give the reviewer a trusted workspace: its configuration comes from the base branch, and the worker's branch reaches it only as data files (diff, report, check results), never as the working directory. The worker's own instruction files must not shape the reviewer.
+- **REC-OPS-017** (recommendation) — Run CI unprivileged. The workflow requests only `contents: read`, references no secret or token, uses no environment and never deploys, keeps no credential after checkout, keeps no dependency cache, runs on a GitHub-hosted runner and is started only by `push` (to `claude/**` and the integration branch) and `pull_request` (into the integration and production branches). `pull_request_target`, `workflow_run`, scheduled and manual triggers are never used (ADR-0011).
+- **REC-OPS-018** (recommendation) — Describe the approved workflow as data and enforce it deterministically. `policy.workflow_policy` lists the files, events, permission, runner, timeout, actions (with SHAs and inputs) and the exact commands in order; `ops/lib/workflow-safety.mjs` rejects any deviation, and `npm run ops:validate` runs it on every branch. The policy floors in the validator mean the policy file alone cannot weaken the rules.
+- **REC-OPS-019** (recommendation) — Pin every action to a full commit SHA that was read from the action's own repository and checked there. Changing a pin is a reviewed policy change; a version tag is a movable label and is not accepted.
+- **REC-OPS-020** (recommendation) — Do not treat `npm ci --ignore-scripts` as making the pipeline safe. It stops dependencies from running install scripts; lint, type check, tests and build still execute code from the branch under test. The environment, with nothing to steal and nothing to write, is the safety boundary.
+- **REC-OPS-021** (recommendation) — A green CI result says nothing reliable about changes to the paths that define CI itself (`.github/**`, `ops/**`, policy, schemas), because a pull request runs its own copy of the checker. Those changes need human review (they are control-plane paths), and a later task adds a check that runs the base branch's checker on the pull request's files (OPS-0003 proposal).
 
 ## 5. Trust boundaries
 
@@ -77,3 +82,4 @@ Machine contracts are strict JSON Schemas in [schemas/](../schemas/): the task f
 - The offline validator implements a strict subset of JSON Schema and rejects schemas that use anything else.
 - Pre-flight classification of a task is conservative and advisory; the authoritative class is computed from the actual changed paths.
 - Role separation between worker and reviewer is checked from recorded session identifiers. It is only as reliable as those identifiers, and it is a mechanical check, not a security boundary: the boundary is the reviewer's read-only tools and its trusted workspace (REC-OPS-016).
+- The workflow checker reads a deliberately small subset of YAML and rejects everything else, so a valid but unusual workflow is rejected rather than guessed at. Checking the file does not show how GitHub treats it, and the checker cannot see repository settings or secrets. The first real run is after an approved push (OQ-0028), and the owner's settings are tracked in OQ-0034.
