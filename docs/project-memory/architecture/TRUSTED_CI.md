@@ -21,7 +21,7 @@ Both tests first run the branch's own validator on the branch and require it to 
 |---|---|
 | [`ops/lib/trusted-base.mjs`](../../../ops/lib/trusted-base.mjs) | `trustedBaseCheck({ repoDir, base, head })`: judges the change `base..head` with the rules of `base` |
 | [`ops/ci-evidence.mjs`](../../../ops/ci-evidence.mjs) | Command line that runs the check and, optionally, adds what GitHub reports about a CI run (see [CI_EVIDENCE.md](CI_EVIDENCE.md)) |
-| [`ops/tests/trusted-base.test.mjs`](../../../ops/tests/trusted-base.test.mjs) | 27 tests on throwaway git repositories, most of them attacks |
+| [`ops/tests/trusted-base.test.mjs`](../../../ops/tests/trusted-base.test.mjs) | 29 tests on throwaway git repositories, most of them attacks |
 | [`ops/tests/git-fixture.mjs`](../../../ops/tests/git-fixture.mjs) | The throwaway repository helper |
 
 `.github/workflows/ci.yml` is **unchanged**. No second job was added, on purpose (section 4).
@@ -98,9 +98,9 @@ The fourth is what OPS-0003 prepares: a command that anyone holding an establish
 
 ## 6. Test coverage
 
-27 tests in `trusted-base.test.mjs` and 34 in `ci-evidence.test.mjs` (61 in all) against real temporary git repositories. The attacks covered: the lockstep weakening and the weakened checker (above); a checker edit alone; a second and a hidden workflow (`export-ignore`); the package script `ops:validate` replaced by `true`, and npm hooks around CI scripts; website source, original photos, the logo and `.env` paths; `CLAUDE.md` and the reviewer prompt; planted code in the head's validator; symbolic links in the head and in the base; option injection, newlines, over-long and unknown revision names; unrelated histories; a base with no validation logic; a moved base; a head that widens its own task file; very large changes; leftovers in the repository and the temporary directory; determinism and schema conformance; credentials in the child environment; and the command line's exit codes.
+29 tests in `trusted-base.test.mjs` and 35 in `ci-evidence.test.mjs` (64 in all; the whole suite is 417) against real temporary git repositories. The attacks covered: the lockstep weakening and the weakened checker (above); a checker edit alone; a second and a hidden workflow (`export-ignore`); the package script `ops:validate` replaced by `true`, and npm hooks around CI scripts; website source, original photos, the logo and `.env` paths; `CLAUDE.md` and the reviewer prompt; planted code in the head's validator; symbolic links in the head and in the base; an honest addition under the schema directory, and a deleted schema that must not remove its rule; option injection, newlines, over-long and unknown revision names; unrelated histories; a base with no validation logic; a moved base; a head that widens its own task file; very large changes; leftovers in the repository and the temporary directory; determinism and schema conformance; credentials in the child environment; and the command line's exit codes.
 
-**[T]** A mutation check was run in a scratch copy: 28 deliberate weakenings of the security rules in the two library files (for example "ignore the base policy", "skip the symlink refusal", "accept any check-run app", "read the task file from the head") were applied one at a time. The first run found four that no test noticed; tests were added; the final run killed all 28. The script is a scratch tool and is not part of the repository.
+**[T]** A mutation check was run in a scratch copy: 30 deliberate weakenings of the security rules in the two library files (for example "ignore the base policy", "skip the symlink refusal", "accept any check-run app", "read the task file from the head") were applied one at a time. The first run (28 weakenings) found four that no test noticed; tests were added; two more weakenings, for the rule that decides which head files are kept, were added with their tests; the final run killed all 30. The script is a scratch tool and is not part of the repository.
 
 ## 7. How to use it
 
@@ -110,3 +110,10 @@ node ops/ci-evidence.mjs --repository <owner>/<name> --repo-dir . --base <base-r
 ```
 
 Exit code `0` means no human review is required by the evidence; `3` means a human must review (the reasons are printed to standard error); `2` is bad usage or unreadable input; `1` is an internal error. A reviewer session would run this from its own trusted workspace and treat the JSON as one input among several.
+
+## 8. The tool applied to this branch, and two faults that using it found
+
+**[T]** The tool was run on this very change: base `0aba5e8` (the OPS-0002 tip that ran on GitHub), head `673bb5d` (this branch's last code commit), task `OPS-0003`. Result, exit code 3 (a human must review): the base rules pass on the head's files (110 files checked under each of the two roots); 28 changed paths, of which 13 are control-plane and all 28 protected; flags `policy_changed`, `schemas_changed` and `ops_code_changed`; no change to the workflow, the package scripts or any build input; task `OPS-0003` has no approved task file in the base (the base predates it), so its scope cannot be established; evidence incomplete (no GitHub data: this branch has never run there). That is the intended answer: the change touches the rules that judge changes, so a human decides, and the tool says why.
+
+Using the tool on real history found two faults in the tool itself, both fixed and tested before the commits were made final: (1) a base revision whose policy predates `workflow_policy` made the evidence command crash with an internal error instead of a named refusal; (2) the first version of the overlay dropped a schema file that the head only **added**, so an honest addition was reported as failing the base rules (`LINK-BROKEN`, `MEM-FILE-MISSING`). Neither could have weakened a check, but (2) would have made the signal noisy. Neither appeared in the synthetic tests first, which is a reason to run the tool on real pairs of revisions whenever the base changes.
+
