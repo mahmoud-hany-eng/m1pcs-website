@@ -1,9 +1,9 @@
 # OPS-0004 proposal: from a finished task to a validated review decision (offline, no model, no token)
 
-**Status: proposal only.** This is not a task file, it is not approved, and nothing described here has been created or started. It is the design of the next implementation task, prepared by OPS-0003 as asked (HD-0015). It is the first part of stage STG-4 on the [roadmap](ROADMAP.md); the reviewer itself is not built here.
+**Status: superseded in part (HD-0017).** Only a reduced scope was authorised and built locally: the review packet builder, the deterministic decision gate and the manual-review runbook ([REVIEW_PACKET.md](../architecture/REVIEW_PACKET.md)); the offline completion detector, the next-task generator and any automatic reviewer or dispatch were **not** built, and no automatic reviewer or dispatch system is active. The text below is the original proposal, unchanged, and was written before any of that existed; it is not approved as a whole. It is the design of the next implementation task, prepared by OPS-0003 as asked (HD-0015). It is the first part of stage STG-4 on the [roadmap](ROADMAP.md); the reviewer itself is not built here.
 
 - **Class:** B (new files under `ops/**` and the policy/schema directories, all control-plane), so a human approves before the run and before any merge.
-- **Cannot start until:** OPS-0003 has been reviewed and merged; the owner has decided OQ-0035 (where the trusted-base check is anchored) at least for the reviewer's workspace.
+- **Cannot start until:** OPS-0003 has been reviewed and merged _(the reduced OPS-0004 was started locally anyway as a recorded dependency exception, HD-0017)_; the owner has decided OQ-0035 (where the trusted-base check is anchored) at least for the reviewer's workspace.
 - **Constraints carried over:** the existing Claude subscription only (HD-0010, REQ-OPS-008); no API key, no token created, no secret, no privileged workflow, no new action, no paid service, nothing pushed without approval.
 
 ## 1. The target process and where each step is built

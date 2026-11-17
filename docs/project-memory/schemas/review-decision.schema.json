@@ -43,9 +43,10 @@
           "type": "string",
           "enum": [
             "actions_hosted_session",
-            "cloud_routine_session"
+            "cloud_routine_session",
+            "manual_session"
           ],
-          "description": "Where the reviewer session ran. The policy lists the runtimes that may be used."
+          "description": "Where the reviewer session ran. manual_session is a separate session that a human started by hand. The policy lists the runtimes that may be used."
         },
         "session": {
           "type": "object",

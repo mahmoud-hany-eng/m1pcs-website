@@ -4,7 +4,7 @@ Unresolved business and technical decisions. **No task may assume an answer.** A
 
 Each entry has a status (`open` or `resolved`), what it blocks, the question, and where it came from. A `Recommendation` line is a suggestion for the human to accept or reject, never a decision. A resolved entry points to the human decision that resolved it.
 
-Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 to 34 were added by the automation audit, OPS-0001 and OPS-0002; 35 and 36 by OPS-0003.
+Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 to 34 were added by the automation audit, OPS-0001 and OPS-0002; 35 and 36 by OPS-0003; 37 by OPS-0004.
 
 ### OQ-0001 — Paid hosting plans for production
 - **Status:** open
@@ -189,6 +189,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** Which of these does the owner authorise? (A) A one-time push of one named branch (for OPS-0002, claude/ops-0002-ci-baseline) after the work is reviewed. Consequence: that branch becomes public, the new workflow runs once on it, and a preview build may start; nothing else changes. (B) A standing authorisation to push any claude/ branch, never claude-dev or main. Consequence: every such push is public, runs CI and may start a preview build; it is needed for unattended operation (STG-6). (C) No push authorisation: the owner pushes by hand each time.
 - **Recommendation:** A for OPS-0002; revisit B at STG-6, after OQ-0022 and OQ-0029 are answered.
 - **Progress (2026-11-17):** Option A was chosen and used once for claude/ops-0002-ci-baseline (HD-0014). Its authorisation ended with that push. Each further branch, including claude/ops-0003-trusted-ci, needs its own explicit approval naming the branch. Standing authorisation (B) stays open for STG-6.
+- **Progress (2026-11-17):** Option A was used a second time, for claude/ops-0003-trusted-ci (HD-0016), again as a one-time push that ended with its verification. The OPS-0004 branch is local only; pushing it needs its own approval naming the branch (see OQ-0037).
 - **Source:** Automation audit, human action 6; HD-0005.
 
 ### OQ-0029 — Hosting plan and preview-build filter
@@ -208,6 +209,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** STG-4
 - **Question:** The reviewer must be a separate Claude session (HD-0010). Two runtimes are documented. (1) actions_hosted_session: a restricted Claude session run by the official GitHub Action inside a GitHub Actions job. It reads files prepared by trusted steps, has a read-only tool list and a read-only repository token, and its structured result is validated by the deterministic validator. It is documented and subscription-authenticated, but it is a CI-hosted session, not a cloud session, and it needs OQ-0032. (2) cloud_routine_session: a Claude cloud session started by an experimental API call or by a pull-request trigger. It is a true cloud session, but it cannot be restricted to read-only per routine, it acts under the owner's own GitHub identity (the same as the worker), and a pull-request trigger starts from the worker's own branch, so the worker's own instruction files would be loaded. See REVIEWER_FEASIBILITY.md.
 - **Recommendation:** actions_hosted_session, because it is the only runtime whose isolation can be enforced from documented features. This needs the owner to accept that the reviewer is a CI-hosted Claude session rather than a cloud session.
+- **Progress (2026-11-17):** OPS-0004 adds a third allowed runtime, `manual_session` (a separate session that a person starts by hand), so that the first review test needs no token and no automation. The policy's selected runtime stays null, so every review carries the "trial, cannot be relied on" warning. The first test is described in [FIRST_REVIEW_RUNBOOK.md](../reviewer/FIRST_REVIEW_RUNBOOK.md); no reviewer has been run.
 - **Source:** OPS-0001B feasibility assessment; HD-0010.
 
 ### OQ-0032 — Authorise a long-lived subscription token for CI
@@ -237,6 +239,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** STG-4 (relying on the check as a gate rather than a measurement)
 - **Question:** The trusted-base check (OPS-0003, [TRUSTED_CI.md](../architecture/TRUSTED_CI.md), ADR-0012) judges a change with the rules of an established base revision, but it is only independent of the change if it is run by something the change cannot alter. A second job in the same workflow is not such a thing, because a pull request runs its own copy of the workflow file. Which anchor does the owner accept? (1) The reviewer session's trusted workspace, which runs the tool from the base revision and receives the branch as data (no new workflow; needs OQ-0031). (2) A required reviewer who is not the author (needs OQ-0036). (3) An organisation-level required workflow (needs an organisation account and its cost, OQ-0023). (4) A privileged default-branch workflow (`workflow_run` or `pull_request_target`): not recommended; it is forbidden by the policy floors, anchors on the production branch, runs with a privileged token against code the pull request supplies, and GitHub documents a planned default block on `pull_request_target` in public repositories.
 - **Recommendation:** (1) for the first reviewer stages, plus (2) once a second identity exists.
+- **Progress (2026-11-17):** The trusted-base check ran on GitHub as part of the OPS-0003 CI run (417 of 417 tests passed, including its attack tests) and its evidence tool processed real GitHub data; it is still advisory and unanchored. OPS-0004's packet builder and gate run from a checkout of a trusted baseline commit and refuse to run elsewhere, which is the practical form of option (1) for the first manual test.
 - **Source:** OPS-0003; HD-0015.
 
 ### OQ-0036 — A separate GitHub identity for the automation, and the branch rules that follow
@@ -244,4 +247,12 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** STG-6 (and the meaning of "required approvals" on main)
 - **Question:** The repository's only collaborator is the owner (admin), and every push and merge made from this environment is made as the owner. Branch rules therefore bind the automation only as far as they bind the owner, and a pull request's author cannot approve it, so requiring an approval would block every merge unless the owner is allowed to bypass, which also lets Claude through. Does the owner (1) apply the single-identity rules now as safety rails and rely on Claude's instructions and the owner's approval for merges to main (Profile 1 in [GITHUB_SETTINGS_GUIDE.md](../roadmap/GITHUB_SETTINGS_GUIDE.md)), and (2) later connect the automation under a separate, Write-only identity (a second free GitHub account or a GitHub App), after which the owner's approval is enforced by GitHub (Profile 2)? Whether a Claude session can be connected under such an identity is not verified.
 - **Recommendation:** (1) now; investigate (2) before STG-6, and before any CI-hosted session holds a token (OQ-0032).
+- **Progress (2026-11-17):** Both live runs (OPS-0002 and OPS-0003) list the owner's login as actor, so the repository still lacks enforced separation between the human owner and the identity Claude acts under. The Claude Code documentation read for OPS-0003 describes the official GitHub Action authenticating as the Claude GitHub App (a separate identity with Contents, Issues and Pull requests permissions and no Administration permission) when no `github_token` is passed; that route needs OQ-0032 and a reviewed workflow change. No setting was changed.
 - **Source:** OPS-0003; HD-0015.
+
+### OQ-0037 — How is the first manual reviewer session hosted and fed?
+- **Status:** open
+- **Blocks:** OPS-0005 (the first manual review)
+- **Question:** The first review test is manual and subscription-only (HD-0017). The reviewer must work from a clean checkout of the trusted baseline (the reviewed OPS-0004 commit), and the packet must reach the machine that runs the separate Claude Code session. How does the owner want to do it? (1) Authorise a one-time push of the branch claude/ops-0004-review-foundation (it also publishes the OPS-0004 commits; the packet itself is not committed), and follow the runbook on the owner's own computer. (2) Ask for a git bundle of the branch instead, so nothing is published. (3) Another arrangement. Either way the owner runs the packet builder, the reviewer session and the gate, and no token or credential is created.
+- **Recommendation:** (2) if the owner prefers nothing more to be public, otherwise (1); and run the session locally with the restricted flags in the runbook.
+- **Source:** OPS-0004; HD-0017.

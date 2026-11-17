@@ -17,11 +17,13 @@ The shared, versioned memory of the M1 Gaming PCs development system. Humans, th
 | [architecture/REVIEWER_FEASIBILITY.md](architecture/REVIEWER_FEASIBILITY.md) | Whether a Claude-only review loop is supported, with the evidence | Humans, on a reviewed task |
 | [architecture/CI_ARCHITECTURE.md](architecture/CI_ARCHITECTURE.md) | The baseline CI design, its security decisions, test coverage and limits (OPS-0002) | Humans, on a reviewed task |
 | [roadmap/OPS-0002-ACTIVATION.md](roadmap/OPS-0002-ACTIVATION.md) | What activating the CI workflow needs: branches, settings, protection rules, plan, preview builds | Humans |
-| [roadmap/OPS-0003-PROPOSAL.md](roadmap/OPS-0003-PROPOSAL.md) | The scope proposed for OPS-0003 (now implemented locally; the implementation notes win where they differ) | Humans |
+| [roadmap/OPS-0003-PROPOSAL.md](roadmap/OPS-0003-PROPOSAL.md) | The scope proposed for OPS-0003 (implemented; pushed once and green on GitHub, HD-0016; the implementation notes win where they differ) | Humans |
 | [architecture/TRUSTED_CI.md](architecture/TRUSTED_CI.md) | Trusted-base verification: how it works, why a second job in the same workflow is not a boundary, what anchors would be, limits (OPS-0003) | Humans, on a reviewed task |
 | [architecture/CI_EVIDENCE.md](architecture/CI_EVIDENCE.md) | CI results as data from GitHub's own APIs: sources, the document, consistency checks, the first live run as fixture (OPS-0003) | Humans, on a reviewed task |
 | [roadmap/GITHUB_SETTINGS_GUIDE.md](roadmap/GITHUB_SETTINGS_GUIDE.md) | Exact branch rules for `main` and `claude-dev`, what is observable, how rules interact with Claude's workflow, the Reel commits | Humans |
-| [roadmap/OPS-0004-PROPOSAL.md](roadmap/OPS-0004-PROPOSAL.md) | Proposed next task: offline completion detector, review packet and decision gate (not approved) | Humans |
+| [roadmap/OPS-0004-PROPOSAL.md](roadmap/OPS-0004-PROPOSAL.md) | The larger OPS-0004 proposal (completion detector, review packet and decision gate). Only the reduced scope was authorised (HD-0017) | Humans |
+| [architecture/REVIEW_PACKET.md](architecture/REVIEW_PACKET.md) | The review packet and the deterministic decision gate: layout, what each checks, what a passing result means (nothing is approved), limits (OPS-0004) | Humans, on a reviewed task |
+| [reviewer/FIRST_REVIEW_RUNBOOK.md](reviewer/FIRST_REVIEW_RUNBOOK.md) | How a person runs the first manual, subscription-only review of OPS-0003, with the exact launch message (OPS-0005 prepares it; nothing has been run) | Humans |
 | `reviews/<task id>/<attempt id>/review.json` | Reviewer decisions (unverified reviewer claims) | The orchestrator, in a later stage |
 | [policy/policy.json](policy/policy.json) | The deterministic policy | Humans only |
 | [schemas/](schemas/) | Strict, provider-neutral JSON contracts for tasks, run reports, reviewer decisions and the policy | Humans only |

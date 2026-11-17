@@ -40,6 +40,7 @@ export const PATHS = {
     decision: `${MEM}/schemas/review-decision.schema.json`,
     policy: `${MEM}/schemas/policy.schema.json`,
     evidence: `${MEM}/schemas/ci-evidence.schema.json`,
+    packet: `${MEM}/schemas/review-packet-manifest.schema.json`,
   },
   requirements: `${MEM}/requirements/MASTER_REQUIREMENTS.md`,
   architecture: `${MEM}/architecture/ARCHITECTURE.md`,
@@ -591,7 +592,7 @@ function checkEntries(entries, file, kind, required, f) {
 
 /* ------------------------------------------------------------- content scan */
 
-const SECRET_PATTERNS = [
+export const SECRET_PATTERNS = [
   ["private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ["api-key-sk", /\bsk-[A-Za-z0-9_-]{20,}/],
   ["github-token", /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})/],
@@ -602,7 +603,7 @@ const SECRET_PATTERNS = [
   ["supabase-project-url", /https:\/\/[a-z0-9]{20}\.supabase\.co/],
   ["qatar-phone-number", /(?<![\d.])\+?974[\s-]?\d{4}[\s-]?\d{4}(?!\d)/],
 ];
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+export const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
 const TEXT_EXT = /\.(md|json|mjs|js|ts|tsx|txt|yml|yaml|sh)$/;
 
 function scanContent(root, policy, f) {

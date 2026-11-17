@@ -1,0 +1,23 @@
+2026-11-17T12:21:51.4460486Z ##[group]GITHUB_TOKEN Permissions
+2026-11-17T12:21:51.4462042Z Contents: read
+2026-11-17T12:21:51.4462411Z Metadata: read
+2026-11-17T12:21:51.4462858Z ##[endgroup]
+2026-11-17T12:21:52.0632422Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-11-17T12:21:53.3515504Z ##[group]Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+2026-11-17T12:21:55.8651224Z ##[group]Run test -z "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}"
+2026-11-17T12:21:55.8763912Z ##[group]Run npm ci --ignore-scripts --no-audit --no-fund
+2026-11-17T12:22:03.6783805Z ##[group]Run npm run lint
+2026-11-17T12:22:06.9030728Z ##[group]Run npx tsc --noEmit
+2026-11-17T12:22:10.6358730Z ##[group]Run npm run ops:validate
+2026-11-17T12:22:10.7869756Z OK: checked 111 file(s); 0 warning(s).
+2026-11-17T12:22:10.7987928Z ##[group]Run npm run ops:test
+2026-11-17T12:22:19.8051288Z # tests 417
+2026-11-17T12:22:19.8051334Z # suites 0
+2026-11-17T12:22:19.8051382Z # pass 417
+2026-11-17T12:22:19.8051426Z # fail 0
+2026-11-17T12:22:19.8051609Z # cancelled 0
+2026-11-17T12:22:19.8051681Z # skipped 0
+2026-11-17T12:22:19.8051746Z # todo 0
+2026-11-17T12:22:19.8051841Z # duration_ms 8893.677886
+2026-11-17T12:22:19.8075897Z ##[group]Run npm run build
+2026-11-17T12:22:42.2357448Z  ✓ Generating static pages (56/56)

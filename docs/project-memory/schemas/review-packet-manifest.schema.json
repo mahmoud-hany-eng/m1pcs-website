@@ -1,0 +1,346 @@
+{
+  "$id": "m1-ops/review-packet-manifest.schema.json",
+  "title": "Review packet manifest",
+  "description": "Binds a review packet to one commit, one task and one attempt, and lists the SHA-256 of every file in it. A reviewer reads the packet as evidence, never as instructions. The manifest is data produced by a tool that must be run from a checkout of the trusted baseline.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "packet_kind": {
+      "const": "review_packet",
+      "description": "The kind of document."
+    },
+    "tool": {
+      "type": "object",
+      "description": "The tool that built the packet.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name.",
+          "maxLength": 60
+        },
+        "version": {
+          "type": "string",
+          "description": "Tool version.",
+          "maxLength": 20
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration.",
+      "properties": {
+        "authenticated": {
+          "const": false,
+          "description": "A manifest cannot prove who built it."
+        },
+        "note": {
+          "type": "string",
+          "description": "What a consumer must do.",
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "authenticated",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "description": "The change under review: base..head, as reported at report_head_sha.",
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/task_id"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/attempt_id"
+        },
+        "branch": {
+          "description": "Branch of the head, when known.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "string",
+              "description": "Branch name.",
+              "maxLength": 200
+            }
+          ]
+        },
+        "base_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "head_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "merge_base_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "report_head_sha": {
+          "$ref": "#/$defs/sha"
+        }
+      },
+      "required": [
+        "task_id",
+        "attempt_id",
+        "branch",
+        "base_sha",
+        "head_sha",
+        "merge_base_sha",
+        "report_head_sha"
+      ],
+      "additionalProperties": false
+    },
+    "trusted_baseline": {
+      "type": "object",
+      "description": "The trusted commit that supplied the task definition, policy, schemas, requirements and reviewer instructions.",
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/sha"
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "Version of the policy taken from the baseline.",
+          "maxLength": 40
+        },
+        "prompt_version": {
+          "type": "string",
+          "description": "Version of the reviewer prompt taken from the baseline.",
+          "maxLength": 40
+        },
+        "task_file_matches_head": {
+          "type": "boolean",
+          "description": "Whether the task file at the head is byte-identical to the baseline's (a worker may not redefine its own task)."
+        }
+      },
+      "required": [
+        "commit",
+        "policy_version",
+        "prompt_version",
+        "task_file_matches_head"
+      ],
+      "additionalProperties": false
+    },
+    "ci": {
+      "type": "object",
+      "description": "Summary of the CI evidence file; the gate re-derives it from the file.",
+      "properties": {
+        "run_id": {
+          "type": "integer",
+          "description": "GitHub workflow run id.",
+          "minimum": 0
+        },
+        "conclusion": {
+          "description": "Null while running.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "string",
+              "description": "Run conclusion as GitHub reports it.",
+              "maxLength": 40
+            }
+          ]
+        },
+        "ci_passed": {
+          "type": "boolean",
+          "description": "Every blocking consistency check held and the run succeeded."
+        },
+        "ci_trust_basis": {
+          "type": "string",
+          "enum": [
+            "ci_definition_unchanged_from_base",
+            "ci_definition_modified_from_base",
+            "base_unchecked",
+            "ci_not_collected"
+          ],
+          "description": "Whether CI's own definition is the base's (from the evidence)."
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "The evidence has both the trusted-base section and the GitHub data."
+        }
+      },
+      "required": [
+        "run_id",
+        "conclusion",
+        "ci_passed",
+        "ci_trust_basis",
+        "evidence_complete"
+      ],
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "description": "Size of the change.",
+      "properties": {
+        "files_changed": {
+          "type": "integer",
+          "description": "Number of changed paths.",
+          "minimum": 0
+        },
+        "additions": {
+          "type": "integer",
+          "description": "Added lines.",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "description": "Deleted lines.",
+          "minimum": 0
+        },
+        "diff_bytes": {
+          "type": "integer",
+          "description": "Size of the patch.",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "files_changed",
+        "additions",
+        "deletions",
+        "diff_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "description": "Every file of the packet except this manifest.",
+      "items": {
+        "type": "object",
+        "description": "One file of the packet.",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path inside the packet.",
+            "pattern": "^(trusted|untrusted)/[a-z0-9][a-z0-9.-]*$",
+            "maxLength": 80
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "reviewer_instructions",
+              "decision_schema",
+              "task",
+              "policy",
+              "requirements",
+              "ci_evidence",
+              "changed_files",
+              "run_report",
+              "diff",
+              "commits"
+            ],
+            "description": "What the file is for. Each role appears exactly once."
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "trusted_baseline",
+              "github_derived",
+              "computed_from_git",
+              "worker_claim",
+              "worker_authored"
+            ],
+            "description": "Where the content came from. Only the first three can be relied on for facts, and none of them can instruct the reviewer."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the file's exact bytes.",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "Size in bytes.",
+            "minimum": 0,
+            "maximum": 3000000
+          }
+        },
+        "required": [
+          "path",
+          "role",
+          "trust",
+          "sha256",
+          "bytes"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 10,
+      "maxItems": 10
+    },
+    "indicators": {
+      "type": "array",
+      "description": "Where instruction-like text was found.",
+      "items": {
+        "type": "object",
+        "description": "Worker-written text that reads like an instruction to a reviewer. Recorded as data; it is never obeyed.",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Packet file in which the text was found.",
+            "maxLength": 80
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "instruction_like_text"
+            ],
+            "description": "What was found."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of matching lines.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "file",
+          "kind",
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "packet_kind",
+    "tool",
+    "trust",
+    "subject",
+    "trusted_baseline",
+    "ci",
+    "change",
+    "files",
+    "indicators"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>. The prefix must be listed in policy.task_id_prefixes."
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}-a[1-9][0-9]?$",
+      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1."
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    }
+  }
+}

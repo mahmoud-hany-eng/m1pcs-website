@@ -1,6 +1,6 @@
 # CI results as data (OPS-0003)
 
-**Status: implemented on a local branch (`claude/ops-0003-trusted-ci`); not pushed; no GitHub run of this branch exists.** Authorised for local implementation only (HD-0015). Decision: [ADR-0012](adr/0012-trusted-base-verification-is-advisory-until-anchored.md) (proposed). The trusted-base check that fills one section is described in [TRUSTED_CI.md](TRUSTED_CI.md).
+**Status: implemented on the branch `claude/ops-0003-trusted-ci`, pushed once (HD-0016); its first live run (44082419253, commit 50a46ca) succeeded and the tool processed the real GitHub responses of that run; not merged; advisory only.** Authorised for local implementation (HD-0015). Decision: [ADR-0012](adr/0012-trusted-base-verification-is-advisory-until-anchored.md) (proposed). The trusted-base check that fills one section is described in [TRUSTED_CI.md](TRUSTED_CI.md).
 
 **Evidence tags:** **[D]** official GitHub documentation read on 2026-11-17. **[O]** observed through read-only GitHub access. **[T]** a test run in this environment. **[U]** not verified from here.
 
@@ -18,7 +18,7 @@ A later reviewer (STG-4) must obtain, without trusting the worker that produced 
 | Token permissions the job really had | The job log's `GITHUB_TOKEN Permissions` block (`GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs`) | GitHub writes that block, but it is inside a log that code under test also writes to, so it is used only as a read-only confirmation, never to establish a fact alone |
 | Test counts, files checked, pages built | The same job log, from the step that prints them | **No: a claim** by the code under test (`authority: claim_by_output_of_the_code_under_test`) |
 
-No `actions/upload-artifact` was added: it is not an approved action, and the Checks and Actions APIs already hold everything above. Whether an unauthenticated client may download a job log from a public repository was not verified **[U]**; the log is optional and the document says when it was not given.
+No `actions/upload-artifact` was added: it is not an approved action, and the Checks and Actions APIs already hold everything above. Whether an unauthenticated client may download a job log from a public repository was not verified at first **[U]**; it has since been **observed** for run 44082419253 **[O]**: the run, jobs, check-run and job-log responses were all fetched without authentication. The log is still optional and the document says when it was not given.
 
 **No credential is stored or used by the repository.** The tool reads JSON files and git; it does not call GitHub. The party that fetches the GitHub data (a human, or a reviewer session using its own read access) does so itself and hands the responses over. A test asserts that the evidence library imports nothing but the YAML reader and contains no `process.env`, network or child-process use.
 
@@ -72,13 +72,13 @@ The data of the first live run (run 43995081483, job 133745025105, commit 0aba5e
 |---|---|
 | `live-run-43995081483.run.json`, `.jobs.json` | Real GitHub API data, reduced to the public fields |
 | `live-run-43995081483.job.log.txt` | A real 83-line excerpt of the job log, including the token permission block, `OK: checked 93 file(s); 0 warning(s).`, the TAP summary `# tests 353`, `# pass 353`, `# fail 0` and `Generating static pages (56/56)` |
-| `live-run-43995081483.check-runs.synthetic.json` | **Synthetic.** The shape of the Checks API response. Its id, name, status and conclusion equal the real check run (it was observed through the check-run tool); the app slug `github-actions` was **not observed** **[U]** and is the documented value |
+| `live-run-43995081483.check-runs.synthetic.json` | **Synthetic.** The shape of the Checks API response. Its id, name, status and conclusion equal the real check run (it was observed through the check-run tool); the app slug `github-actions` was not observed at that time. The check runs of the later real run (44082419253) confirm the shape and the `github-actions` slug **[O]** |
 
 From it the tool reads: workflow conclusion `success`, one job `verify` with nine expected steps all `success`, token permissions `contents: read` and `metadata: read`, 353 of 353 tests passing as printed, 93 files checked, 56 static pages. With a base check showing no change to the CI definition, the verdict is "CI passed; the CI definition is unchanged; no human review required by the evidence".
 
 ## 5. What this does not give
 
 - **No authentication of the document.** Anyone can write a file that looks like one; the consumer must fetch the GitHub data and run the tool itself, from the base. Signing it would need a secret or an attestation action, neither of which is approved.
-- **No GitHub run of this branch.** Every result here was produced locally on stored fixtures and throwaway repositories.
+- **Live evidence is one run.** The tool has processed the real, unmodified GitHub responses of one run of this branch (44082419253; stored in `ops/tests/fixtures/ci/real-run-44082419253.*`, with a real-versus-synthetic table in that directory's README). The workflow does not run the tool, and it has not been tried against a failing run, a re-run or a pull-request event on GitHub; those cases are tested only on fixtures and throwaway repositories.
 - **Test counts are not verified facts.** A branch could print any TAP summary; the counts matter only because the step that printed them succeeded under a CI definition that is unchanged from the base.
 - **It does not decide.** The deterministic policy, with a human where required, decides (ADR-0005). The document is an input.

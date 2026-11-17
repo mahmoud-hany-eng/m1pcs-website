@@ -301,11 +301,19 @@ test("a very large change is reported with a cap, not rejected", () => {
 test("the check changes nothing: the repository is untouched and its temporary files are removed", () => {
   const snapshot = () => [repo.git("status", "--porcelain"), repo.git("for-each-ref"), repo.git("stash", "list")].join("|");
   const before = snapshot();
-  const tmpBefore = new Set(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("m1-trusted-base-")));
-  check("weaken-in-lockstep");
+  // A private temporary directory, so that another process using the shared one (a parallel test run) cannot disturb the listing.
+  const priv = fs.mkdtempSync(path.join(os.tmpdir(), "m1-tb-private-"));
+  const savedTmp = process.env.TMPDIR;
+  process.env.TMPDIR = priv;
+  try {
+    check("weaken-in-lockstep");
+    assert.deepEqual(fs.readdirSync(priv), []);
+  } finally {
+    if (savedTmp === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = savedTmp;
+    fs.rmSync(priv, { recursive: true, force: true });
+  }
   assert.equal(snapshot(), before);
-  const leftover = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("m1-trusted-base-") && !tmpBefore.has(n));
-  assert.deepEqual(leftover, []);
 });
 
 test("the result is deterministic and conforms to the evidence schema", () => {

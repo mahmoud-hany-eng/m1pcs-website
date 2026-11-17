@@ -63,7 +63,7 @@ export function sanitizedEnv(source = process.env) {
   return env;
 }
 
-function git(repoDir, args, { input, maxBuffer = 256 * 1024 * 1024 } = {}) {
+export function git(repoDir, args, { input, maxBuffer = 256 * 1024 * 1024 } = {}) {
   try {
     return execFileSync("git", ["-c", `core.hooksPath=${os.devNull}`, "-c", "core.fsmonitor=false", "-c", "core.pager=cat", "-C", repoDir, ...args], {
       env: sanitizedEnv(),
@@ -105,7 +105,7 @@ function mergeBaseOf(repoDir, a, b) {
 
 /* ------------------------------------------------------------------- trees */
 
-function safeRelPath(p) {
+export function safeRelPath(p) {
   if (typeof p !== "string" || p === "" || p.startsWith("/") || p.includes("\\") || /[\0-\x1f\x7f]/.test(p) || p.includes("�") || p.includes("//")) return false;
   return p.split("/").every((seg) => seg !== "" && seg !== "." && seg !== ".." && seg.toLowerCase() !== ".git");
 }
@@ -188,7 +188,7 @@ function overlayRoot(dir, headContents, baseContents, replacePrefixes) {
 
 /* ------------------------------------------------------------- the changes */
 
-function changedPaths(repoDir, from, to) {
+export function changedPaths(repoDir, from, to) {
   const raw = git(repoDir, ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", from, to]).toString("utf8").split("\0");
   const out = [];
   for (let i = 0; i + 1 < raw.length; i += 2) {

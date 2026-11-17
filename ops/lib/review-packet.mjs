@@ -1,0 +1,529 @@
+// Review packet (OPS-0004). Offline: reads a git repository and files, writes a directory. No network, no credential, no model.
+//
+// A review packet is what an independent reviewer session reads about ONE attempt of ONE task:
+//
+//   MANIFEST.json                              binds the packet to a commit, a task and an attempt, and lists every file's SHA-256
+//   trusted/   reviewer-instructions.md        from the trusted baseline commit (never from the worker's branch)
+//              review-decision.schema.json     the output contract, from the baseline
+//              task.md                         the approved task definition, from the baseline
+//              policy.json                     the deterministic policy, from the baseline
+//              requirements.md                 the requirement lines the task cites, from the baseline
+//              ci-evidence.json                GitHub's results about the run, as produced by ops/ci-evidence.mjs
+//              changed-files.json              the changed paths with risk classes, computed from git
+//   untrusted/ run-report.json                 the worker's own report: a CLAIM
+//              diff.patch                      the bounded diff: facts computed by git, text written by the worker
+//              commits.json                    commit ids and subjects: text written by the worker
+//
+// "trusted" says where a file came from. No file in either folder can instruct the reviewer: only the reviewer's launch
+// message and its instructions from the baseline can. Instruction-like text found in worker-written files is counted in the
+// manifest as data and is never obeyed.
+//
+// The tool must be run from a checkout of the trusted baseline. It checks that its own policy, schemas and reviewer prompt are
+// byte-identical to the baseline commit's, so a branch cannot redefine the reviewer's instructions or the rules it is judged by.
+
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { validate } from "./json-schema.mjs";
+import { classifyPaths } from "./policy.mjs";
+import { addedInstructionLineCount, foreignEmailCount, instructionLineCount, secretShapes } from "./review-text.mjs";
+import { changedPaths, git, readBlobAtRevision, resolveCommit } from "./trusted-base.mjs";
+import { DEFAULT_ROOT, PATHS, parseTaskFile } from "../validate-memory.mjs";
+
+export class PacketError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "PacketError";
+    this.code = code;
+  }
+}
+
+export const PACKET_TOOL = { name: "ops/review-packet", version: "1.0.0" };
+export const PROMPT_PATH = "docs/project-memory/reviewer/REVIEWER_PROMPT.md";
+const PROMPT_START = "<!-- PROMPT-START -->";
+const PROMPT_END = "<!-- PROMPT-END -->";
+
+/** The fixed layout. Every role appears exactly once; nothing else may be in the packet. */
+export const LAYOUT = [
+  { role: "reviewer_instructions", path: "trusted/reviewer-instructions.md", trust: "trusted_baseline", max: 100_000 },
+  { role: "decision_schema", path: "trusted/review-decision.schema.json", trust: "trusted_baseline", max: 200_000 },
+  { role: "task", path: "trusted/task.md", trust: "trusted_baseline", max: 200_000 },
+  { role: "policy", path: "trusted/policy.json", trust: "trusted_baseline", max: 500_000 },
+  { role: "requirements", path: "trusted/requirements.md", trust: "trusted_baseline", max: 100_000 },
+  { role: "ci_evidence", path: "trusted/ci-evidence.json", trust: "github_derived", max: 1_000_000 },
+  { role: "changed_files", path: "trusted/changed-files.json", trust: "computed_from_git", max: 500_000 },
+  { role: "run_report", path: "untrusted/run-report.json", trust: "worker_claim", max: 1_000_000 },
+  { role: "diff", path: "untrusted/diff.patch", trust: "worker_authored", max: 1_500_000 },
+  { role: "commits", path: "untrusted/commits.json", trust: "worker_authored", max: 200_000 },
+];
+export const LIMITS = { manifestBytes: 100_000, totalBytes: 4_500_000, subjectChars: 200 };
+const byRole = Object.fromEntries(LAYOUT.map((f) => [f.role, f]));
+
+export const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
+const text = (buf) => buf.toString("utf8");
+const json = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+
+function need(cond, code, message) {
+  if (!cond) throw new PacketError(code, message);
+}
+
+function parseJson(buf, code, label) {
+  try {
+    return JSON.parse(text(buf));
+  } catch {
+    throw new PacketError(code, `${label} is not valid JSON`);
+  }
+}
+
+/* --------------------------------------------------------------- trusted files */
+
+/** The reviewer's instructions: the text between the markers of the prompt file, and its version. */
+export function extractPrompt(promptText) {
+  const start = promptText.indexOf(PROMPT_START);
+  const end = promptText.indexOf(PROMPT_END);
+  need(start >= 0 && end > start, "PK-PROMPT", "the reviewer prompt has no PROMPT-START and PROMPT-END markers");
+  const version = /^- \*\*Prompt version:\*\* (\S+)\s*$/m.exec(promptText);
+  need(version, "PK-PROMPT", "the reviewer prompt states no version");
+  return { version: version[1], body: `${promptText.slice(start + PROMPT_START.length, end).trim()}\n` };
+}
+
+/** The verbatim requirement lines that a task cites. */
+export function requirementsExcerpt(requirementsText, refs) {
+  const lines = requirementsText.split(/\r?\n/);
+  const picked = [];
+  for (const ref of [...refs].sort()) {
+    const line = lines.find((l) => l.startsWith(`- **${ref}**`));
+    need(line, "PK-REQUIREMENT", `the task cites ${ref}, which is not in the baseline's requirements`);
+    picked.push(line);
+  }
+  return `# Requirements cited by the task\n\nVerbatim lines from the trusted baseline.\n\n${picked.join("\n")}\n`;
+}
+
+function loadToolContext(toolRoot) {
+  const read = (rel) => fs.readFileSync(path.join(toolRoot, rel));
+  const schemas = {};
+  const schemaBytes = {};
+  for (const [key, rel] of Object.entries(PATHS.schemas)) {
+    schemaBytes[key] = read(rel);
+    schemas[key] = JSON.parse(text(schemaBytes[key]));
+  }
+  const policyBytes = read(PATHS.policy);
+  return { root: toolRoot, schemas, schemaBytes, policy: JSON.parse(text(policyBytes)), policyBytes, promptBytes: read(PROMPT_PATH), requirementsText: text(read(PATHS.requirements)) };
+}
+export { loadToolContext };
+
+/** The task file of the tool's own checkout (the trusted baseline), as bytes, or null. */
+export function toolTaskFile(ctx, taskId) {
+  const dir = path.join(ctx.root, PATHS.tasksDir);
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => new RegExp(`^${taskId}-[a-z0-9-]+\\.md$`).test(n)) : [];
+  if (names.length !== 1) return null;
+  return fs.readFileSync(path.join(dir, names[0]));
+}
+
+/* -------------------------------------------------------------- derived facts */
+
+/** What GitHub's data in an evidence document says, recomputed (never read from the document's own verdict). */
+export function deriveCi(evidence) {
+  const g = evidence.github_ci;
+  if (!g) return { present: false, passed: false, runId: null, conclusion: null, headSha: null };
+  const run = g.workflow_run;
+  const blockingFailed = g.consistency.filter((c) => c.blocking && !c.passed);
+  return {
+    present: true,
+    passed: blockingFailed.length === 0 && run.status === "completed" && run.conclusion === "success",
+    runId: run.id,
+    conclusion: run.conclusion,
+    headSha: run.head_sha,
+  };
+}
+
+/** The set of paths named by the `diff --git` headers of a patch. */
+export function pathsInPatch(patchText) {
+  const out = new Set();
+  for (const line of patchText.split("\n")) {
+    const m = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+    if (m) out.add(m[2]);
+  }
+  return out;
+}
+
+function classificationDoc(paths, policy) {
+  const c = classifyPaths(paths, policy);
+  return {
+    class: c.class,
+    restriction: c.restriction,
+    categories: [...c.categories].sort(),
+    control_plane_paths: [...c.controlPlanePaths].sort(),
+    protected_paths: [...c.protectedPaths].sort(),
+    immutable_paths: [...c.immutablePaths].sort(),
+    hits: c.hits,
+  };
+}
+
+function numstat(repoDir, from, to) {
+  const out = git(repoDir, ["diff", "--numstat", "-z", "--no-renames", from, to]).toString("utf8").split("\0").filter(Boolean);
+  const map = new Map();
+  for (const rec of out) {
+    const m = /^(\d+|-)\t(\d+|-)\t(.+)$/s.exec(rec);
+    if (m) map.set(m[3], { additions: m[1] === "-" ? 0 : Number(m[1]), deletions: m[2] === "-" ? 0 : Number(m[2]) });
+  }
+  return map;
+}
+
+function indicatorList(files) {
+  const out = [];
+  const add = (file, count) => count > 0 && out.push({ file, kind: "instruction_like_text", count });
+  add(byRole.run_report.path, instructionLineCount(text(files.get(byRole.run_report.path))));
+  add(byRole.diff.path, addedInstructionLineCount(text(files.get(byRole.diff.path))));
+  add(byRole.commits.path, instructionLineCount(JSON.parse(text(files.get(byRole.commits.path))).map((c) => c.subject).join("\n")));
+  return out.sort((a, b) => (a.file < b.file ? -1 : 1));
+}
+
+function sensitiveProblems(files, policy) {
+  const allowed = policy.memory_contract.content_scan.allowed_emails;
+  const problems = [];
+  for (const spec of LAYOUT) {
+    const buf = files.get(spec.path);
+    if (!buf) continue;
+    const t = text(buf);
+    const shapes = secretShapes(t);
+    if (shapes.length) problems.push({ code: "PK-SENSITIVE", message: `${spec.path} contains text shaped like a credential (${shapes.join(", ")})` });
+    if (foreignEmailCount(t, allowed) > 0) problems.push({ code: "PK-SENSITIVE", message: `${spec.path} contains an email address that is not on the policy's allowed list` });
+  }
+  return problems;
+}
+
+/* ---------------------------------------------------------------------- build */
+
+/**
+ * Build a review packet.
+ * @param {object} o
+ * @param {string} o.repoDir     a git repository that holds all revisions
+ * @param {string} o.baseline    the trusted commit: source of the task definition, policy, schemas, requirements and reviewer instructions
+ * @param {string} o.base        the revision the change starts from
+ * @param {string} o.head        the revision under review
+ * @param {string} o.taskId      for example OPS-0003
+ * @param {string} o.attemptId   for example OPS-0003-a1
+ * @param {string} o.evidenceFile  a CI evidence document (ops/ci-evidence.mjs output)
+ * @param {string} o.outDir      a directory that does not exist yet
+ * @param {string} [o.toolRoot]  the checkout this tool runs from; it must be the baseline
+ */
+export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, evidenceFile, outDir, toolRoot = DEFAULT_ROOT }) {
+  need(/^[A-Z]{3,5}-[0-9]{4}$/.test(taskId ?? ""), "PK-ARGS", "task must look like OPS-0003");
+  need(/^[A-Z]{3,5}-[0-9]{4}-a[1-9][0-9]?$/.test(attemptId ?? "") && attemptId.startsWith(`${taskId}-a`), "PK-ARGS", "attempt must look like OPS-0003-a1 and belong to the task");
+  need(typeof outDir === "string" && outDir !== "", "PK-ARGS", "an output directory is required");
+  need(!fs.existsSync(outDir), "PK-OUT-EXISTS", "the output directory already exists; a packet is never overwritten");
+  need(fs.existsSync(path.dirname(path.resolve(outDir))), "PK-ARGS", "the parent of the output directory does not exist");
+
+  const baselineSha = resolveCommit(repoDir, baseline, "baseline");
+  const baseSha = resolveCommit(repoDir, base, "base");
+  const headSha = resolveCommit(repoDir, head, "head");
+  const mergeBase = git(repoDir, ["merge-base", baseSha, headSha]).toString("utf8").trim();
+  need(/^[0-9a-f]{40}$/.test(mergeBase), "PK-NO-MERGE-BASE", "base and head have no common history");
+
+  const tool = loadToolContext(toolRoot);
+
+  // 1. this tool must be running from the baseline: the same policy, schemas and reviewer prompt, byte for byte
+  const sameAsBaseline = (rel, bytes) => {
+    const blob = readBlobAtRevision(repoDir, baselineSha, rel);
+    return blob !== null && Buffer.compare(blob, bytes) === 0;
+  };
+  need(sameAsBaseline(PATHS.policy, tool.policyBytes), "PK-TOOL-NOT-BASELINE", "this checkout's policy differs from the baseline commit's; run the tool from a checkout of the baseline");
+  need(sameAsBaseline(PROMPT_PATH, tool.promptBytes), "PK-TOOL-NOT-BASELINE", "this checkout's reviewer prompt differs from the baseline commit's; run the tool from a checkout of the baseline");
+  for (const [key, rel] of Object.entries(PATHS.schemas)) need(sameAsBaseline(rel, tool.schemaBytes[key]), "PK-TOOL-NOT-BASELINE", `this checkout's ${key} schema differs from the baseline commit's`);
+
+  // 2. the approved task definition, from the baseline
+  const taskNames = git(repoDir, ["ls-tree", "-r", "--name-only", "-z", baselineSha, "--", PATHS.tasksDir]).toString("utf8").split("\0").filter((n) => new RegExp(`^${PATHS.tasksDir}/${taskId}-[a-z0-9-]+\\.md$`).test(n));
+  need(taskNames.length === 1, "PK-TASK-NOT-IN-BASELINE", `the baseline holds ${taskNames.length} task files for ${taskId}; exactly one is required (the task definition must not come from the worker's branch)`);
+  const taskBlob = readBlobAtRevision(repoDir, baselineSha, taskNames[0]);
+  const parsedTask = parseTaskFile(text(taskBlob));
+  need(parsedTask.data, "PK-TASK", `the baseline's task file is unreadable: ${parsedTask.error}`);
+  need(parsedTask.data.task_id === taskId, "PK-TASK", "the task file names a different task id");
+  const taskSchema = validate(tool.schemas.task, parsedTask.data);
+  need(taskSchema.valid, "PK-TASK", `the baseline's task file does not match the task schema: ${taskSchema.errors[0]}`);
+  const headTaskBlob = readBlobAtRevision(repoDir, headSha, taskNames[0]);
+  const taskMatchesHead = headTaskBlob !== null && Buffer.compare(headTaskBlob, taskBlob) === 0;
+
+  // 3. the worker's report, from the head
+  const reportRel = `${PATHS.runsDir}/${taskId}/${attemptId}/report.json`;
+  const reportBlob = readBlobAtRevision(repoDir, headSha, reportRel);
+  need(reportBlob !== null, "PK-NO-REPORT", `the head holds no run report at ${reportRel}`);
+  need(reportBlob.length <= byRole.run_report.max, "PK-TOO-LARGE", "the run report is too large");
+  const report = parseJson(reportBlob, "PK-REPORT", "the run report");
+  const reportSchema = validate(tool.schemas.report, report);
+  need(reportSchema.valid, "PK-REPORT", `the run report does not match the run-report schema: ${reportSchema.errors[0]}`);
+  need(report.task_id === taskId && report.attempt_id === attemptId, "PK-REPORT", "the run report is for another task or attempt");
+  // the report is a separate final commit, so the head may be a few commits after the commit the report describes; nothing but the report may differ
+  const reportHead = report.head_sha;
+  need(git(repoDir, ["cat-file", "-t", reportHead]).toString("utf8").trim() === "commit", "PK-REPORT-HEAD", "the report's head commit does not exist in this repository");
+  try {
+    git(repoDir, ["merge-base", "--is-ancestor", reportHead, headSha]);
+  } catch {
+    throw new PacketError("PK-REPORT-HEAD", "the report describes a commit that is not an ancestor of the head");
+  }
+  const afterReport = git(repoDir, ["diff", "--name-only", "-z", reportHead, headSha]).toString("utf8").split("\0").filter(Boolean);
+  need(afterReport.every((p) => p === reportRel), "PK-REPORT-HEAD", "the branch changed files other than the report after the commit the report describes, so the report does not describe the head");
+
+  // 4. the change, computed from git
+  const changed = changedPaths(repoDir, mergeBase, headSha);
+  const stats = numstat(repoDir, mergeBase, headSha);
+  const paths = changed.map((c) => c.path).sort();
+  const classification = classificationDoc(paths, tool.policy);
+  const hitByPath = new Map(classification.hits.map((h) => [h.path, h]));
+  const filesDoc = changed.slice().sort((a, b) => (a.path < b.path ? -1 : 1)).map((c) => {
+    const h = hitByPath.get(c.path);
+    const s = stats.get(c.path) ?? { additions: 0, deletions: 0 };
+    return { path: c.path, status: c.status, additions: s.additions, deletions: s.deletions, class: h.class, restriction: h.restriction, categories: [...h.categories].sort() };
+  });
+  const totals = { files: filesDoc.length, additions: filesDoc.reduce((n, f) => n + f.additions, 0), deletions: filesDoc.reduce((n, f) => n + f.deletions, 0) };
+  const changedDoc = {
+    base_sha: baseSha,
+    head_sha: headSha,
+    merge_base_sha: mergeBase,
+    totals,
+    classification: { class: classification.class, restriction: classification.restriction, categories: classification.categories, control_plane_paths: classification.control_plane_paths, protected_paths: classification.protected_paths, immutable_paths: classification.immutable_paths },
+    files: filesDoc,
+  };
+  const diffBuf = git(repoDir, ["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "-U3", mergeBase, headSha]);
+  need(diffBuf.length <= byRole.diff.max, "PK-TOO-LARGE", `the diff is ${diffBuf.length} bytes; the limit is ${byRole.diff.max}. A reviewer cannot judge a change it only partly sees: split the task`);
+  const logRaw = git(repoDir, ["log", "--format=%H%x00%s%x1e", `${mergeBase}..${headSha}`]).toString("utf8").split("\x1e").map((r) => r.replace(/^\n/, "")).filter(Boolean);
+  const commits = logRaw.map((r) => {
+    const [sha, subject] = r.split("\0");
+    return { sha, subject: (subject ?? "").slice(0, LIMITS.subjectChars) };
+  });
+
+  // 5. the CI evidence
+  need(fs.existsSync(evidenceFile) && fs.statSync(evidenceFile).isFile(), "PK-NO-EVIDENCE", "the CI evidence file does not exist");
+  const evidenceBuf = fs.readFileSync(evidenceFile);
+  need(evidenceBuf.length <= byRole.ci_evidence.max, "PK-TOO-LARGE", "the CI evidence is too large");
+  const evidence = parseJson(evidenceBuf, "PK-EVIDENCE", "the CI evidence");
+  const evidenceSchema = validate(tool.schemas.evidence, evidence);
+  need(evidenceSchema.valid, "PK-EVIDENCE", `the CI evidence does not match its schema: ${evidenceSchema.errors[0]}`);
+  need(evidence.subject.head_sha === headSha, "PK-EVIDENCE", "the CI evidence is about a different commit than the head");
+  const ci = deriveCi(evidence);
+  need(ci.present, "PK-EVIDENCE", "the CI evidence holds no GitHub run data");
+  need(ci.headSha === headSha, "PK-EVIDENCE", "the GitHub run in the evidence was for a different commit than the head");
+  need(evidence.verdict.ci_passed === ci.passed, "PK-EVIDENCE", "the evidence's own verdict disagrees with its consistency checks");
+
+  // 6. assemble, scan, write
+  const files = new Map();
+  files.set(byRole.reviewer_instructions.path, Buffer.from(extractPrompt(text(tool.promptBytes)).body, "utf8"));
+  files.set(byRole.decision_schema.path, tool.schemaBytes.decision);
+  files.set(byRole.task.path, taskBlob);
+  files.set(byRole.policy.path, tool.policyBytes);
+  files.set(byRole.requirements.path, Buffer.from(requirementsExcerpt(tool.requirementsText, parsedTask.data.requirement_refs), "utf8"));
+  files.set(byRole.ci_evidence.path, evidenceBuf);
+  files.set(byRole.changed_files.path, json(changedDoc));
+  files.set(byRole.run_report.path, reportBlob);
+  files.set(byRole.diff.path, diffBuf);
+  files.set(byRole.commits.path, json(commits));
+  const total = [...files.values()].reduce((n, b) => n + b.length, 0);
+  need(total <= LIMITS.totalBytes, "PK-TOO-LARGE", "the packet is larger than the total limit");
+  for (const spec of LAYOUT) need(files.get(spec.path).length <= spec.max, "PK-TOO-LARGE", `${spec.path} is larger than its limit`);
+  const sensitive = sensitiveProblems(files, tool.policy);
+  need(sensitive.length === 0, "PK-SENSITIVE", sensitive.map((p) => p.message).join("; "));
+
+  const prompt = extractPrompt(text(tool.promptBytes));
+  const manifest = {
+    schema_version: "1",
+    packet_kind: "review_packet",
+    tool: PACKET_TOOL,
+    trust: { authenticated: false, note: "A manifest cannot prove who built it. Build the packet yourself from a checkout of the baseline, check it with the verify command, and never accept a packet built by the branch under review." },
+    subject: { task_id: taskId, attempt_id: attemptId, branch: null, base_sha: baseSha, head_sha: headSha, merge_base_sha: mergeBase, report_head_sha: reportHead },
+    trusted_baseline: { commit: baselineSha, policy_version: tool.policy.policy_version, prompt_version: prompt.version, task_file_matches_head: taskMatchesHead },
+    ci: { run_id: ci.runId, conclusion: ci.conclusion, ci_passed: ci.passed, ci_trust_basis: evidence.verdict.ci_trust_basis, evidence_complete: evidence.verdict.evidence_complete },
+    change: { files_changed: totals.files, additions: totals.additions, deletions: totals.deletions, diff_bytes: diffBuf.length },
+    files: LAYOUT.map((spec) => ({ path: spec.path, role: spec.role, trust: spec.trust, sha256: sha256(files.get(spec.path)), bytes: files.get(spec.path).length })),
+    indicators: indicatorList(files),
+  };
+  manifest.subject.branch = evidence.subject.branch ?? null;
+  const manifestSchema = validate(tool.schemas.packet, manifest);
+  need(manifestSchema.valid, "PK-MANIFEST", `internal error: the manifest does not match its schema: ${manifestSchema.errors[0]}`);
+
+  fs.mkdirSync(outDir);
+  fs.mkdirSync(path.join(outDir, "trusted"));
+  fs.mkdirSync(path.join(outDir, "untrusted"));
+  for (const spec of LAYOUT) fs.writeFileSync(path.join(outDir, ...spec.path.split("/")), files.get(spec.path), { mode: 0o644, flag: "wx" });
+  const manifestBuf = json(manifest);
+  fs.writeFileSync(path.join(outDir, "MANIFEST.json"), manifestBuf, { mode: 0o644, flag: "wx" });
+  return { manifest, manifestSha256: sha256(manifestBuf), outDir };
+}
+
+/* --------------------------------------------------------------------- verify */
+
+/**
+ * Check a packet from the packet alone, plus the trusted files of this checkout.
+ * Never throws for a bad packet: every problem is returned as { code, message }.
+ * @returns {{ ok: boolean, errors: {code:string,message:string}[], manifest: object|null, data: object|null }}
+ */
+export function verifyPacket(packetDir, { toolRoot = DEFAULT_ROOT, expectBaseline = null } = {}) {
+  const errors = [];
+  const err = (code, message) => errors.push({ code, message });
+  const fail = () => ({ ok: false, errors, manifest: null, data: null });
+
+  let st;
+  try {
+    st = fs.lstatSync(packetDir);
+  } catch {
+    err("PK-MISSING", "the packet directory does not exist");
+    return fail();
+  }
+  if (!st.isDirectory() || st.isSymbolicLink()) {
+    err("PK-ENTRY", "the packet must be a real directory");
+    return fail();
+  }
+
+  // exactly the expected entries, no links, no extras
+  const found = new Map();
+  const walk = (rel) => {
+    for (const name of fs.readdirSync(path.join(packetDir, rel)).sort()) {
+      const r = rel ? `${rel}/${name}` : name;
+      const s = fs.lstatSync(path.join(packetDir, r));
+      if (s.isSymbolicLink() || !(s.isFile() || s.isDirectory())) err("PK-ENTRY", `${r} is a symbolic link or a special file`);
+      else if (s.isDirectory()) {
+        if (rel === "" && (name === "trusted" || name === "untrusted")) walk(r);
+        else err("PK-EXTRA-FILE", `unexpected directory ${r}`);
+      } else found.set(r, s.size);
+    }
+  };
+  walk("");
+  const expected = new Set(["MANIFEST.json", ...LAYOUT.map((f) => f.path)]);
+  for (const name of found.keys()) if (!expected.has(name)) err("PK-EXTRA-FILE", `unexpected file ${name}`);
+  for (const name of expected) if (!found.has(name)) err("PK-MISSING-FILE", `missing file ${name}`);
+  if (!found.has("MANIFEST.json") || found.get("MANIFEST.json") > LIMITS.manifestBytes) {
+    if (found.has("MANIFEST.json")) err("PK-TOO-LARGE", "MANIFEST.json is too large");
+    return fail();
+  }
+
+  let tool;
+  try {
+    tool = loadToolContext(toolRoot);
+  } catch {
+    err("PK-TOOL", "this checkout lacks the policy, schemas or reviewer prompt that the packet is judged by");
+    return fail();
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(text(fs.readFileSync(path.join(packetDir, "MANIFEST.json"))));
+  } catch {
+    err("PK-MANIFEST", "MANIFEST.json is not valid JSON");
+    return fail();
+  }
+  const ms = validate(tool.schemas.packet, manifest);
+  if (!ms.valid) {
+    err("PK-MANIFEST", `MANIFEST.json does not match its schema: ${ms.errors[0]}`);
+    return fail();
+  }
+
+  // every file: present, within its limit, and exactly the bytes the manifest hashed
+  const files = new Map();
+  let total = 0;
+  for (const spec of LAYOUT) {
+    const entry = manifest.files.find((f) => f.role === spec.role);
+    if (!entry || entry.path !== spec.path || entry.trust !== spec.trust) {
+      err("PK-LAYOUT", `the manifest does not list ${spec.path} as ${spec.role} (${spec.trust})`);
+      continue;
+    }
+    if (!found.has(spec.path)) continue;
+    if (found.get(spec.path) > spec.max) {
+      err("PK-TOO-LARGE", `${spec.path} is larger than its limit of ${spec.max} bytes`);
+      continue;
+    }
+    const buf = fs.readFileSync(path.join(packetDir, ...spec.path.split("/")));
+    total += buf.length;
+    files.set(spec.path, buf);
+    if (sha256(buf) !== entry.sha256 || buf.length !== entry.bytes) err("PK-HASH-MISMATCH", `${spec.path} does not match the hash or size recorded in the manifest (it was changed after the manifest was written)`);
+  }
+  if (total > LIMITS.totalBytes) err("PK-TOO-LARGE", "the packet is larger than the total limit");
+  if (errors.length) return fail();
+
+  const get = (role) => files.get(byRole[role].path);
+  const parsed = {};
+  for (const role of ["policy", "ci_evidence", "changed_files", "run_report", "commits"]) {
+    try {
+      parsed[role] = JSON.parse(text(get(role)));
+    } catch {
+      err("PK-PARSE", `${byRole[role].path} is not valid JSON`);
+    }
+  }
+  if (errors.length) return fail();
+
+  if (expectBaseline !== null && manifest.trusted_baseline.commit !== expectBaseline) err("PK-BASELINE-MISMATCH", "the packet names a different baseline commit than the one expected");
+
+  // the trusted files must be the ones of this checkout (the baseline), not copies that anyone could have edited
+  if (Buffer.compare(get("policy"), tool.policyBytes) !== 0) err("PK-POLICY-NOT-TRUSTED", "trusted/policy.json differs from this checkout's policy");
+  if (parsed.policy.policy_version !== manifest.trusted_baseline.policy_version) err("PK-POLICY-NOT-TRUSTED", "the manifest's policy version is not the policy's version");
+  let prompt = null;
+  try {
+    prompt = extractPrompt(text(tool.promptBytes));
+  } catch (e) {
+    err("PK-PROMPT", e.message);
+  }
+  if (prompt) {
+    if (text(get("reviewer_instructions")) !== prompt.body) err("PK-INSTRUCTIONS-NOT-TRUSTED", "trusted/reviewer-instructions.md differs from this checkout's reviewer prompt");
+    if (prompt.version !== manifest.trusted_baseline.prompt_version) err("PK-INSTRUCTIONS-NOT-TRUSTED", "the manifest's prompt version is not the prompt's version");
+  }
+  if (Buffer.compare(get("decision_schema"), tool.schemaBytes.decision) !== 0) err("PK-SCHEMA-NOT-TRUSTED", "trusted/review-decision.schema.json differs from this checkout's schema");
+  const taskId = manifest.subject.task_id;
+  const ownTask = toolTaskFile(tool, taskId);
+  if (ownTask === null) err("PK-TASK-NOT-TRUSTED", `this checkout holds no single task file for ${taskId}, so the packet's task cannot be checked against a trusted source`);
+  else if (Buffer.compare(ownTask, get("task")) !== 0) err("PK-TASK-NOT-TRUSTED", "trusted/task.md differs from this checkout's task file");
+  const parsedTask = parseTaskFile(text(get("task")));
+  if (!parsedTask.data) err("PK-TASK", `trusted/task.md is unreadable: ${parsedTask.error}`);
+  else {
+    if (parsedTask.data.task_id !== taskId) err("PK-TASK", "trusted/task.md is for another task");
+    try {
+      if (text(get("requirements")) !== requirementsExcerpt(tool.requirementsText, parsedTask.data.requirement_refs)) err("PK-REQUIREMENTS-NOT-TRUSTED", "trusted/requirements.md differs from the lines of this checkout's requirements that the task cites");
+    } catch (e) {
+      err("PK-REQUIREMENTS-NOT-TRUSTED", e.message);
+    }
+  }
+
+  // the change: totals, classification and the patch must agree with each other
+  const cf = parsed.changed_files;
+  if (cf.head_sha !== manifest.subject.head_sha || cf.base_sha !== manifest.subject.base_sha || cf.merge_base_sha !== manifest.subject.merge_base_sha) err("PK-CHANGE", "trusted/changed-files.json names other revisions than the manifest");
+  const listed = Array.isArray(cf.files) ? cf.files : [];
+  const paths = listed.map((f) => f.path).sort();
+  const cls = classificationDoc(paths, parsed.policy);
+  const hit = new Map(cls.hits.map((h) => [h.path, h]));
+  for (const f of listed) {
+    const h = hit.get(f.path);
+    if (!h || h.class !== f.class || h.restriction !== f.restriction || JSON.stringify([...h.categories].sort()) !== JSON.stringify(f.categories)) err("PK-CLASSIFICATION", `${f.path} is classified differently than the policy classifies it`);
+  }
+  const sums = { files: listed.length, additions: listed.reduce((n, f) => n + (Number.isInteger(f.additions) ? f.additions : 0), 0), deletions: listed.reduce((n, f) => n + (Number.isInteger(f.deletions) ? f.deletions : 0), 0) };
+  if (!cf.totals || cf.totals.files !== sums.files || cf.totals.additions !== sums.additions || cf.totals.deletions !== sums.deletions) err("PK-CHANGE", "the totals in changed-files.json do not match its list");
+  if (manifest.change.files_changed !== sums.files || manifest.change.additions !== sums.additions || manifest.change.deletions !== sums.deletions || manifest.change.diff_bytes !== get("diff").length) err("PK-CHANGE", "the manifest's change summary does not match the packet");
+  const cc = cf.classification;
+  if (!cc || cc.class !== cls.class || cc.restriction !== cls.restriction || JSON.stringify(cc.control_plane_paths) !== JSON.stringify(cls.control_plane_paths) || JSON.stringify(cc.protected_paths) !== JSON.stringify(cls.protected_paths) || JSON.stringify(cc.immutable_paths) !== JSON.stringify(cls.immutable_paths) || JSON.stringify(cc.categories) !== JSON.stringify(cls.categories)) err("PK-CLASSIFICATION", "the overall classification in changed-files.json is not the one the policy computes");
+  const inPatch = pathsInPatch(text(get("diff")));
+  const same = inPatch.size === paths.length && paths.every((p) => inPatch.has(p));
+  if (!same) err("PK-DIFF-FILES", "the files in diff.patch are not exactly the files in changed-files.json");
+
+  // the CI evidence: schema, commit, and a verdict that its own data supports
+  const es = validate(tool.schemas.evidence, parsed.ci_evidence);
+  if (!es.valid) err("PK-EVIDENCE", `trusted/ci-evidence.json does not match its schema: ${es.errors[0]}`);
+  else {
+    const ci = deriveCi(parsed.ci_evidence);
+    if (parsed.ci_evidence.subject.head_sha !== manifest.subject.head_sha) err("PK-EVIDENCE", "the CI evidence is about another commit than the packet's head");
+    if (!ci.present) err("PK-EVIDENCE", "the CI evidence holds no GitHub run data");
+    else {
+      if (ci.headSha !== manifest.subject.head_sha) err("PK-EVIDENCE", "the GitHub run in the evidence was for another commit than the packet's head");
+      if (parsed.ci_evidence.verdict.ci_passed !== ci.passed) err("PK-EVIDENCE-INCONSISTENT", "the evidence's verdict says one thing and its own consistency checks say another");
+      if (manifest.ci.ci_passed !== ci.passed || manifest.ci.run_id !== ci.runId || manifest.ci.conclusion !== ci.conclusion || manifest.ci.ci_trust_basis !== parsed.ci_evidence.verdict.ci_trust_basis || manifest.ci.evidence_complete !== parsed.ci_evidence.verdict.evidence_complete) err("PK-EVIDENCE-INCONSISTENT", "the manifest's CI summary does not match the evidence");
+    }
+  }
+
+  // the worker's report and commit list
+  const rs = validate(tool.schemas.report, parsed.run_report);
+  if (!rs.valid) err("PK-REPORT", `untrusted/run-report.json does not match the run-report schema: ${rs.errors[0]}`);
+  else if (parsed.run_report.task_id !== taskId || parsed.run_report.attempt_id !== manifest.subject.attempt_id || parsed.run_report.head_sha !== manifest.subject.report_head_sha) err("PK-REPORT", "the run report is for another task, attempt or commit than the manifest names");
+  if (!Array.isArray(parsed.commits) || parsed.commits.length === 0 || parsed.commits[0].sha !== manifest.subject.head_sha || !parsed.commits.every((c) => /^[0-9a-f]{40}$/.test(c.sha) && typeof c.subject === "string")) err("PK-COMMITS", "untrusted/commits.json does not start with the head commit");
+
+  // defence in depth: the same scans as at build time, and the indicator counts must be reproducible
+  for (const p of sensitiveProblems(files, parsed.policy)) err(p.code, p.message);
+  if (JSON.stringify(indicatorList(files)) !== JSON.stringify(manifest.indicators)) err("PK-INDICATORS", "the manifest's instruction-like-text counts do not match the files");
+
+  if (errors.length) return fail();
+  return { ok: true, errors, manifest, data: { policy: parsed.policy, task: parsedTask.data, taskBody: parsedTask.body, report: parsed.run_report, evidence: parsed.ci_evidence, changedFiles: cf, commits: parsed.commits, classification: cls, tool } };
+}
