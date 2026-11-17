@@ -1,0 +1,425 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0002",
+  "attempt_id": "OPS-0002-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0002-ci-baseline",
+  "base_branch": "claude-dev",
+  "base_sha": "85e722c22b75239ebb8b70b80b4aa3172cc24158",
+  "head_sha": "ed9a20591739a89e7e17deea56c9262c143b1fdc",
+  "started_at": "2026-11-17T00:48:57Z",
+  "finished_at": "2026-11-17T01:17:07Z",
+  "outcome": "completed",
+  "summary": "Implemented the baseline CI foundation locally (HD-0013): .github/workflows/ci.yml (push to claude/** and claude-dev, pull_request into claude-dev and main; contents: read only; no secrets, environments, caches or deployment; actions pinned to full commit SHAs that were read and checked in the actions' own repositories; install without scripts; lint, tsc, ops:validate, ops:test, build), a policy.workflow_policy section and schema (policy 0.3.0), a restricted YAML reader, and a deterministic allow-list workflow-safety checker that npm run ops:validate now runs, with validator floors that the policy file alone cannot lower. 168 new tests introduce unsafe configurations and expect rejection (suite: 353, from 185); 35 rules were mutation-checked. All five required checks pass, a local simulation of the exact workflow steps passes with no credential in the environment, and the production build output matches the baseline. Documentation: ADR-0011, CI architecture, activation guide, OPS-0003 proposal, OQ-0034. Nothing was pushed or activated; no GitHub setting was changed; the Reel work is untouched.",
+  "commits": [
+    {
+      "sha": "50c052b86291be16d353caf73cb7f42bcbed5fe2",
+      "subject": "OPS-0002: baseline CI workflow, workflow policy and deterministic safety checker"
+    },
+    {
+      "sha": "7a09ab0e0f9e06594390c2023850a28c073ab7b4",
+      "subject": "OPS-0002: CI architecture, activation guide, task record and OPS-0003 proposal"
+    },
+    {
+      "sha": "ed9a20591739a89e7e17deea56c9262c143b1fdc",
+      "subject": "OPS-0002: correct the task record's creation time to the branch creation time"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "change_type": "added",
+      "additions": 49,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 7,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+      "change_type": "added",
+      "additions": 132,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0011-ci-is-unprivileged-allow-listed-and-independent-of-any-model.md",
+      "change_type": "added",
+      "additions": 26,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "modified",
+      "additions": 6,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "modified",
+      "additions": 9,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "modified",
+      "additions": 50,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+      "change_type": "added",
+      "additions": 76,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+      "change_type": "added",
+      "additions": 39,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/schemas/policy.schema.json",
+      "change_type": "modified",
+      "additions": 199,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0002-ci-baseline.md",
+      "change_type": "added",
+      "additions": 129,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/mini-yaml.mjs",
+      "change_type": "added",
+      "additions": 331,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/workflow-safety.mjs",
+      "change_type": "added",
+      "additions": 364,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/helpers.mjs",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "ops/tests/mini-yaml.test.mjs",
+      "change_type": "added",
+      "additions": 125,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/validate-memory.test.mjs",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "ops/tests/workflow-safety.test.mjs",
+      "change_type": "added",
+      "additions": 444,
+      "deletions": 0
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "modified",
+      "additions": 64,
+      "deletions": 4
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 3.2,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 6.2,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 26.3,
+      "output_excerpt": "   Generating static pages (0/56) ...\n   Generating static pages (14/56) \r\n   Generating static pages (28/56) \r\n   Generating static pages (42/56) \r\n ✓ Generating static pages (56/56)\n+ First Load JS shared by all                                    103 kB\n○  (Static)  prerendered as static content\n●  (SSG)     prerendered as static HTML (uses generateStaticParams)",
+      "output_sha256": "9c56903211beaf91fe14cf0c3d8ec3f2e69d9fc8b14307103186651a0b438997",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.3,
+      "output_excerpt": "OK: checked 92 file(s); 0 warning(s).",
+      "output_sha256": "c37021c66494cdac865e5fd887876044b85d7104d9c7836436b463921cc0639b",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 4.9,
+      "output_excerpt": "# tests 353\n# pass 353\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "2bfc71cb70f0ff2f58ac90cea51b0d0ba057bb289005cbf232b3c66ef59073c7",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "workflow-accepted",
+      "command": "node ops/validate-memory.mjs --file .github/workflows/ci.yml",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.2,
+      "output_excerpt": "OK: checked 5 file(s); 0 warning(s).",
+      "output_sha256": null,
+      "notes": "AC-1. The deterministic checker accepts the workflow against policy.workflow_policy. npm run ops:validate (in the checks above) runs the same checker on every workflow file."
+    },
+    {
+      "check_id": "workflow-safety-tests",
+      "command": "node --test ops/tests/workflow-safety.test.mjs ops/tests/mini-yaml.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "# tests 168 / # pass 168 / # fail 0 (42 for the restricted YAML reader, 126 for the checker and the policy floors). The whole suite: 353 tests, 353 pass (OPS-0001B: 185).",
+      "output_sha256": null,
+      "notes": "AC-2. The unsafe cases include: pull_request_target, workflow_run, workflow_dispatch, schedule, extra branches, write permissions, secrets and tokens, deployment commands, environments, unpinned/unapproved/local actions, cache inputs, missing or reordered commands, expressions, self-hosted runners, YAML anchors, duplicate keys, and policy floors lowered."
+    },
+    {
+      "check_id": "ci-simulation",
+      "command": "ad hoc: run the exact steps parsed from .github/workflows/ci.yml, in order, in a git-archive export of HEAD with env -i style environment (CI=true, no credential), bash -e -o pipefail",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 58.9,
+      "output_excerpt": "7 run steps, all exit 0 at the final head ed9a205: credential guard 0.0 s; npm ci --ignore-scripts --no-audit --no-fund 11.8 s; lint 3.2 s; tsc 5.2 s; ops:validate 0.2 s; ops:test 4.6 s; build 33.9 s. Environment names: CI, HOME, PATH and proxy/CA settings only; none looked like a credential. The guard exited non-zero for a dummy ANTHROPIC_API_KEY and for a dummy ANTHROPIC_AUTH_TOKEN.",
+      "output_sha256": null,
+      "notes": "LOCAL SIMULATION, NOT A GITHUB ACTIONS RUN: the checkout and Node-setup actions were not run (the export and the installed Node 22.23.4 stood in), and GitHub's runner image, YAML reader and token handling were not exercised. Proxy variables were passed only because this sandbox needs them for npm."
+    },
+    {
+      "check_id": "build-output-unchanged",
+      "command": "ad hoc: build pristine origin/claude-dev, then this branch, both at the SAME path; hash every output file with the random build id removed",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "288 of 288 build output files identical (HTML, RSC payloads, chunks, CSS, manifests) after removing per-build randomness (build id in both spellings, JSON key order, random encryption and preview keys). git diff of src/, public/, next.config.ts, tsconfig.json, package-lock.json, vercel.json and creative/ against origin/claude-dev is empty. CLAUDE.md and package.json are unchanged by this task (diff between the OPS-0001B tip and HEAD is empty for them).",
+      "output_sha256": null,
+      "notes": "Compared at commit 7a09ab0; the one later commit changes a date string inside a task record. Same-path builds only (build output depends on the checkout path)."
+    },
+    {
+      "check_id": "checker-mutation-sanity",
+      "command": "ad hoc: disable one new rule at a time in a scratch copy (35 rules across the checker, the YAML reader and the validator) and run all ops tests each time",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "baseline 353 pass / 0 fail. All 35 sabotages made at least one test fail (between 1 and 11 failures each). One rule (the per-scope permission check) first survived because a neighbouring check also caught the case and the test matched too loosely; the test was tightened and the mutation is now caught.",
+      "output_sha256": null,
+      "notes": "Passed means every sabotage was caught. The scratch copies were left only in the session scratch directory."
+    },
+    {
+      "check_id": "yaml-reader-cross-check",
+      "command": "ad hoc: parse .github/workflows/ci.yml with ops/lib/mini-yaml.mjs and with PyYAML 6.0.1, normalise scalar types, compare the structures",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "IDENTICAL STRUCTURE (the only normalisation: PyYAML reads the bare key on as boolean true, a known YAML 1.1 behaviour that GitHub treats as the key on).",
+      "output_sha256": null,
+      "notes": "Evidence that the restricted reader and an independent reader agree on the real file. Not part of the test suite (no dependency on another language)."
+    },
+    {
+      "check_id": "action-sha-verification",
+      "command": "ad hoc: git ls-remote --tags and a blobless clone of github.com/actions/checkout and actions/setup-node; git cat-file, tag --points-at, branch --contains; read action.yml at the commit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "actions/checkout v7.0.1 = 3d3c42e5aac5ba805825da76410c181273ba90b1 (tags v7, v7.0.1; on main; runtime node24; persist-credentials default true). actions/setup-node v7.1.0 = 949feb2413d6458794dcd2491c4babbbce0c15c1 (tags v7, v7.1.0; on main; runtime node24; package-manager-cache default true).",
+      "output_sha256": null,
+      "notes": "Verifies identity and containment in the official repositories, and the input defaults the workflow overrides. It does not audit the actions' code."
+    },
+    {
+      "check_id": "each-commit-validates",
+      "command": "ad hoc: for each OPS-0002 work commit, a temporary worktree runs node ops/validate-memory.mjs and node --test ops/tests/*.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "50c052b: validate OK (87 files), 353 pass / 0 fail. 7a09ab0: validate OK (92 files), 353 pass / 0 fail.",
+      "output_sha256": null,
+      "notes": "The commits were ordered so that each one is valid on its own (code, policy, workflow and decisions first; the documentation that links to them second)."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git status/rev-parse/rev-list/diff/stash list/worktree list in the main tree; git merge-base --is-ancestor for each Reel commit; git ls-remote --heads origin",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree still on claude-dev at 187e045, 8 commits ahead of origin/claude-dev, 0 stash entries; its only uncommitted change is the original mode flip 100644 to 100755 on creative/motion-ad/scripts/deliver-v8.sh (0 content lines). None of the 8 Reel commits is an ancestor of claude/ops-0002-ci-baseline. origin/main is b180378 and origin/claude-dev is b7348bb (unchanged); no claude/* branch exists on the remote; both claude/ branches have no upstream; claude/ops-0001-foundation is still at 85e722c.",
+      "output_sha256": null,
+      "notes": "Observed after the work commits, before this report was written."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ci_workflows",
+      "ops_control_plane",
+      "docs_only",
+      "policy_or_schema",
+      "tests_only"
+    ],
+    "rationale": "The work adds a workflow (.github/**), changes ops/, the policy and a schema, all control-plane paths that policy classes as B, plus governed project memory. No class C path was touched, no website file changed, and nothing was activated."
+  },
+  "protected_paths_touched": [
+    ".github/workflows/ci.yml",
+    "docs/project-memory/README.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+    "docs/project-memory/architecture/adr/0011-ci-is-unprivileged-allow-listed-and-independent-of-any-model.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+    "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+    "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+    "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/policy.schema.json",
+    "docs/project-memory/tasks/OPS-0002-ci-baseline.md",
+    "ops/lib/mini-yaml.mjs",
+    "ops/lib/workflow-safety.mjs",
+    "ops/tests/helpers.mjs",
+    "ops/tests/mini-yaml.test.mjs",
+    "ops/tests/validate-memory.test.mjs",
+    "ops/tests/workflow-safety.test.mjs",
+    "ops/validate-memory.mjs"
+  ],
+  "deviations": [
+    {
+      "description": "Added policy.workflow_policy, its schema section and a policy version bump to 0.3.0, added REQ-OPS-010 and HD-0013, added two ops libraries to memory_contract.required_files, and added .github to the content-scan roots.",
+      "reason": "The checker must read the approved workflow shape from a human-owned file, and the instruction allowed policy and schema changes where necessary and within scope; the new requirement and decision record the instruction itself."
+    },
+    {
+      "description": "The checker enforces an allow-list with a restricted YAML reader, not the line-based text checks the proposal described.",
+      "reason": "Line-based checks could be evaded by YAML the file's own reader and GitHub's reader interpret differently; a reader that rejects ambiguous constructs removes that class of bypass. The proposal's own banner now records the difference."
+    },
+    {
+      "description": "The runner label is pinned to ubuntu-24.04 (the proposal said ubuntu-latest), setup-node's automatic caching is switched off explicitly, and the credential guard also covers an auth-token variable.",
+      "reason": "A floating runner label changes behaviour silently; setup-node 7.1.0 enables dependency caching by default when package.json names npm as its package manager, which would add a cache that carries state between runs."
+    },
+    {
+      "description": "Chose actions/checkout and actions/setup-node as the GitHub-owned actions, and recorded them as approved in the policy under HD-0013.",
+      "reason": "The instruction asked for actions pinned to verified SHAs but did not name them; these two are what the required steps (checkout, Node setup) need. The owner is asked to confirm the choice (OQ-0034)."
+    },
+    {
+      "description": "Modified ops/tests/validate-memory.test.mjs and ops/tests/helpers.mjs: the ADR-count test no longer depends on how many ADRs exist, and the temporary copy used by tests includes .github.",
+      "reason": "ADR-0011 broke an assumption in the existing test; the workflow files are now part of the validated tree."
+    },
+    {
+      "description": "Did not run any workflow linter or GitHub Actions run; a PyYAML cross-check and a local step-by-step simulation stand in.",
+      "reason": "No push is authorised and no workflow linter is installed here; both limits are stated in the CI architecture and the activation guide."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "ci_workflows",
+      "description": "The workflow has never run on GitHub. Whether GitHub accepts the file, how the hosted runner behaves, and whether the pinned actions run there are unobserved until an approved push (OQ-0028). Local simulation is not a substitute."
+    },
+    {
+      "severity": "major",
+      "category": "ci_workflows",
+      "description": "A pull request runs its own copy of the checker, so green CI is not evidence about changes to .github/, ops/, the policy or the schemas. Human review of those control-plane paths is the control until the trusted-base check proposed for OPS-0003 exists."
+    },
+    {
+      "severity": "minor",
+      "category": "infrastructure_settings",
+      "description": "The repository's GitHub settings (approval for outside collaborators' workflow runs, default token permission, branch protection, whether the repository holds any secrets, the plan and account type) cannot be observed or set from here; they are recorded for the owner in OQ-0034 and OPS-0002-ACTIVATION.md."
+    },
+    {
+      "severity": "minor",
+      "category": "ci_workflows",
+      "description": "Pushing claude/ops-0002-ci-baseline also publishes the nine OPS-0001 and OPS-0001B commits beneath it, and will probably start a hosting-service preview build of an unchanged site (the hosting settings are unobservable). Both are described in the activation guide."
+    },
+    {
+      "severity": "info",
+      "category": "build_config",
+      "description": "Pinned labels age: ubuntu-24.04, Node 22 and the two action SHAs need reviewed updates; nothing updates them automatically. The installed ESLint version prints a deprecation notice during install (pre-existing, not changed)."
+    }
+  ],
+  "assumptions": [
+    "started_at is the creation time of the task branch (from the reflog); read-only inspection and research began a little earlier.",
+    "HD-0013's phrase 'the current public repository may be used provisionally for non-sensitive project files' is recorded as provisional permission only; it does not answer OQ-0023, which stays open for STG-4.",
+    "The instruction to pin 'third-party and GitHub-owned actions' is read as allowing the two GitHub-owned actions the required steps need, and no third-party action.",
+    "Node 22 (the version used for every local check) is the right single version to test; the project's engines field only declares >= 18.18."
+  ],
+  "questions_for_human": [
+    "OQ-0028: do you authorise a one-time push of claude/ops-0002-ci-baseline (which also publishes the nine earlier OPS-0001 and OPS-0001B commits under it, and may start a hosting preview build)? Without it the workflow cannot become active.",
+    "OQ-0034: will you set 'Require approval for all external contributors' for fork pull-request workflows, confirm the default workflow token is read-only, and after the first green run require the job named verify on claude-dev and main? Do you accept actions/checkout v7.0.1 and actions/setup-node v7.1.0, pinned as in the policy?",
+    "Merging into claude-dev later is a separate approval; note that the local claude-dev carries eight unpushed Reel commits, so it will diverge from a remote claude-dev that gains the OPS commits.",
+    "OQ-0023 (public or private repository for the longer term) and OQ-0020 (ratify the Phase 0 modifications and the ADRs) remain open; neither blocks OPS-0002.",
+    "Should the worktrees /home/user/m1pcs-ops-0001 and /home/user/m1pcs-ops-0002 be kept for review, or removed afterwards (the branches stay either way)?"
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "OPS-0002 is complete on the local branch and is not active. A human should review the workflow, the policy section and the checker, decide the push (OQ-0028) and the GitHub settings (OQ-0034), and only then consider OPS-0003.",
+    "suggested_next_task_title": "OPS-0003: Trusted-base check and machine-readable CI result (proposal only)"
+  }
+}
