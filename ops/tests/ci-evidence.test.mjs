@@ -290,6 +290,10 @@ test("expectations come from the trusted workflow and policy, and fail closed wh
   const twoJobs = `${workflowText}  second:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n`;
   throwsEv(() => expectationsFromWorkflow(twoJobs, policy, { repository: REPOSITORY, headSha: LIVE_SHA }), "EV-WORKFLOW");
   throwsEv(() => expectationsFromWorkflow("name: CI\non: push\n", policy, { repository: REPOSITORY, headSha: LIVE_SHA }), "EV-WORKFLOW");
+  const { workflow_policy: omitted, ...withoutWorkflowPolicy } = policy;
+  assert.ok(omitted, "the real policy must have a workflow policy for this test to remove");
+  throwsEv(() => expectationsFromWorkflow(workflowText, withoutWorkflowPolicy, { repository: REPOSITORY, headSha: LIVE_SHA }), "EV-WORKFLOW");
+  throwsEv(() => expectationsFromWorkflow(workflowText, null, { repository: REPOSITORY, headSha: LIVE_SHA }), "EV-WORKFLOW");
 });
 
 test("the evidence library never touches the network, a process or a credential", () => {
@@ -465,6 +469,25 @@ test("command line: base check plus the live run data gives a complete document"
     assert.equal(noBase.code, 3, noBase.err);
     assert.equal(JSON.parse(noBase.out).verdict.ci_trust_basis, "base_unchecked");
     assert.equal(run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", path.join(dir, files.run), "--jobs", path.join(dir, files.jobs)]).code, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("command line: a base that predates the workflow policy is a clean usage error, not a crash", () => {
+  repo.branch("predates-ci-policy", (r) => r.editJson("docs/project-memory/policy/policy.json", (p) => { delete p.workflow_policy; }));
+  repo.branch("policy-not-json", (r) => r.write("docs/project-memory/policy/policy.json", "{ not json"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "m1-ci-cli-"));
+  try {
+    const d = live(sha("clean-docs"));
+    fs.writeFileSync(path.join(dir, "run.json"), JSON.stringify(d.run));
+    fs.writeFileSync(path.join(dir, "jobs.json"), JSON.stringify(d.jobs));
+    for (const base of ["predates-ci-policy", "policy-not-json"]) {
+      const r = run(["--repository", REPOSITORY, "--repo-dir", repo.dir, "--base", base, "--head", "clean-docs", "--run", path.join(dir, "run.json"), "--jobs", path.join(dir, "jobs.json")]);
+      assert.equal(r.code, 2, `${base}: ${r.err}`);
+      assert.match(r.err, /^(usage|TB-[A-Z-]+): /, "a clean, named refusal");
+      assert.doesNotMatch(r.err, /internal error/);
+    }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -90,8 +90,16 @@ export function main(argv, out = process.stdout, errOut = process.stderr, { now 
       if (baseSha) {
         const policyBlob = readBlobAtRevision(repoDir, baseSha, "docs/project-memory/policy/policy.json");
         if (policyBlob === null) throw new UsageError("the base revision has no policy to take expectations from");
-        policy = JSON.parse(policyBlob.toString("utf8"));
-        const wfBlob = readBlobAtRevision(repoDir, baseSha, policy.workflow_policy.required_workflow_files[0]);
+        try {
+          policy = JSON.parse(policyBlob.toString("utf8"));
+        } catch {
+          throw new UsageError("the base revision's policy is not valid JSON");
+        }
+        const workflowFiles = policy && policy.workflow_policy && policy.workflow_policy.required_workflow_files;
+        if (!Array.isArray(workflowFiles) || workflowFiles.length === 0 || typeof workflowFiles[0] !== "string") {
+          throw new UsageError("the base revision's policy defines no workflow policy, so it cannot say what a correct CI run looks like (the base predates the CI baseline)");
+        }
+        const wfBlob = readBlobAtRevision(repoDir, baseSha, workflowFiles[0]);
         if (wfBlob === null) throw new UsageError("the base revision has no CI workflow to take expectations from");
         workflowText = wfBlob.toString("utf8");
       } else {

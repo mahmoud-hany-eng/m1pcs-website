@@ -189,7 +189,11 @@ export function testEvidence(parsed, commands) {
  * Never derive these from the run being judged.
  */
 export function expectationsFromWorkflow(workflowText, policy, { repository, headSha, branch = null }) {
-  const wp = policy.workflow_policy;
+  const wp = policy && policy.workflow_policy;
+  need(
+    wp && Array.isArray(wp.required_workflow_files) && wp.required_workflow_files.length > 0 && wp.allowed_triggers && typeof wp.allowed_triggers === "object" && Array.isArray(wp.required_commands),
+    "EV-WORKFLOW", "the trusted policy defines no workflow policy (required workflow files, allowed triggers and required commands), so it cannot say what a correct CI run looks like",
+  );
   const root = parseYaml(workflowText);
   const jobs = get(root, "jobs");
   need(isMap(jobs) && jobs.entries.length === 1, "EV-WORKFLOW", "the trusted workflow must have exactly one job");
