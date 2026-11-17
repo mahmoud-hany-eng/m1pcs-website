@@ -1,6 +1,6 @@
 # OPS-0002 activation: what turning the CI workflow on needs
 
-**Status: instructions only. Nothing here has been done, and the system may not do any of it** (a push is unauthorised, HD-0005 and HD-0013; changing repository settings is prohibited, PROHIB-008). The workflow exists on the local branch `claude/ops-0002-ci-baseline` and is not active. Design and security decisions: [CI_ARCHITECTURE.md](../architecture/CI_ARCHITECTURE.md).
+**Status (updated 2026-11-17): the one push described in section 1 was authorised and made (HD-0014), and the workflow ran green on GitHub (run 43995081483, commit 0aba5e8).** The settings in sections 2 to 4 have **not** been changed by the system, which may not do so (PROHIB-008), and remain the owner's decision. The branch is not merged. Exact branch rules for `main` and `claude-dev` are in [GITHUB_SETTINGS_GUIDE.md](GITHUB_SETTINGS_GUIDE.md). The rest of this page is the original instructions, kept as written; where it says nothing has been pushed, that was true when it was written. Design and security decisions: [CI_ARCHITECTURE.md](../architecture/CI_ARCHITECTURE.md).
 
 **Evidence tags:** **[D]** official GitHub documentation, read from the public `github/docs` source repository on 2026-11-17. **[T]** tested here. **[U]** cannot be observed from here: the owner must check it.
 

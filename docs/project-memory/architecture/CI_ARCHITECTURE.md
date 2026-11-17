@@ -1,6 +1,6 @@
 # CI architecture (OPS-0002)
 
-**Status: implemented on a local branch (`claude/ops-0002-ci-baseline`); not pushed; not active.** Authorised for local implementation only (HD-0013). The decision record is [ADR-0011](adr/0011-ci-is-unprivileged-allow-listed-and-independent-of-any-model.md) (proposed). The design before implementation is [OPS-0002-PROPOSAL.md](../roadmap/OPS-0002-PROPOSAL.md); what activation needs is [OPS-0002-ACTIVATION.md](../roadmap/OPS-0002-ACTIVATION.md).
+**Status: implemented on the branch `claude/ops-0002-ci-baseline`, pushed once on the owner's explicit approval (HD-0014); its first GitHub run (run 43995081483, commit 0aba5e8, job `verify`) succeeded. The branch is not merged, so the workflow is not on `main` or `claude-dev`.** Authorised for local implementation (HD-0013) and for that one push (HD-0014). The decision record is [ADR-0011](adr/0011-ci-is-unprivileged-allow-listed-and-independent-of-any-model.md) (proposed). The design before implementation is [OPS-0002-PROPOSAL.md](../roadmap/OPS-0002-PROPOSAL.md); what activation needs is [OPS-0002-ACTIVATION.md](../roadmap/OPS-0002-ACTIVATION.md).
 
 **Evidence tags:** **[D]** official GitHub documentation, read from the public `github/docs` source repository on 2026-11-17. **[A]** the action's own repository, read directly through git on 2026-11-17. **[T]** a test run in this environment. **[U]** not observable or not verified from here. Nothing marked [U] is claimed to work.
 
@@ -119,11 +119,11 @@ At the time of writing: 42 tests for the restricted reader (what it reads, and 2
 | The two action SHAs exist in the official repositories and run on node24 | That the actions run on the hosted runner image, or that `ubuntu-24.04` is still offered when the first run happens [U] |
 | Nothing in the file references a secret | That the repository has no secrets, or that the owner's settings are as recommended |
 
-The first real run happens only after an approved push (OQ-0028). Until then there is no GitHub Actions evidence.
+**Update (2026-11-17):** the first real run has happened (HD-0014): run 43995081483 on commit 0aba5e8, job `verify`, success. All nine expected steps concluded success; the job log shows the token had `contents: read` and `metadata: read` only, `OK: checked 93 file(s); 0 warning(s).`, 353 of 353 tests, and 56 static pages generated. That confirms GitHub accepts the workflow and that the hosted runner executes it. It does not change the two rows of the table above that are about settings and about secrets the repository may hold, which stay [U].
 
 ## 9. Limits and remaining blockers
 
-- **A pull request runs its own copy of the checker.** A green CI result is therefore not evidence about changes to `.github/**`, `ops/**`, the policy or the schemas (REC-OPS-021). Those stay control-plane paths with human review; the base-branch check is proposed for OPS-0003.
+- **A pull request runs its own copy of the checker.** A green CI result is therefore not evidence about changes to `.github/**`, `ops/**`, the policy or the schemas (REC-OPS-021). Those stay control-plane paths with human review. OPS-0003 added a tool that measures such a change against the base revision's rules ([TRUSTED_CI.md](TRUSTED_CI.md)); it is advisory, because a second job in this same workflow would not be an independent boundary.
 - **Activation needs an owner decision to push (OQ-0028) and owner settings (OQ-0034).** Nothing in this task changes either.
 - **Pinned actions age.** Nothing updates them automatically; a later task can add a reviewed update process.
 - **`ubuntu-24.04` and Node 22 are pinned labels** that GitHub and the Node project will eventually retire; the checker and the policy make a change a reviewed decision.

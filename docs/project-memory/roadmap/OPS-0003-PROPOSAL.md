@@ -1,6 +1,8 @@
 # OPS-0003 proposal: a trusted-base check and a machine-readable CI result
 
-**Status: proposal only.** This is not a task file, it is not approved, and nothing described here has been created or started. It follows from the limits found while building OPS-0002 ([CI_ARCHITECTURE.md](../architecture/CI_ARCHITECTURE.md) section 9) and it is the second part of stage STG-3 on the [roadmap](ROADMAP.md).
+**Status: implemented locally as task OPS-0003 (HD-0015); not pushed. Where the implementation differs from this proposal, the implementation notes below win.** The proposal's part A (a second job in `ci.yml`) was **not built**: a second job in the same modifiable workflow is not an independent boundary, so the trusted-base check was built as a tool instead ([TRUSTED_CI.md](../architecture/TRUSTED_CI.md), ADR-0012). Part B was built on GitHub's own Actions and Checks APIs with no artifact and no new action ([CI_EVIDENCE.md](../architecture/CI_EVIDENCE.md)). Part C (the pin-refresh procedure) and part D (a check-name stability test) were **not** built and remain open. The original text follows, unchanged. It was written when nothing was pushed and no run existed.
+
+**Original status: proposal only.** This is not a task file, it is not approved, and nothing described here has been created or started. It follows from the limits found while building OPS-0002 ([CI_ARCHITECTURE.md](../architecture/CI_ARCHITECTURE.md) section 9) and it is the second part of stage STG-3 on the [roadmap](ROADMAP.md).
 
 - **Class:** B (it changes `.github/**`, `ops/**` and the policy, all control-plane paths), so a human approves before the run and before any merge.
 - **Cannot start until:** OPS-0002 has been reviewed and merged; its first real run on GitHub has been observed green (that needs the push decision, OQ-0028); and the owner has answered OQ-0034, because the new checks are only worth having if a red result can block a merge.

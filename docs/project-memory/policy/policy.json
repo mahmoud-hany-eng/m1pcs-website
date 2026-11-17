@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "policy_id": "m1-autonomous-development-policy",
-  "policy_version": "0.3.0",
+  "policy_version": "0.4.0",
   "status": "draft_pending_human_review",
   "owner": "human",
-  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (policy version 0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits in it were read and verified from the actions' own repositories.",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (policy version 0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits in it were read and verified from the actions' own repositories. Version 0.4.0 (OPS-0003, HD-0015) only extends the memory contract with the trusted-base verification and CI evidence files and documents; no rule was relaxed.",
   "task_id_prefixes": ["OPS", "PLAT"],
   "branches": {
     "production": "main",
@@ -239,6 +239,9 @@
       "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
       "docs/project-memory/architecture/ARCHITECTURE.md",
       "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
+      "docs/project-memory/architecture/TRUSTED_CI.md",
+      "docs/project-memory/architecture/CI_EVIDENCE.md",
+      "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
       "docs/project-memory/roadmap/ROADMAP.md",
       "docs/project-memory/decisions/HUMAN_DECISIONS.md",
       "docs/project-memory/decisions/OPEN_QUESTIONS.md",
@@ -249,9 +252,13 @@
       "docs/project-memory/schemas/run-report.schema.json",
       "docs/project-memory/schemas/review-decision.schema.json",
       "docs/project-memory/schemas/policy.schema.json",
+      "docs/project-memory/schemas/ci-evidence.schema.json",
       "ops/validate-memory.mjs",
       "ops/lib/mini-yaml.mjs",
-      "ops/lib/workflow-safety.mjs"
+      "ops/lib/workflow-safety.mjs",
+      "ops/lib/trusted-base.mjs",
+      "ops/lib/ci-evidence.mjs",
+      "ops/ci-evidence.mjs"
     ],
     "min_adr_count": 5,
     "required_requirement_ids": [

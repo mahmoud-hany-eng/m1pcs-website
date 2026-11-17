@@ -4,7 +4,7 @@ Unresolved business and technical decisions. **No task may assume an answer.** A
 
 Each entry has a status (`open` or `resolved`), what it blocks, the question, and where it came from. A `Recommendation` line is a suggestion for the human to accept or reject, never a decision. A resolved entry points to the human decision that resolved it.
 
-Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 onward were added by the automation audit and OPS-0001.
+Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 to 34 were added by the automation audit, OPS-0001 and OPS-0002; 35 and 36 by OPS-0003.
 
 ### OQ-0001 — Paid hosting plans for production
 - **Status:** open
@@ -123,6 +123,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Status:** open
 - **Blocks:** STG-6
 - **Question:** What happens to the creative/ video project and to the eight unpushed local Reel commits? The repository is public, so pushing them would publish them.
+- **Progress:** OPS-0003 recorded the facts (see [GITHUB_SETTINGS_GUIDE.md](../roadmap/GITHUB_SETTINGS_GUIDE.md) section 7): the 8 commits change 60 files, all under creative/motion-ad/, about 10,000 added lines and 573 KB of text, with no video, audio, image or font file among the changed paths; the OPS branches change none of those paths, so the two sets cannot conflict; a file-mode change on one script is uncommitted in the main working tree only. Options for the owner: keep local and preserve them before any rule is enabled on claude-dev (a bundle file, or one named push to a separate branch); merge through a pull request later; or move the creative work to its own private repository. Nothing was done to them.
 - **Source:** Phase 0 platform report, decision 19; HD-0008.
 
 ### OQ-0020 — Ratify the Phase 0 architecture with the owner's modifications
@@ -187,6 +188,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Progress:** Not resolvable from existing decisions: HD-0005 says nothing is pushed without explicit approval, and no push has ever been authorised for the branches of this work. OPS-0002 was written locally without it (HD-0013 authorised local implementation only and expressly did not authorise pushing). A CI workflow only becomes active once its branch exists on the remote, so activation needs an explicit push decision. Note for the decision: pushing claude/ops-0002-ci-baseline also publishes the OPS-0001 and OPS-0001B commits underneath it (project memory and tooling only; none of the Reel commits), see [OPS-0002-ACTIVATION.md](../roadmap/OPS-0002-ACTIVATION.md).
 - **Question:** Which of these does the owner authorise? (A) A one-time push of one named branch (for OPS-0002, claude/ops-0002-ci-baseline) after the work is reviewed. Consequence: that branch becomes public, the new workflow runs once on it, and a preview build may start; nothing else changes. (B) A standing authorisation to push any claude/ branch, never claude-dev or main. Consequence: every such push is public, runs CI and may start a preview build; it is needed for unattended operation (STG-6). (C) No push authorisation: the owner pushes by hand each time.
 - **Recommendation:** A for OPS-0002; revisit B at STG-6, after OQ-0022 and OQ-0029 are answered.
+- **Progress (2026-11-17):** Option A was chosen and used once for claude/ops-0002-ci-baseline (HD-0014). Its authorisation ended with that push. Each further branch, including claude/ops-0003-trusted-ci, needs its own explicit approval naming the branch. Standing authorisation (B) stays open for STG-6.
 - **Source:** Automation audit, human action 6; HD-0005.
 
 ### OQ-0029 — Hosting plan and preview-build filter
@@ -227,4 +229,19 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** STG-3 (relying on CI results from outside contributors, and requiring them for merges)
 - **Question:** The CI workflow is unprivileged by construction, but three things around it can only be set or observed by the owner in GitHub, and the system may not change repository settings (PROHIB-008). Does the owner (1) set "Approval for running fork pull request workflows from contributors" to "Require approval for all external contributors", (2) confirm the default workflow token permission is read-only and that GitHub Actions may not create and approve pull requests, and (3) after the first green run, add a branch protection rule or ruleset on the integration and production branches that requires the CI job as a status check? Consequences: without (1) a first-time outside contributor's pull request can start a run without approval (the run is still read-only and has no secrets) and consume free minutes; without (2) the repository's default may grant the token write access wherever a workflow forgets to restrict it (this workflow restricts it explicitly); without (3) a red CI result does not stop a merge. Also needed: the owner's confirmation that the two GitHub-owned actions in policy.workflow_policy (checkout and Node setup, each pinned to a SHA that was verified against its own repository) are acceptable.
 - **Recommendation:** Yes to all three; details and exact menu names are in [OPS-0002-ACTIVATION.md](../roadmap/OPS-0002-ACTIVATION.md).
+- **Progress (2026-11-17):** The first green run exists (run 43995081483, HD-0014), so part (3) can now be configured: the required check is the job name `verify`. Exact rulesets for main and claude-dev, the CODEOWNERS proposal and the interaction with Claude's branch workflow are in [GITHUB_SETTINGS_GUIDE.md](../roadmap/GITHUB_SETTINGS_GUIDE.md). The settings themselves, including the default token permission and fork-run approval, are still not observable from here and nothing was changed. One finding changes how far a rule can bind the automation: Claude acts as the owner (OQ-0036).
 - **Source:** OPS-0002; HD-0013.
+
+### OQ-0035 — Where is the trusted-base check anchored?
+- **Status:** open
+- **Blocks:** STG-4 (relying on the check as a gate rather than a measurement)
+- **Question:** The trusted-base check (OPS-0003, [TRUSTED_CI.md](../architecture/TRUSTED_CI.md), ADR-0012) judges a change with the rules of an established base revision, but it is only independent of the change if it is run by something the change cannot alter. A second job in the same workflow is not such a thing, because a pull request runs its own copy of the workflow file. Which anchor does the owner accept? (1) The reviewer session's trusted workspace, which runs the tool from the base revision and receives the branch as data (no new workflow; needs OQ-0031). (2) A required reviewer who is not the author (needs OQ-0036). (3) An organisation-level required workflow (needs an organisation account and its cost, OQ-0023). (4) A privileged default-branch workflow (`workflow_run` or `pull_request_target`): not recommended; it is forbidden by the policy floors, anchors on the production branch, runs with a privileged token against code the pull request supplies, and GitHub documents a planned default block on `pull_request_target` in public repositories.
+- **Recommendation:** (1) for the first reviewer stages, plus (2) once a second identity exists.
+- **Source:** OPS-0003; HD-0015.
+
+### OQ-0036 — A separate GitHub identity for the automation, and the branch rules that follow
+- **Status:** open
+- **Blocks:** STG-6 (and the meaning of "required approvals" on main)
+- **Question:** The repository's only collaborator is the owner (admin), and every push and merge made from this environment is made as the owner. Branch rules therefore bind the automation only as far as they bind the owner, and a pull request's author cannot approve it, so requiring an approval would block every merge unless the owner is allowed to bypass, which also lets Claude through. Does the owner (1) apply the single-identity rules now as safety rails and rely on Claude's instructions and the owner's approval for merges to main (Profile 1 in [GITHUB_SETTINGS_GUIDE.md](../roadmap/GITHUB_SETTINGS_GUIDE.md)), and (2) later connect the automation under a separate, Write-only identity (a second free GitHub account or a GitHub App), after which the owner's approval is enforced by GitHub (Profile 2)? Whether a Claude session can be connected under such an identity is not verified.
+- **Recommendation:** (1) now; investigate (2) before STG-6, and before any CI-hosted session holds a token (OQ-0032).
+- **Source:** OPS-0003; HD-0015.

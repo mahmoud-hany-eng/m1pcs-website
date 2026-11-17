@@ -39,6 +39,7 @@ export const PATHS = {
     report: `${MEM}/schemas/run-report.schema.json`,
     decision: `${MEM}/schemas/review-decision.schema.json`,
     policy: `${MEM}/schemas/policy.schema.json`,
+    evidence: `${MEM}/schemas/ci-evidence.schema.json`,
   },
   requirements: `${MEM}/requirements/MASTER_REQUIREMENTS.md`,
   architecture: `${MEM}/architecture/ARCHITECTURE.md`,
