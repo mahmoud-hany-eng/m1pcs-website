@@ -99,6 +99,30 @@ test("a change to checker code alone cannot be judged by data rules, so it is al
   assert.ok(r.verdict.reasons.some((x) => /control-plane/.test(x)));
 });
 
+test("an honest addition under the schema directory is not a false alarm, but is still a control-plane change", () => {
+  repo.branch("add-schema", (r) => {
+    r.write("docs/project-memory/schemas/extra.schema.json", "{}\n");
+    r.write("docs/project-memory/architecture/EXTRA.md", "# Extra\n\nSee [the schema](../schemas/extra.schema.json).\n");
+  });
+  const r = check("add-schema");
+  assert.equal(r.verdict.base_rules_pass, true, JSON.stringify(r.rules));
+  assert.equal(r.flags.schemas_changed, true);
+  assert.equal(r.verdict.control_plane_changed, true);
+  assert.equal(r.verdict.human_review_required, true);
+});
+
+test("deleting a rule does not remove it: the base's schema comes back, and the weakened policy is still rejected", () => {
+  repo.branch("delete-schema", (r) => {
+    r.remove("docs/project-memory/schemas/policy.schema.json");
+    r.edit(POLICY, '"max_token_permissions": { "contents": "read" }', '"max_token_permissions": { "contents": "write" }');
+    r.edit(WORKFLOW, "permissions:\n  contents: read", "permissions:\n  contents: write");
+  });
+  const r = check("delete-schema");
+  assert.equal(r.verdict.base_rules_pass, false);
+  assert.ok(codes(r.rules.head_policy_under_base_validator).includes("POLICY-SCHEMA"));
+  assert.ok(r.changes.paths.some((p) => p.path === "docs/project-memory/schemas/policy.schema.json" && p.status === "D"));
+});
+
 test("a second workflow file is rejected by the base's allow-list and flagged", () => {
   repo.branch("extra-workflow", (r) => r.write(".github/workflows/deploy.yml", r.read(WORKFLOW)));
   const r = check("extra-workflow");

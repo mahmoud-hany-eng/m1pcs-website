@@ -170,11 +170,18 @@ function manifestHash(contents) {
   return h.digest("hex");
 }
 
-/** Head files as data, with some directories replaced by the base's versions. */
+/**
+ * Head files as data, with the base's version of every file under `replacePrefixes`.
+ * A file the head ADDS under those directories is kept: it cannot override a base file, and the base validator only loads
+ * the schema and policy files it already names, so an added file cannot change the rules. Keeping it stops an honest
+ * addition (a new schema that the head's documents link to) from being reported as a broken link. A file the head
+ * DELETES comes back from the base, so deleting a rule does not remove it.
+ */
 function overlayRoot(dir, headContents, baseContents, replacePrefixes) {
+  const inReplaced = (rel) => replacePrefixes.some((p) => rel.startsWith(`${p}/`));
   const merged = new Map();
-  for (const [rel, buf] of headContents) if (!replacePrefixes.some((p) => rel.startsWith(`${p}/`))) merged.set(rel, buf);
-  for (const [rel, buf] of baseContents) if (replacePrefixes.some((p) => rel.startsWith(`${p}/`))) merged.set(rel, buf);
+  for (const [rel, buf] of headContents) merged.set(rel, buf);
+  for (const [rel, buf] of baseContents) if (inReplaced(rel)) merged.set(rel, buf);
   fs.mkdirSync(dir, { recursive: true });
   writeFiles(dir, merged);
 }

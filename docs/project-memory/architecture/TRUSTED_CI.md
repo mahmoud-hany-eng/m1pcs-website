@@ -36,6 +36,7 @@ Both tests first run the branch's own validator on the branch and require it to 
 
   rootB = H's files, with B's policy and B's schemas      → "does H pass B's rules?"
   rootA = H's files incl. H's policy, with B's schemas    → "does H's policy still pass B's validator?"
+  (a base file always wins over a head file at the same path; a file H deletes comes back; a file H only adds is kept)
 
   a child process imports ONLY B's ops/validate-memory.mjs and ops/lib/policy.mjs and runs both roots
   changed paths = merge-base(B, H)..H, classified by B's policy; task scope read from B's task file
