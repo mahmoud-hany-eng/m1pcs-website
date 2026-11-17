@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "report_kind": "claude_run_report",
+  "report_kind": "worker_run_report",
   "task_id": "OPS-0001",
   "attempt_id": "OPS-0001-a1",
   "attempt_number": 1,

@@ -1,8 +1,7 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "m1-ops/architect-decision.schema.json",
-  "title": "GPT architect review decision (advisory)",
-  "description": "Structured output of the OpenAI architect. Advisory only: it cannot override deterministic policy. Written so it can also be used as a strict structured-output schema (every property required, nullable where optional, additionalProperties false).",
+  "$id": "m1-ops/review-decision.schema.json",
+  "title": "Reviewer decision (advisory)",
+  "description": "Output of a separate reviewer session, written to docs/project-memory/reviews/<task id>/<attempt id>/review.json. Advisory only: it cannot override deterministic policy, approve, merge or launch anything. The contract is provider-neutral: every property is required and optional values are nullable, so any structured-output facility or a post-hoc validator can enforce it.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -10,8 +9,78 @@
       "description": "Schema version of this contract."
     },
     "decision_kind": {
-      "const": "architect_review_decision",
+      "const": "review_decision",
       "description": "Document kind."
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration. Any other value makes the review invalid.",
+      "properties": {
+        "level": {
+          "const": "unverified_reviewer_claim",
+          "description": "A review is an unverified claim by a model session, never evidence."
+        },
+        "verified_by_orchestrator": {
+          "const": false,
+          "description": "Only the orchestrator may produce verified evidence, in a different document type."
+        }
+      },
+      "required": [
+        "level",
+        "verified_by_orchestrator"
+      ],
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "description": "Who reviewed. A reviewer is always a separate session from the worker that did the work.",
+      "properties": {
+        "role": {
+          "const": "reviewer",
+          "description": "The role that wrote this document. It is never the worker role."
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "actions_hosted_session",
+            "cloud_routine_session"
+          ],
+          "description": "Where the reviewer session ran. The policy lists the runtimes that may be used."
+        },
+        "session": {
+          "type": "object",
+          "description": "Session identifiers as seen by the reviewer. Informational, but compared with the worker's.",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Reviewer session identifier, if known. It must differ from the worker session identifier.",
+              "maxLength": 100
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Reviewer session URL, if known.",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "id",
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "role",
+        "runtime",
+        "session"
+      ],
+      "additionalProperties": false
     },
     "task_id": {
       "$ref": "#/$defs/task_id"
@@ -52,7 +121,7 @@
         },
         "prompt_version": {
           "type": "string",
-          "description": "Architect prompt version the reviewer was given.",
+          "description": "Reviewer prompt version the reviewer was given.",
           "minLength": 1,
           "maxLength": 40
         }
@@ -479,6 +548,8 @@
   "required": [
     "schema_version",
     "decision_kind",
+    "trust",
+    "reviewer",
     "task_id",
     "attempt_id",
     "reviewed",

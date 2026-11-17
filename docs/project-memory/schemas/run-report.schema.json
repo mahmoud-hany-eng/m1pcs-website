@@ -1,7 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "m1-ops/run-report.schema.json",
-  "title": "Claude run report (unverified worker claim)",
+  "title": "Worker run report (unverified claim)",
   "description": "Written by the worker to docs/project-memory/runs/<task id>/<attempt id>/report.json in a final commit that touches only that file. It is a claim about the work, never evidence.",
   "type": "object",
   "properties": {
@@ -10,7 +9,7 @@
       "description": "Schema version of this contract."
     },
     "report_kind": {
-      "const": "claude_run_report",
+      "const": "worker_run_report",
       "description": "Document kind."
     },
     "task_id": {
@@ -53,7 +52,7 @@
             "string",
             "null"
           ],
-          "description": "Claude Code session identifier, if known.",
+          "description": "Worker session identifier, if known. A reviewer session must have a different identifier.",
           "maxLength": 100
         },
         "url": {

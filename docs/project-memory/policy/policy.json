@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "policy_id": "m1-autonomous-development-policy",
-  "policy_version": "0.1.0",
+  "policy_version": "0.2.0",
   "status": "draft_pending_human_review",
   "owner": "human",
-  "provenance": "Initial values are the Phase 0 automation audit recommendations. The Phase 0 architecture was approved with modifications that were not itemised (HD-0002, OQ-0020), so every value here is a recommendation until a human sets status to active. Nothing in this file is a business decision.",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service of any kind; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision.",
   "task_id_prefixes": ["OPS", "PLAT"],
   "branches": {
     "production": "main",
@@ -53,7 +53,7 @@
     "build_config": { "minimum_class": "B", "description": "Build, lint, type-check, style or framework configuration." },
     "dependencies": { "minimum_class": "B", "description": "Package manifests and lockfiles." },
     "ci_workflows": { "minimum_class": "B", "description": "GitHub Actions workflows and repository automation." },
-    "ops_control_plane": { "minimum_class": "B", "description": "Orchestrator code, worker protocol, architect prompt and governed project memory." },
+    "ops_control_plane": { "minimum_class": "B", "description": "Orchestrator code, worker protocol, reviewer prompt and governed project memory." },
     "policy_or_schema": { "minimum_class": "B", "description": "policy.json and the JSON schemas." },
     "auth_or_sessions": { "minimum_class": "B", "description": "Authentication, sessions and account linking." },
     "database_schema": { "minimum_class": "B", "description": "Database schema and migrations (writing a migration is B; applying one to production is a prohibited operation)." },
@@ -72,11 +72,11 @@
   "path_rules": [
     { "id": "PATH-001", "patterns": [".github/**"], "exclude": [], "category": "ci_workflows", "restriction": "control_plane", "note": "Workflows run with privileges; a worker must never be able to change them unreviewed." },
     { "id": "PATH-002", "patterns": ["ops/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "Orchestrator and validator code." },
-    { "id": "PATH-003", "patterns": ["CLAUDE.md", "AGENTS.md", ".claude/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "Worker instructions." },
+    { "id": "PATH-003", "patterns": ["CLAUDE.md", "AGENTS.md", ".claude/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "Worker instructions and session settings." },
     { "id": "PATH-004", "patterns": ["docs/project-memory/policy/**"], "exclude": [], "category": "policy_or_schema", "restriction": "control_plane", "note": "The deterministic policy." },
     { "id": "PATH-005", "patterns": ["docs/project-memory/schemas/**"], "exclude": [], "category": "policy_or_schema", "restriction": "control_plane", "note": "The machine contracts." },
-    { "id": "PATH-006", "patterns": ["docs/project-memory/architect/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "The reviewer prompt." },
-    { "id": "PATH-007", "patterns": ["docs/project-memory/**"], "exclude": ["docs/project-memory/runs/**"], "category": "ops_control_plane", "restriction": "protected", "note": "Governed memory: requirements, decisions, architecture, roadmap, tasks." },
+    { "id": "PATH-006", "patterns": ["docs/project-memory/reviewer/**"], "exclude": [], "category": "ops_control_plane", "restriction": "control_plane", "note": "The reviewer prompt." },
+    { "id": "PATH-007", "patterns": ["docs/project-memory/**"], "exclude": ["docs/project-memory/runs/**"], "category": "ops_control_plane", "restriction": "protected", "note": "Governed memory: requirements, decisions, architecture, roadmap, tasks, reviews." },
     { "id": "PATH-008", "patterns": ["docs/project-memory/runs/**"], "exclude": [], "category": "docs_only", "restriction": "none", "note": "Where workers write run reports." },
     { "id": "PATH-010", "patterns": ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"], "exclude": [], "category": "dependencies", "restriction": "protected", "note": "Dependency changes alter the production supply chain." },
     { "id": "PATH-011", "patterns": ["next.config.*", "tsconfig*.json", "eslint.config.*", "postcss.config.*", "tailwind.config.*", ".gitignore", ".env.example"], "exclude": [], "category": "build_config", "restriction": "protected", "note": "Build and tooling configuration." },
@@ -95,7 +95,7 @@
       "path_rules_applied_to_actual_changed_paths",
       "task_declared_class",
       "worker_reported_class",
-      "architect_advised_class",
+      "reviewer_advised_class",
       "prohibited_operation_detected"
     ],
     "model_self_classification": "advisory_may_raise_never_lower",
@@ -122,23 +122,44 @@
     "max_consecutive_auto_tasks": 3,
     "max_fires_per_hour": 5,
     "max_task_wall_clock_minutes": 90,
-    "max_review_calls_per_attempt": 2
+    "max_review_sessions_per_attempt": 2
   },
   "budget": {
     "status": "placeholder",
-    "currency": "USD",
-    "openai": {
-      "enabled": false,
-      "model": null,
-      "daily_cap": null,
-      "monthly_cap": null,
-      "hard_limit_required_at_provider": true
-    },
-    "claude": {
+    "paid_ai_services_allowed": false,
+    "api_billing_allowed": false,
+    "claude_subscription": {
       "daily_run_allowance": null,
-      "allowance_source": "To be confirmed from the Claude account (OQ-0022)."
+      "allowance_source": "To be confirmed from the Claude account (OQ-0022).",
+      "extra_usage_must_stay_disabled": true
     },
     "on_exhaustion": "halt_and_notify"
+  },
+  "roles": {
+    "developer": {
+      "may_review_own_work": false,
+      "may_approve": false,
+      "may_merge": false
+    },
+    "reviewer": {
+      "must_be_separate_session": true,
+      "tool_access": "read_only",
+      "may_change_code": false,
+      "may_approve": false,
+      "may_merge": false,
+      "may_launch_tasks": false,
+      "verdict_authority": "advisory_only"
+    },
+    "policy_engine": {
+      "decides": ["risk_class", "merge_eligibility", "next_task_eligibility", "stop_conditions"],
+      "uses_models": false
+    }
+  },
+  "reviewer_runtime": {
+    "allowed": ["actions_hosted_session", "cloud_routine_session"],
+    "selected": null,
+    "decision_reference": null,
+    "governing_question": "OQ-0031"
   },
   "kill_switch": {
     "repository_variable": "OPS_ENABLED",
@@ -164,7 +185,8 @@
     { "id": "PROHIB-012", "operation": "Delete data, branches, artifacts or files outside the task's own work branch.", "class": "C" },
     { "id": "PROHIB-013", "operation": "Modify original build photos under public/builds or public/logo.png.", "class": "C" },
     { "id": "PROHIB-014", "operation": "Disable, weaken or bypass this policy, CI or the validators.", "class": "C" },
-    { "id": "PROHIB-015", "operation": "Commit secrets, customer data, supplier costs, margins or other business-sensitive information to this public repository.", "class": "C" }
+    { "id": "PROHIB-015", "operation": "Commit secrets, customer data, supplier costs, margins or other business-sensitive information to this public repository.", "class": "C" },
+    { "id": "PROHIB-016", "operation": "Use any paid or metered AI service or API-key billing from any provider, or enable paid extra usage on the subscription.", "class": "C" }
   ],
   "memory_contract": {
     "required_files": [
@@ -172,15 +194,16 @@
       "docs/project-memory/README.md",
       "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
       "docs/project-memory/architecture/ARCHITECTURE.md",
+      "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
       "docs/project-memory/roadmap/ROADMAP.md",
       "docs/project-memory/decisions/HUMAN_DECISIONS.md",
       "docs/project-memory/decisions/OPEN_QUESTIONS.md",
       "docs/project-memory/tasks/TEMPLATE.md",
-      "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+      "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
       "docs/project-memory/policy/policy.json",
       "docs/project-memory/schemas/task.schema.json",
       "docs/project-memory/schemas/run-report.schema.json",
-      "docs/project-memory/schemas/architect-decision.schema.json",
+      "docs/project-memory/schemas/review-decision.schema.json",
       "docs/project-memory/schemas/policy.schema.json",
       "ops/validate-memory.mjs"
     ],
@@ -207,14 +230,18 @@
       "REQ-OPS-001",
       "REQ-OPS-002",
       "REQ-OPS-003",
-      "REQ-OPS-004"
+      "REQ-OPS-004",
+      "REQ-OPS-008",
+      "REQ-OPS-009"
     ],
     "required_requirement_text": [
       { "id": "REQ-LOY-002", "must_contain": ["1 point", "QAR 10"] },
       { "id": "REQ-LOY-003", "must_contain": ["QAR 0.10"] },
       { "id": "REQ-LOY-004", "must_contain": ["fulfil"] },
       { "id": "REQ-LOY-005", "must_contain": ["duplicate"] },
-      { "id": "REQ-LOY-001", "must_contain": ["ledger"] }
+      { "id": "REQ-LOY-001", "must_contain": ["ledger"] },
+      { "id": "REQ-OPS-008", "must_contain": ["Claude subscription", "paid AI services"] },
+      { "id": "REQ-OPS-009", "must_contain": ["low-risk", "production"] }
     ],
     "claude_md_required_headings": [
       "## 1. Scope and authority",

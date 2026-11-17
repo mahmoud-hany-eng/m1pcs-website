@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "m1-ops/task.schema.json",
   "title": "M1 development task (JSON front matter of a task file)",
   "description": "Strict contract for the JSON front matter of docs/project-memory/tasks/<task id>-<slug>.md. The markdown body is the human-readable prompt and is not validated beyond being present.",
@@ -138,10 +137,11 @@
       "type": "string",
       "enum": [
         "human",
-        "architect",
-        "claude"
+        "planner",
+        "reviewer",
+        "worker"
       ],
-      "description": "Who authored the task file. Authorship grants no approval."
+      "description": "Role that authored the task file (a role, not a provider). Authorship grants no approval."
     }
   },
   "required": [

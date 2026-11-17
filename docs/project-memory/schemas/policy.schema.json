@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "m1-ops/policy.schema.json",
   "title": "M1 deterministic policy",
   "description": "Strict contract for docs/project-memory/policy/policy.json. Risk classes are computed from this file by trusted code, never from a model's self-classification.",
@@ -994,9 +993,9 @@
           "minimum": 5,
           "maximum": 480
         },
-        "max_review_calls_per_attempt": {
+        "max_review_sessions_per_attempt": {
           "type": "integer",
-          "description": "Maximum architect review calls per attempt.",
+          "description": "Maximum reviewer sessions per attempt.",
           "minimum": 1,
           "maximum": 5
         }
@@ -1008,72 +1007,29 @@
         "max_consecutive_auto_tasks",
         "max_fires_per_hour",
         "max_task_wall_clock_minutes",
-        "max_review_calls_per_attempt"
+        "max_review_sessions_per_attempt"
       ],
       "additionalProperties": false
     },
     "budget": {
       "type": "object",
-      "description": "Budget controls (placeholders).",
+      "description": "Usage and billing controls. There is no paid AI service in this system.",
       "properties": {
         "status": {
           "const": "placeholder",
-          "description": "Budget values are placeholders until a human decides."
+          "description": "Usage values are placeholders until a human decides."
         },
-        "currency": {
-          "type": "string",
-          "description": "Currency of cap values.",
-          "minLength": 3,
-          "maxLength": 3
+        "paid_ai_services_allowed": {
+          "const": false,
+          "description": "Owner decision (HD-0010): no additional paid AI service of any kind. Changing this requires a new human decision and a change to this schema, which is a control-plane change."
         },
-        "openai": {
+        "api_billing_allowed": {
+          "const": false,
+          "description": "Owner decision (HD-0010): no API-key billing from any provider, including a console API key. Only the existing subscription is used."
+        },
+        "claude_subscription": {
           "type": "object",
-          "description": "OpenAI budget placeholders.",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Whether OpenAI calls are allowed at all."
-            },
-            "model": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "Pinned model name, or null until chosen."
-            },
-            "daily_cap": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "minimum": 0,
-              "description": "Daily spend cap, or null."
-            },
-            "monthly_cap": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "minimum": 0,
-              "description": "Monthly spend cap, or null."
-            },
-            "hard_limit_required_at_provider": {
-              "type": "boolean",
-              "description": "A provider-side hard spend limit must exist before enabling."
-            }
-          },
-          "required": [
-            "enabled",
-            "model",
-            "daily_cap",
-            "monthly_cap",
-            "hard_limit_required_at_provider"
-          ],
-          "additionalProperties": false
-        },
-        "claude": {
-          "type": "object",
-          "description": "Claude usage placeholders.",
+          "description": "How the existing subscription is used and protected.",
           "properties": {
             "daily_run_allowance": {
               "type": [
@@ -1081,32 +1037,198 @@
                 "null"
               ],
               "minimum": 0,
-              "description": "Daily routine run allowance of the account, or null until confirmed."
+              "description": "Daily cloud run allowance of the account, or null until confirmed."
             },
             "allowance_source": {
               "type": "string",
               "description": "Where the value must be confirmed.",
               "minLength": 3,
               "maxLength": 300
+            },
+            "extra_usage_must_stay_disabled": {
+              "const": true,
+              "description": "Metered overage ('extra usage') on the account must stay off, because it is API-rate billing."
             }
           },
           "required": [
             "daily_run_allowance",
-            "allowance_source"
+            "allowance_source",
+            "extra_usage_must_stay_disabled"
           ],
           "additionalProperties": false
         },
         "on_exhaustion": {
           "const": "halt_and_notify",
-          "description": "Behavior when a budget is exhausted."
+          "description": "Behavior when the subscription's usage limit is reached: stop and tell a human; never buy more."
         }
       },
       "required": [
         "status",
-        "currency",
-        "openai",
-        "claude",
+        "paid_ai_services_allowed",
+        "api_billing_allowed",
+        "claude_subscription",
         "on_exhaustion"
+      ],
+      "additionalProperties": false
+    },
+    "roles": {
+      "type": "object",
+      "description": "Role separation. These are constants: loosening one is a control-plane change that needs a human.",
+      "properties": {
+        "developer": {
+          "type": "object",
+          "description": "The worker role.",
+          "properties": {
+            "may_review_own_work": {
+              "const": false,
+              "description": "A worker never reviews its own work."
+            },
+            "may_approve": {
+              "const": false,
+              "description": "A worker never approves anything."
+            },
+            "may_merge": {
+              "const": false,
+              "description": "A worker never merges."
+            }
+          },
+          "required": [
+            "may_review_own_work",
+            "may_approve",
+            "may_merge"
+          ],
+          "additionalProperties": false
+        },
+        "reviewer": {
+          "type": "object",
+          "description": "The reviewer role.",
+          "properties": {
+            "must_be_separate_session": {
+              "const": true,
+              "description": "A reviewer is always a different session from the worker of the attempt it reviews."
+            },
+            "tool_access": {
+              "const": "read_only",
+              "description": "A reviewer session may only read: no shell, no file writes outside its own output, no network tools."
+            },
+            "may_change_code": {
+              "const": false,
+              "description": "A reviewer never changes code."
+            },
+            "may_approve": {
+              "const": false,
+              "description": "A reviewer never approves; it advises."
+            },
+            "may_merge": {
+              "const": false,
+              "description": "A reviewer never merges."
+            },
+            "may_launch_tasks": {
+              "const": false,
+              "description": "A reviewer never starts a task."
+            },
+            "verdict_authority": {
+              "const": "advisory_only",
+              "description": "The reviewer's verdict is an input to the policy engine, never a decision."
+            }
+          },
+          "required": [
+            "must_be_separate_session",
+            "tool_access",
+            "may_change_code",
+            "may_approve",
+            "may_merge",
+            "may_launch_tasks",
+            "verdict_authority"
+          ],
+          "additionalProperties": false
+        },
+        "policy_engine": {
+          "type": "object",
+          "description": "The deterministic policy engine.",
+          "properties": {
+            "decides": {
+              "type": "array",
+              "description": "What deterministic code decides.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "risk_class",
+                  "merge_eligibility",
+                  "next_task_eligibility",
+                  "stop_conditions"
+                ],
+                "description": "A decision area."
+              },
+              "minItems": 1
+            },
+            "uses_models": {
+              "const": false,
+              "description": "No model participates in the decision itself."
+            }
+          },
+          "required": [
+            "decides",
+            "uses_models"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "developer",
+        "reviewer",
+        "policy_engine"
+      ],
+      "additionalProperties": false
+    },
+    "reviewer_runtime": {
+      "type": "object",
+      "description": "Which separate-session runtime performs reviews. Undecided until a human decides.",
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "description": "Runtimes a reviewer may use.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "actions_hosted_session",
+              "cloud_routine_session"
+            ],
+            "description": "A runtime."
+          },
+          "minItems": 1
+        },
+        "selected": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "actions_hosted_session",
+            "cloud_routine_session"
+          ],
+          "description": "The runtime chosen by a human, or null while undecided."
+        },
+        "decision_reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The human decision (HD-<4 digits>) that selected the runtime, or null while undecided.",
+          "pattern": "^HD-[0-9]{4}$"
+        },
+        "governing_question": {
+          "type": "string",
+          "description": "The open question that governs the choice.",
+          "pattern": "^OQ-[0-9]{4}$"
+        }
+      },
+      "required": [
+        "allowed",
+        "selected",
+        "decision_reference",
+        "governing_question"
       ],
       "additionalProperties": false
     },
@@ -1333,6 +1455,8 @@
     "approval",
     "limits",
     "budget",
+    "roles",
+    "reviewer_runtime",
     "kill_switch",
     "prohibited_operations",
     "memory_contract"
