@@ -17,6 +17,7 @@
     "docs/project-memory/policy/**",
     "docs/project-memory/schemas/**",
     "docs/project-memory/architect/**",
+    "docs/project-memory/reviewer/**",
     "docs/project-memory/README.md",
     "docs/project-memory/requirements/**",
     "docs/project-memory/architecture/**",
@@ -39,7 +40,7 @@
   ],
   "out_of_scope": [
     "GitHub Actions workflows or any orchestration code",
-    "Calls to the OpenAI API or launching Claude sessions",
+    "Calls to any external AI service or launching Claude sessions",
     "Creating API keys, secrets, environments or paid resources",
     "Any change to the production website source or assets",
     "Touching the eight unpushed Reel commits or the creative project",
@@ -106,24 +107,24 @@
   "max_attempts": 3,
   "approval_reference": "HD-0004",
   "created_at": "2026-11-16T23:35:00Z",
-  "created_by": "claude"
+  "created_by": "worker"
 }
 ---
 
 # OPS-0001 — Shared project memory and development contracts
 
-This file records the task that created the project memory. It was transcribed by Claude from the human's OPS-0001 instruction; the instruction, not this file, is the authority, and it is recorded as HD-0004.
+This file records the task that created the project memory. It was transcribed by a worker session from the human's OPS-0001 instruction; the instruction, not this file, is the authority, and it is recorded as HD-0004.
 
 ## Context
 
-The Phase 0 audits proposed an autonomous development system in which a GPT architect proposes tasks, Claude workers implement them, and evidence is collected and reviewed. Before any orchestration exists, the system needs shared memory, written protocols, strict contracts and a deterministic policy that do not depend on remembering old conversations (REQ-OPS-004). The repository is public (REQ-OPS-007), so nothing sensitive may be recorded.
+The Phase 0 audits proposed an autonomous development system in which tasks are proposed and approved, Claude workers implement them, and a separate reviewer checks the evidence. Before any orchestration exists, the system needs shared memory, written protocols, strict contracts and a deterministic policy that do not depend on remembering old conversations (REQ-OPS-004). The repository is public (REQ-OPS-007), so nothing sensitive may be recorded.
 
 ## What to do
 
-1. Create the project-memory structure under `docs/project-memory/`: README, master requirements, architecture and ADRs, roadmap, human decisions, open questions, a task template, the architect prompt, the policy and the schemas.
+1. Create the project-memory structure under `docs/project-memory/`: README, master requirements, architecture and ADRs, roadmap, human decisions, open questions, a task template, the reviewer prompt, the policy and the schemas.
 2. Record only confirmed requirements as requirements. Keep recommendations and unresolved questions separate. Use stable ids.
-3. Write the worker protocol in the root `CLAUDE.md` and the architect's review duties in `ARCHITECT_PROMPT.md`. The architect has no authority over deterministic rules.
-4. Write strict schemas for tasks, worker run reports and architect decisions (and one for the policy), consistent with each other.
+3. Write the worker protocol in the root `CLAUDE.md` and the reviewer's duties in `REVIEWER_PROMPT.md` (called `ARCHITECT_PROMPT.md` in attempt 1, renamed in attempt 2). The reviewer has no authority over deterministic rules.
+4. Write strict, provider-neutral schemas for tasks, worker run reports and reviewer decisions (and one for the policy), consistent with each other.
 5. Write `policy.json`: risk classes A, B and C, protected paths, approvals, limits, budget placeholders, a kill switch and prohibited production operations. Classes are computed by trusted logic, never by a model's own classification.
 6. Write the offline validator `ops/validate-memory.mjs` with Node built-ins only, with tests and fixtures that show valid and invalid cases.
 7. Run lint, type checking, the production build and the new tests; fix failures that this task caused.
@@ -136,3 +137,8 @@ See the front matter. In particular: no workflows, no external APIs, no credenti
 ## How completion is shown
 
 The five required checks, with their exit codes, recorded in the run report at `docs/project-memory/runs/OPS-0001/OPS-0001-a1/report.json`, plus the baseline results of lint, type checking and build before any change.
+
+## Revision history
+
+- **Attempt 1** (HD-0004): created the project memory, the schemas, the policy and the validator.
+- **Attempt 2** (the owner calls it OPS-0001B; HD-0011): a revision on the same branch, as the contract provides for. It records the owner's decision that automation uses only the existing Claude subscription (HD-0010), removes the external-provider reviewer design from the active architecture, keeps the contracts provider-neutral, assesses the Claude-only reviewer's feasibility from official documentation, narrows the open questions that blocked OPS-0002, and proposes OPS-0002 without starting it. The run report is `docs/project-memory/runs/OPS-0001/OPS-0001-a2/report.json`.

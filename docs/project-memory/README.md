@@ -1,6 +1,6 @@
 # M1 project memory
 
-The shared, versioned memory of the M1 Gaming PCs development system. Humans, a GPT architect, Claude workers and a future orchestrator all work from these files, so nothing depends on remembering earlier conversations (REQ-OPS-004). The repository is public: read the [content policy](#content-policy) before adding anything.
+The shared, versioned memory of the M1 Gaming PCs development system. Humans, the planning lead, Claude worker and reviewer sessions, and a future orchestrator all work from these files, so nothing depends on remembering earlier conversations (REQ-OPS-004). The repository is public: read the [content policy](#content-policy) before adding anything.
 
 ## Layout
 
@@ -12,10 +12,12 @@ The shared, versioned memory of the M1 Gaming PCs development system. Humans, a 
 | [roadmap/ROADMAP.md](roadmap/ROADMAP.md) | Platform phases (`PH-`) and automation stages (`STG-`) | Humans, on a reviewed task |
 | [decisions/HUMAN_DECISIONS.md](decisions/HUMAN_DECISIONS.md) | Append-only log of human decisions (`HD-`) | Humans only |
 | [decisions/OPEN_QUESTIONS.md](decisions/OPEN_QUESTIONS.md) | **Unresolved** decisions (`OQ-`) | Humans; workers may propose |
-| [tasks/](tasks/) | One file per task, plus [TEMPLATE.md](tasks/TEMPLATE.md) | Humans, or the architect through a reviewed proposal |
-| [architect/ARCHITECT_PROMPT.md](architect/ARCHITECT_PROMPT.md) | Reviewer instructions for the OpenAI architect | Humans |
+| [tasks/](tasks/) | One file per task, plus [TEMPLATE.md](tasks/TEMPLATE.md) | Humans, or the reviewer through a reviewed proposal |
+| [reviewer/REVIEWER_PROMPT.md](reviewer/REVIEWER_PROMPT.md) | Instructions for the separate, read-only reviewer session | Humans |
+| [architecture/REVIEWER_FEASIBILITY.md](architecture/REVIEWER_FEASIBILITY.md) | Whether a Claude-only review loop is supported, with the evidence | Humans, on a reviewed task |
+| `reviews/<task id>/<attempt id>/review.json` | Reviewer decisions (unverified reviewer claims) | The orchestrator, in a later stage |
 | [policy/policy.json](policy/policy.json) | The deterministic policy | Humans only |
-| [schemas/](schemas/) | Strict JSON contracts for tasks, run reports, architect decisions and the policy | Humans only |
+| [schemas/](schemas/) | Strict, provider-neutral JSON contracts for tasks, run reports, reviewer decisions and the policy | Humans only |
 | `runs/<task id>/<attempt id>/report.json` | Worker run reports (unverified claims) | The worker that did the run |
 | `../../CLAUDE.md` | The worker protocol | Humans only |
 | `../../ops/` | The offline validator and its tests | Humans, on a reviewed task |
@@ -48,7 +50,7 @@ The validator rejects a reference to an id that does not exist.
 
 ## Evidence
 
-A **report** is a worker's claim. **Evidence** is what the orchestrator recomputes itself from GitHub. They are different documents and are never mixed (ADR-0006). A model's output, including the architect's, is advice that the deterministic policy can overrule (ADR-0005).
+A **report** is a worker's claim. **Evidence** is what the orchestrator recomputes itself from GitHub. They are different documents and are never mixed (ADR-0006). A model's output, including the reviewer's, is advice that the deterministic policy can overrule (ADR-0005).
 
 ## Contracts and validation
 
@@ -66,4 +68,4 @@ This repository is public. Never add secrets, customer data, supplier names or c
 
 ## Not built yet
 
-OPS-0001 delivers memory, contracts, policy and the offline validator only. There are no workflows, no orchestrator, no launch of Claude sessions, no calls to the OpenAI API, no secrets and no environments. See the [roadmap](roadmap/ROADMAP.md).
+OPS-0001 delivers memory, contracts, policy and the offline validator only. There are no workflows, no orchestrator, no launch of Claude sessions, no call to any external AI service, no secrets and no environments. See the [roadmap](roadmap/ROADMAP.md).

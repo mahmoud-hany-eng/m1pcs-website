@@ -36,7 +36,7 @@
 > The JSON block above is validated against `docs/project-memory/schemas/task.schema.json`; the markdown below is the prompt the worker follows.
 > `declared_risk_class` is only the author's opinion. Policy computes the real class from the paths, and the declared class can raise it but never lower it.
 > `approval_reference` stays `null` until a human approval is recorded in HUMAN_DECISIONS.md. Authorship of this file grants no approval.
-> `files_allowed` globs must start with a literal path segment. Control-plane paths (workflows, `ops/`, `CLAUDE.md`, policy, schemas, the architect prompt) must be listed explicitly to be changeable.
+> `files_allowed` globs must start with a literal path segment. Control-plane paths (workflows, `ops/`, `CLAUDE.md`, policy, schemas, the reviewer prompt) must be listed explicitly to be changeable.
 
 ## Context
 

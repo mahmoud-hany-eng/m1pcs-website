@@ -6,7 +6,7 @@
 
 ## Context
 
-The target workflow is: an architect proposes a task, a Claude worker implements it, the evidence is collected, the architect reviews it, and the next task is proposed. It needs a place to run deterministic logic, hold secrets and keep state. Introducing a server, a database or a queue service would add cost and operating burden (REQ-OPS-005).
+The target workflow is: a task is proposed and approved, a Claude worker session implements it, the evidence is collected, a separate Claude reviewer session reviews it, and the next task is proposed. It needs a place to run deterministic logic, hold secrets and keep state. Introducing a server, a database or a queue service would add cost and operating burden (REQ-OPS-005).
 
 ## Decision
 

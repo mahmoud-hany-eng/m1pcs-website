@@ -54,9 +54,11 @@ Nothing may be added to this file unless a human said it. A worker or model that
 - **REQ-OPS-002** (confirmed) — Outside those gates, development aims for minimal human intervention. _Source: HD-0009._
 - **REQ-OPS-003** (confirmed) — Credentials are never exposed in conversation, output, logs, commits or documentation, and the human is never asked to paste credentials into a conversation. _Source: HD-0009._
 - **REQ-OPS-004** (confirmed) — The system must not depend on remembering the text of earlier Claude conversations; shared knowledge lives in this repository. _Source: HD-0009._
-- **REQ-OPS-005** (confirmed) — Paid infrastructure is introduced only when justified (see OQ-0001 and OQ-0021). _Source: HD-0009._
+- **REQ-OPS-005** (confirmed) — Paid infrastructure is introduced only when justified (see OQ-0001). _Source: HD-0009._
 - **REQ-OPS-006** (confirmed) — Development work is done on a dedicated development branch and checked on preview environments before anything reaches production. _Source: HD-0009._
 - **REQ-OPS-007** (confirmed) — This repository is public: no business-sensitive information (secrets, customer data, supplier costs, margins) is committed to it. _Source: HD-0007._
+- **REQ-OPS-008** (confirmed) — AI assistance in development uses only the existing Claude subscription: no OpenAI API integration, no separate Anthropic Console API billing, and no additional paid AI services. The machine contracts stay provider-neutral, and the reviewer is a separate Claude session. _Source: HD-0010._
+- **REQ-OPS-009** (confirmed) — Routine, low-risk development tasks execute automatically; sensitive changes and production releases require human approval. _Source: HD-0010._
 
 ## 2. Deliberately not decided here
 

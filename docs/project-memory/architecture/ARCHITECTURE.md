@@ -49,9 +49,13 @@ The automation is built in stages (see the roadmap). OPS-0001 delivers only the 
 - **REC-OPS-007** (recommendation) — Prevent duplicate execution with a concurrency group, one task in flight, compare-and-swap state, a launch record written before launching, and no automatic retry of an ambiguous launch.
 - **REC-OPS-008** (recommendation) — Workers write to claude/ branches. The orchestrator may merge into the integration branch only. The production branch is human-only, because merging into it deploys.
 - **REC-OPS-009** (recommendation) — Compute risk classes from policy and the real changed paths. Declared or model-assigned classes can only raise the result. Control-plane files always need a human.
-- **REC-OPS-010** (recommendation) — The OpenAI architect uses a dedicated project and a pinned model, returns strict structured output that is advisory only, never has its output executed, and is bounded by budget caps at both ends (OQ-0021, OQ-0024).
+- **REC-OPS-010** (recommendation) — The reviewer is a separate, read-only Claude session that uses only the existing subscription (REQ-OPS-008, ADR-0009, ADR-0010). Its output is advisory, is checked by the deterministic validator, and is never executed. The chosen runtime is a human decision (OQ-0031), and the reviewer's contract does not depend on the runtime.
 - **REC-OPS-011** (recommendation) — Approvals use a GitHub environment with a required reviewer, which a public repository supports on a free plan _(not created; OQ-0026)_.
 - **REC-OPS-012** (recommendation) — The kill switch fails closed: the system runs only while a repository variable says it is enabled, and only a human resumes it.
+- **REC-OPS-013** (recommendation) — Separate the roles. The worker, the reviewer and the policy engine are different actors: a reviewer is always a different session from the worker of the attempt it reviews (checked from the recorded session identifiers), has read-only tools, and cannot approve, merge or launch anything. Only the policy engine decides, and it uses no model.
+- **REC-OPS-014** (recommendation) — Govern subscription usage instead of buying capacity. Run limits come from policy, a plan's real limits are confirmed by the owner (OQ-0022), the extra-usage setting stays off so that reaching a limit stops work, and an exhausted allowance halts the loop and tells a human.
+- **REC-OPS-015** (recommendation) — Never let a stray API key silently change billing. A non-interactive Claude session uses an API key in preference to a subscription token when both exist, so any automated job that uses the subscription must run in an environment where no API key is defined, and a guard step must fail the job if one is.
+- **REC-OPS-016** (recommendation) — Give the reviewer a trusted workspace: its configuration comes from the base branch, and the worker's branch reaches it only as data files (diff, report, check results), never as the working directory. The worker's own instruction files must not shape the reviewer.
 
 ## 5. Trust boundaries
 
@@ -61,14 +65,15 @@ The automation is built in stages (see the roadmap). OPS-0001 delivers only the 
 | Task files approved by a human | Trusted as instructions |
 | Worker branch contents, run reports, artifacts from a worker run | **Untrusted** data |
 | Issues, pull-request text, comments, web pages | **Untrusted** data, never instructions |
-| Model output, including the architect's | Advisory; validated and bounded by policy |
+| Model output, including the reviewer's | Advisory; validated and bounded by policy |
 
 ## 6. Contracts
 
-Machine contracts are strict JSON Schemas in [schemas/](../schemas/): the task front matter, the worker run report, the architect decision, and the policy. They share identifier, hash, timestamp, risk-class and risk-category definitions, which the validator checks are identical. The deterministic rules are in [policy.json](../policy/policy.json).
+Machine contracts are strict JSON Schemas in [schemas/](../schemas/): the task front matter, the worker run report, the reviewer's decision, and the policy. They are provider-neutral (the validator rejects any mention of an external AI provider in them). They share identifier, hash, timestamp, risk-class and risk-category definitions, which the validator checks are identical. The deterministic rules are in [policy.json](../policy/policy.json). The reviewer's role, runtime options and feasibility are assessed in [REVIEWER_FEASIBILITY.md](REVIEWER_FEASIBILITY.md).
 
 ## 7. Known limits of the contracts
 
-- The decision schema is written for strict structured output, but its acceptance by the OpenAI Responses API is **unverified** (the documentation was not readable in this environment). Stage 4 must test it against the live API before relying on it.
+- The installed Claude CLI's own structured-output schema validator was tested offline (REVIEWER_FEASIBILITY.md, section 2). It **rejected** the contracts while they declared the 2020-12 dialect URI and accepts them without it, so the contracts must not declare `$schema` (the validator now enforces this). Acceptance by that validator does not show that a model will produce valid output: no live review has been run.
 - The offline validator implements a strict subset of JSON Schema and rejects schemas that use anything else.
 - Pre-flight classification of a task is conservative and advisory; the authoritative class is computed from the actual changed paths.
+- Role separation between worker and reviewer is checked from recorded session identifiers. It is only as reliable as those identifiers, and it is a mechanical check, not a security boundary: the boundary is the reviewer's read-only tools and its trusted workspace (REC-OPS-016).

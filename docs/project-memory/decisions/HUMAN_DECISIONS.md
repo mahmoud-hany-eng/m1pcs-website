@@ -59,3 +59,21 @@ Append-only log of decisions the human operator has made. Workers and models nev
 - **Decision:** The automation aims for minimal human intervention, but production deployments, destructive operations, billing changes and sensitive infrastructure changes always need explicit human approval. Paid infrastructure is introduced only when justified. Credentials are never exposed or requested in conversation. The system must not depend on remembering old Claude conversations. Work happens on a dedicated development branch with preview environments.
 - **Source:** Human instruction in the automation brief that followed Phase 0.
 - **Affects:** REQ-OPS-001, REQ-OPS-002, REQ-OPS-003, REQ-OPS-004, REQ-OPS-005, REQ-OPS-006
+
+### HD-0010 — The automation uses only the existing Claude subscription
+- **Date:** 2026-11-17
+- **Decision:** The owner decided that development automation uses the existing Claude subscription only: no OpenAI API integration, no separate Anthropic Console API billing, and no additional paid AI services. Routine, low-risk development tasks execute automatically. Human approval remains required for sensitive changes and production releases. The reviewer is therefore a separate Claude session, and the JSON contracts stay provider-neutral. This supersedes the OpenAI-based reviewer proposed in the Phase 0 automation audit.
+- **Source:** Human instruction that started OPS-0001B (decisions relayed by the project's planning and architecture lead).
+- **Affects:** REQ-OPS-005, REQ-OPS-008, REQ-OPS-009, REC-OPS-010, ADR-0009, ADR-0010, OQ-0021, OQ-0024, OQ-0020
+
+### HD-0011 — OPS-0001B authorised as attempt 2 of OPS-0001
+- **Date:** 2026-11-17
+- **Decision:** OPS-0001B is approved as a revision of OPS-0001 on the same isolated branch, recorded as attempt 2 (the second attempt of the existing task, within its attempt limit). Scope: record the owner's decisions; remove OpenAI-specific content from the active architecture; keep the schemas provider-neutral; assess Claude-only reviewer feasibility from official documentation; resolve OQ-0020, OQ-0023 and OQ-0028 only where existing decisions allow; prepare an OPS-0002 proposal; validate. Restrictions are unchanged: no push, merge or deploy; the eight unpushed Reel commits and the creative file-mode change stay untouched; no change to the website's public functionality; no secrets, API keys or paid resources; OPS-0002 is not begun.
+- **Source:** Human instruction that started OPS-0001B.
+- **Affects:** REQ-OPS-001, REQ-OPS-003, REQ-OPS-007, HD-0005, HD-0008
+
+### HD-0012 — OPS-0001 provisionally accepted
+- **Date:** 2026-11-17
+- **Decision:** The project's planning and architecture lead (outside the automation) reviewed OPS-0001 and provisionally accepted it on the reported results: 144 of 144 tests, lint, type check and production build passing; 25 confirmed requirements; 30 open questions; a dedicated local worktree and branch; no production changes; the eight Reel commits preserved. Provisional means the ADRs stay proposed and the policy stays a draft until the owner ratifies them (OQ-0020).
+- **Source:** Human instruction that started OPS-0001B.
+- **Affects:** ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, OQ-0020

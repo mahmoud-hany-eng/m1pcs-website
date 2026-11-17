@@ -26,14 +26,16 @@ Per-phase objective, scope, acceptance criteria, tests and risks are in the Phas
 |---|---|---|---|---|---|
 | STG-1 | Read-only audit | done | none | none | Done |
 | STG-2 | Shared project memory, contracts, policy and offline validator (OPS-0001) | in_review | STG-1 | none | Review and merge |
-| STG-3 | Automatic Claude reporting: unprivileged CI and a collector, tasks still started by hand | not_started | STG-2 | OQ-0020, OQ-0023 | Review and merge |
-| STG-4 | Architect review in shadow mode (comments only, no state change) | not_started | STG-3 | OQ-0021, OQ-0024 | Judge three shadow reviews |
+| STG-3 | Baseline CI (OPS-0002), then automatic worker reporting: an unprivileged collector, tasks still started by hand | not_started | STG-2 | OQ-0028 (activation only) | Approve OPS-0002; review and merge |
+| STG-4 | Reviewer session in shadow mode: a separate read-only Claude session, comments only, no state change | not_started | STG-3 | OQ-0020, OQ-0022, OQ-0023, OQ-0031, OQ-0032 | Judge three shadow reviews |
 | STG-5 | Next-task generation, with human approval of proposals | not_started | STG-4 | OQ-0026 | Approve the first tasks |
-| STG-6 | Cloud routine integration: launch, watchdog, compare-and-swap state | not_started | STG-5 | OQ-0019, OQ-0022, OQ-0028, OQ-0029 | Supervised run |
+| STG-6 | Automatic worker start, watchdog and compare-and-swap state | not_started | STG-5 | OQ-0019, OQ-0022, OQ-0028, OQ-0029, OQ-0033 | Supervised run |
 | STG-7 | Controlled autonomous development for class A, inside the limits | not_started | STG-6 | OQ-0025, OQ-0027 | Standing approval, revocable |
 
 ## 3. Notes
 
 - PH-1 and STG-3 overlap (both need CI). They should be planned together so that CI is built once.
 - STG-2 adds the policy and the validator; it does not add workflows, secrets, environments or external connections.
+- The owner decided that automation uses only the existing Claude subscription (HD-0010): there is no external AI service in any stage, and the reviewer is a separate Claude session (ADR-0009, ADR-0010).
+- OPS-0002 (the first part of STG-3) is proposed in [OPS-0002-PROPOSAL.md](OPS-0002-PROPOSAL.md). It is a proposal, not a task, and it is not approved.
 - Production changes happen only through a human-approved merge into the production branch (REQ-OPS-001).

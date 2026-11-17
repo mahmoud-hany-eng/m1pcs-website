@@ -15,9 +15,9 @@ Autonomy needs a rule for what may run without a human. A model's or worker's ow
 - Risk classes. **A** is automatic and limited to documentation, tests and run reports. **B** needs a human approval before the run and before merge. **C** is never autonomous (production deploys, destructive operations, billing, credentials, infrastructure).
 - Risk categories, each with a minimum class.
 - Path rules that map real file paths to categories and to a restriction level: none, protected, control plane or immutable.
-- Prohibited operations, limits, budget placeholders and a fail-closed kill switch.
+- Prohibited operations, limits, usage and billing controls (no paid AI service, HD-0010), role separation and a fail-closed kill switch.
 
-The authoritative class is the maximum of all signals, computed by trusted code from the **actual changed paths** and the policy on the default branch. A class declared by a task author, reported by a worker or advised by the architect is advisory and can only raise the computed class. Unmatched paths default to class B. Control-plane files (workflows, `ops/`, `CLAUDE.md`, policy, schemas, the architect prompt) always need a human, and a task may change them only if its file list names them explicitly.
+The authoritative class is the maximum of all signals, computed by trusted code from the **actual changed paths** and the policy on the default branch. A class declared by a task author, reported by a worker or advised by the reviewer is advisory and can only raise the computed class. Unmatched paths default to class B. Control-plane files (workflows, `ops/`, `CLAUDE.md`, policy, schemas, the reviewer prompt) always need a human, and a task may change them only if its file list names them explicitly.
 
 The offline validator enforces floors on the policy itself and checks golden classifications, so weakening the policy requires a visible change to a control-plane file.
 

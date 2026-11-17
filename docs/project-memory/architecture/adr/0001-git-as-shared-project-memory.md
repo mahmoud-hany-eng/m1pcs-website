@@ -6,7 +6,7 @@
 
 ## Context
 
-The development system must not depend on remembering the text of earlier Claude conversations (REQ-OPS-004). Different actors (the human, a GPT architect, Claude workers, a future orchestrator) all need the same facts: requirements, decisions, the roadmap and the current task. The repository is public (HD-0007), so everything committed is world-readable.
+The development system must not depend on remembering the text of earlier Claude conversations (REQ-OPS-004). Different actors (the human, the planning lead, Claude worker and reviewer sessions, a future orchestrator) all need the same facts: requirements, decisions, the roadmap and the current task. The repository is public (HD-0007), so everything committed is world-readable.
 
 ## Decision
 

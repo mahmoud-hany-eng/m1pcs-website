@@ -125,34 +125,40 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** What happens to the creative/ video project and to the eight unpushed local Reel commits? The repository is public, so pushing them would publish them.
 - **Source:** Phase 0 platform report, decision 19; HD-0008.
 
-### OQ-0020 — Itemise the modifications to the Phase 0 architecture
-- **Status:** open
-- **Blocks:** STG-3
-- **Question:** Which modifications were intended when the Phase 0 audits were approved with modifications (HD-0002)? Until they are itemised, all ADRs stay proposed.
-- **Source:** HD-0002.
-
-### OQ-0021 — OpenAI API spend, or a Claude-based reviewer
+### OQ-0020 — Ratify the Phase 0 architecture with the owner's modifications
 - **Status:** open
 - **Blocks:** STG-4
+- **Progress:** Partly answered. HD-0010 itemises the owner's modifications: the existing Claude subscription only, no paid AI service or API billing, routine low-risk tasks run automatically, and sensitive changes and production releases need a human. ADR-0009 and ADR-0010 record them. This no longer blocks OPS-0002, because a baseline CI workflow does not depend on any of these decisions.
+- **Question:** Is HD-0010 the complete list of modifications to the Phase 0 architecture? If so, are ADR-0001 to ADR-0008 (as amended) ratified, so the policy can be marked active? If not, which further modifications apply?
+- **Source:** HD-0002, HD-0010, HD-0012.
+
+### OQ-0021 — OpenAI API spend, or a Claude-based reviewer
+- **Status:** resolved
+- **Resolution:** HD-0010
+- **Blocks:** none
+- **Outcome:** The owner chose the existing Claude subscription only. No OpenAI API integration, no separate Anthropic Console API billing and no additional paid AI service. The reviewer is a separate Claude session (ADR-0009, ADR-0010).
 - **Question:** The OpenAI API is billed separately from a ChatGPT subscription. Accept a small prepaid balance with a hard monthly limit, or use a Claude-based reviewer that needs no new paid service?
 - **Source:** Automation audit, human action 1; REQ-OPS-005.
 
-### OQ-0022 — Claude plan allowance and GitHub App installation
+### OQ-0022 — Claude plan allowance, extra usage and GitHub App installation
 - **Status:** open
-- **Blocks:** STG-6
-- **Question:** What daily and hourly allowance for cloud runs does the Claude plan really have, and is the Claude GitHub App installed on this repository? Published documentation about daily caps conflicts.
-- **Source:** Automation audit, human action 2.
+- **Blocks:** STG-4, STG-6
+- **Question:** The owner must confirm four facts that this environment cannot observe: (1) the plan tier and its real usage limits, including any daily limit on cloud scheduled runs (published sources conflict); (2) that "extra usage" (metered overage, which is billed at API rates) is switched off on the account, so that hitting a limit stops work instead of charging; (3) that scheduled tasks and cloud sessions are enabled; (4) whether the Claude GitHub App is installed on this repository.
+- **Source:** Automation audit, human action 2; HD-0010.
 
 ### OQ-0023 — Public repository or a private operations repository
 - **Status:** open
-- **Blocks:** STG-3
-- **Question:** Keep project memory in this public repository, or move it to a private one? A private repository on a free plan loses rulesets and approval environments.
+- **Blocks:** STG-4
+- **Progress:** The repository is public (HD-0007) and the system is built for that: the content policy, the secret scan and the privilege split all assume it. The working assumption is to stay public. It is not a decision, but it does not block OPS-0002, because the baseline CI workflow is correct on a public or a private repository. It starts to matter at STG-4, when review artifacts and run reports accumulate in the repository.
+- **Question:** Keep project memory in this public repository (consequence: everything committed is world-readable, free rulesets and approval environments work), or move it to a private repository (consequence: those protections need a paid GitHub plan, and Actions minutes are limited)?
 - **Recommendation:** Stay public, and keep sensitive material out of git entirely (HD-0007).
-- **Source:** Automation audit, open question 4.
+- **Source:** Automation audit, open question 4; HD-0007.
 
 ### OQ-0024 — Which OpenAI model to pin
-- **Status:** open
-- **Blocks:** STG-4
+- **Status:** resolved
+- **Resolution:** HD-0010
+- **Blocks:** none
+- **Outcome:** Not applicable: no OpenAI model will be used.
 - **Question:** Which model, chosen after reading the current pricing page? Published model names and prices conflict.
 - **Source:** Automation audit, open question 5.
 
@@ -175,11 +181,13 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** The public site is class B until automated visual-regression baselines exist. When, and under what conditions, may purely visual or content changes be reclassified to class A?
 - **Source:** OPS-0001 policy design (category ui_public_site).
 
-### OQ-0028 — Standing push authorisation for worker branches
+### OQ-0028 — Push authorisation for worker branches
 - **Status:** open
-- **Blocks:** STG-6
-- **Question:** Will the human grant a standing authorisation for Claude to push to claude/ branches (and to the integration branch), with production staying human-only? No standing authorisation exists (HD-0005).
-- **Source:** Automation audit, human action 6.
+- **Blocks:** STG-3 (activation only), STG-6
+- **Progress:** Not resolvable from existing decisions: HD-0005 says nothing is pushed without explicit approval, and no push has ever been authorised for the branches of this work. OPS-0002 can be written locally without it, but a CI workflow only becomes active once its branch exists on the remote, so activation needs an explicit push decision.
+- **Question:** Which of these does the owner authorise? (A) A one-time push of one named branch (for OPS-0002, claude/ops-0002-ci-baseline) after the work is reviewed. Consequence: that branch becomes public, the new workflow runs once on it, and a preview build may start; nothing else changes. (B) A standing authorisation to push any claude/ branch, never claude-dev or main. Consequence: every such push is public, runs CI and may start a preview build; it is needed for unattended operation (STG-6). (C) No push authorisation: the owner pushes by hand each time.
+- **Recommendation:** A for OPS-0002; revisit B at STG-6, after OQ-0022 and OQ-0029 are answered.
+- **Source:** Automation audit, human action 6; HD-0005.
 
 ### OQ-0029 — Hosting plan and preview-build filter
 - **Status:** open
@@ -192,3 +200,24 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** PH-2
 - **Question:** Connect through an installed connector or a securely stored credential, and which exact network hosts are allowed for the work environment? Nothing is provisioned until a human approves.
 - **Source:** Phase 0 platform report, human action 2 and 3.
+
+### OQ-0031 — Which runtime hosts the reviewer session
+- **Status:** open
+- **Blocks:** STG-4
+- **Question:** The reviewer must be a separate Claude session (HD-0010). Two runtimes are documented. (1) actions_hosted_session: a restricted Claude session run by the official GitHub Action inside a GitHub Actions job. It reads files prepared by trusted steps, has a read-only tool list and a read-only repository token, and its structured result is validated by the deterministic validator. It is documented and subscription-authenticated, but it is a CI-hosted session, not a cloud session, and it needs OQ-0032. (2) cloud_routine_session: a Claude cloud session started by an experimental API call or by a pull-request trigger. It is a true cloud session, but it cannot be restricted to read-only per routine, it acts under the owner's own GitHub identity (the same as the worker), and a pull-request trigger starts from the worker's own branch, so the worker's own instruction files would be loaded. See REVIEWER_FEASIBILITY.md.
+- **Recommendation:** actions_hosted_session, because it is the only runtime whose isolation can be enforced from documented features. This needs the owner to accept that the reviewer is a CI-hosted Claude session rather than a cloud session.
+- **Source:** OPS-0001B feasibility assessment; HD-0010.
+
+### OQ-0032 — Authorise a long-lived subscription token for CI
+- **Status:** open
+- **Blocks:** STG-4
+- **Question:** Running a Claude session inside GitHub Actions needs a long-lived token tied to the owner's subscription. The owner would create it on their own machine with the official command (valid for one year, model requests only) and store it as a protected repository secret. Does the owner authorise this? Consequences: runs draw down the same subscription usage as interactive work; the token is a credential that must never be committed or typed into a chat; its exposure is limited by the reviewer's read-only tool list; it can be revoked. The documentation reviewed describes the official action and the token for CI, but does not say whether automated use of a subscription token is otherwise permitted, so a small terms-of-use uncertainty remains that only the owner can accept. An API key must never exist in that environment, because it would take precedence and switch billing to API rates.
+- **Recommendation:** Decide after OPS-0002 has proved the baseline CI; do not create the token earlier.
+- **Source:** OPS-0001B feasibility assessment; HD-0010.
+
+### OQ-0033 — How the next worker session is started
+- **Status:** open
+- **Blocks:** STG-6
+- **Question:** After a task is approved, how does the next worker session start? (1) A human starts it (documented; no automation). (2) A cloud scheduled task is started by its experimental fire endpoint (documented but experimental: it returns a session link, but has no status, no completion callback, no idempotency key, a per-task token and a limit of 30 starts per hour per task). (3) The worker also runs as a restricted Claude session inside GitHub Actions (documented, with a deterministic completion signal, but it is a CI-hosted session and needs OQ-0032).
+- **Recommendation:** Option (1) through STG-5; choose between (2) and (3) at STG-6 after watching how the experimental interface behaves.
+- **Source:** OPS-0001B feasibility assessment; REQ-OPS-009.
