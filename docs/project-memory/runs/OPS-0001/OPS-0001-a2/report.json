@@ -1,0 +1,694 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0001",
+  "attempt_id": "OPS-0001-a2",
+  "attempt_number": 2,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0001-foundation",
+  "base_branch": "claude-dev",
+  "base_sha": "6eaf8c3528c3f7e22710d0e48b02b8a7986c9712",
+  "head_sha": "8592a06a0edb7d2b3a8fe24a1d1e4d1cbac4c894",
+  "started_at": "2026-11-16T23:47:22Z",
+  "finished_at": "2026-11-17T00:28:49Z",
+  "outcome": "completed",
+  "summary": "OPS-0001B, recorded as attempt 2 of OPS-0001 (HD-0011). Recorded the owner's Claude-subscription-only decisions (HD-0010 to HD-0012, REQ-OPS-008 and REQ-OPS-009, ADR-0009 and ADR-0010); removed the OpenAI-based reviewer, its API and its compatibility testing from the active architecture and made the contracts provider-neutral (the validator now enforces that); redesigned the reviewer as a separate read-only Claude session with trust, runtime and session-separation fields and a policy section for budget and roles; assessed Claude-only reviewer feasibility from official documentation and offline tests (REVIEWER_FEASIBILITY.md); resolved OQ-0021 and OQ-0024, narrowed OQ-0020, OQ-0022, OQ-0023 and OQ-0028 and added OQ-0031 to OQ-0033; and wrote the OPS-0002 proposal without implementing it. The validator gained provider-neutrality, schema CLI-compatibility, reviewer-runtime, role-separation, review-location and budget checks, and the suite grew from 144 to 185 tests, each new rule mutation-checked. No website source, asset or configuration changed, nothing was pushed, and the main working tree and its Reel commits are untouched.",
+  "commits": [
+    {
+      "sha": "25a048a909a4c2a41b4ab2e0ba691448af3f29b9",
+      "subject": "OPS-0001B: record the Claude-subscription-only decisions and reviewer architecture"
+    },
+    {
+      "sha": "51d6bb98d771d914e258c9d97b2c9131023e6e6e",
+      "subject": "OPS-0001B: provider-neutral contracts, reviewer role and policy"
+    },
+    {
+      "sha": "55c3e71ba8bfddcaacddaaf24340523a4c22d530",
+      "subject": "OPS-0001B: validator rules and tests for the reviewer contract"
+    },
+    {
+      "sha": "8592a06a0edb7d2b3a8fe24a1d1e4d1cbac4c894",
+      "subject": "OPS-0001B: Claude-only reviewer feasibility assessment and OPS-0002 proposal"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "CLAUDE.md",
+      "change_type": "modified",
+      "additions": 6,
+      "deletions": 3
+    },
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "modified",
+      "additions": 8,
+      "deletions": 6
+    },
+    {
+      "path": "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+      "change_type": "deleted",
+      "additions": 0,
+      "deletions": 65
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 9,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
+      "change_type": "added",
+      "additions": 139,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0001-git-as-shared-project-memory.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0002-github-actions-as-sole-orchestrator.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0005-deterministic-policy-and-risk-classes.md",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0009-claude-subscription-only-no-paid-ai-services.md",
+      "change_type": "added",
+      "additions": 27,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0010-reviewer-is-a-separate-read-only-claude-session.md",
+      "change_type": "added",
+      "additions": 25,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "modified",
+      "additions": 18,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "modified",
+      "additions": 48,
+      "deletions": 19
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "modified",
+      "additions": 50,
+      "deletions": 23
+    },
+    {
+      "path": "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+      "change_type": "added",
+      "additions": 70,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+      "change_type": "added",
+      "additions": 192,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 3
+    },
+    {
+      "path": "docs/project-memory/runs/OPS-0001/OPS-0001-a1/report.json",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/schemas/architect-decision.schema.json",
+      "change_type": "deleted",
+      "additions": 0,
+      "deletions": 647
+    },
+    {
+      "path": "docs/project-memory/schemas/policy.schema.json",
+      "change_type": "modified",
+      "additions": 187,
+      "deletions": 63
+    },
+    {
+      "path": "docs/project-memory/schemas/review-decision.schema.json",
+      "change_type": "added",
+      "additions": 718,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/run-report.schema.json",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/schemas/task.schema.json",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0001-shared-project-memory.md",
+      "change_type": "modified",
+      "additions": 13,
+      "deletions": 7
+    },
+    {
+      "path": "docs/project-memory/tasks/TEMPLATE.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "ops/lib/json-schema.mjs",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "ops/tests/fixtures.test.mjs",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-advisory-flag-false.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-approve-with-blocker.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-claims-verified.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-confidence-out-of-range.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-lowers-class.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-needs-human-without-reason.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-next-task-mismatch.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-old-kind.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-proposal-class-too-low.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-reviewed-other-commit.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-reviewer-role-is-worker.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-same-session-as-worker.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-unknown-runtime.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-unknown-verdict.json",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/decision-wrong-trust-level.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-attempt-mismatch.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-attestation-contradicted.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-bad-sha.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-claims-verified.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-class-lowered.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-extra-property.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-failed-required-check.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-head-mismatch.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-missing-required-check.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-old-kind.json",
+      "change_type": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-outside-scope.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-passed-nonzero-exit.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-protected-undeclared.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-time-reversed.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/report-wrong-trust-level.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/fixtures/invalid/task-author-is-a-provider.json",
+      "change_type": "added",
+      "additions": 44,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/manifest.json",
+      "change_type": "modified",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/valid/architect-decision.json",
+      "change_type": "deleted",
+      "additions": 0,
+      "deletions": 87
+    },
+    {
+      "path": "ops/tests/fixtures/valid/review-decision.json",
+      "change_type": "added",
+      "additions": 99,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/valid/run-report.json",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "ops/tests/helpers.mjs",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "path": "ops/tests/validate-memory.test.mjs",
+      "change_type": "modified",
+      "additions": 207,
+      "deletions": 9
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "modified",
+      "additions": 102,
+      "deletions": 13
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 2.7,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 1.7,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 18.2,
+      "output_excerpt": "   Generating static pages (0/56) ...\n   Generating static pages (14/56) \r\n   Generating static pages (28/56) \r\n   Generating static pages (42/56) \r\n ✓ Generating static pages (56/56)\n+ First Load JS shared by all                                    103 kB\n○  (Static)  prerendered as static content\n●  (SSG)     prerendered as static HTML (uses generateStaticParams)",
+      "output_sha256": "9fbd5afb9b6d3a075ad7c7368620cfd3e5de74eb9a510b4f673e41993b6ff3a2",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.2,
+      "output_excerpt": "OK: checked 81 file(s); 0 warning(s).",
+      "output_sha256": "abc578bcd013c947891fd303fab8daf0657d5e6f994ef3ff20c5acb7d63a95c5",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 2.9,
+      "output_excerpt": "# tests 185\n# pass 185\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "a3d79c0442cf07b15a8a1babd238e0d80d1ca81e044087d99b42c268e94cbc05",
+      "notes": "Run on the committed work tree (head_sha) in the isolated worktree."
+    },
+    {
+      "check_id": "build-output-unchanged",
+      "command": "ad hoc: build pristine origin/claude-dev, then this branch, both at the SAME path; hash every output file with the random build id removed",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "288 of 288 build output files identical (HTML, RSC payloads, chunks, CSS, route manifests) after removing per-build randomness: the random build id in both spellings, key order of JSON manifests, and the random encryption and preview keys. git diff of src/, public/, next.config.ts, tsconfig.json, package-lock.json, vercel.json, .github/ and creative/ against origin/claude-dev is empty; package.json differs only by the two ops scripts added in attempt 1 and is unchanged in this attempt.",
+      "output_sha256": null,
+      "notes": "Not a single command. A raw byte comparison differs in every page because Next embeds a random build id and orders manifests non-deterministically; that is why normalisation was needed. Same-path builds only (build output depends on the checkout path)."
+    },
+    {
+      "check_id": "validator-mutation-sanity",
+      "command": "ad hoc: disable one new validator rule at a time in a scratch copy and run npm run ops:test each time (5 rules)",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "baseline 185 pass/0 fail. Disabled PROVIDER-NEUTRAL: 4 fail. Disabled SCHEMA-CLI-COMPAT: 2 fail. Disabled DECISION-SEPARATION: 6 fail. Disabled DECISION-HEAD: 3 fail. Disabled REVIEWER-RUNTIME selection check: 3 fail.",
+      "output_sha256": null,
+      "notes": "Passed means every sabotage was caught by at least one test. The scratch copies were left only in the session scratch directory."
+    },
+    {
+      "check_id": "cli-schema-accepted",
+      "command": "ad hoc: ANTHROPIC_BASE_URL=http://127.0.0.1:9 timeout 40 claude -p ping --json-schema <schema file> --output-format json (no API key; endpoint unreachable)",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "task, run-report, review-decision and policy schemas: the CLI accepted each (no schema error; it proceeded to the unreachable endpoint and was stopped by the timeout, exit 124). Control with the 2020-12 $schema keyword added: rejected at once, exit 1, 'no schema with key or ref https://json-schema.org/draft/2020-12/schema'.",
+      "output_sha256": null,
+      "notes": "No model request was made and nothing was billed, because the endpoint was unreachable. This shows the CLI's schema validator accepts the contracts; it does not show that a model produces valid output."
+    },
+    {
+      "check_id": "ci-sequence-no-scripts",
+      "command": "ad hoc: on a pristine origin/claude-dev checkout with CI=true, no API key and no token: npm ci --ignore-scripts; npm run lint; npx tsc --noEmit; npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 50,
+      "output_excerpt": "npm ci --ignore-scripts exit 0 (15 s); lint exit 0 (3 s); tsc exit 0 (5 s); build exit 0 (27 s).",
+      "output_sha256": null,
+      "notes": "Evidence for the proposed OPS-0002 workflow only (the sequence it would run). No workflow was created."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git -C /home/user/m1pcs-website status/rev-parse/rev-list/diff/stash list/worktree list; git ls-remote --heads origin 'claude/*'",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree still on claude-dev at 187e045, 8 commits ahead of origin/claude-dev, 0 stash entries; its only uncommitted change is the original mode flip 100644 to 100755 on creative/motion-ad/scripts/deliver-v8.sh with 0 content lines; no claude/* branch exists on the remote; the task branch has no upstream; only two worktrees exist (main and the task worktree).",
+      "output_sha256": null,
+      "notes": "Observed after the four work commits, before this report was written."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "docs_only",
+      "policy_or_schema",
+      "tests_only"
+    ],
+    "rationale": "The work changes control-plane files (CLAUDE.md, ops/, the policy, the schemas, the reviewer prompt) and governed project memory, which policy classes as B. No class C path was touched and no website file changed."
+  },
+  "protected_paths_touched": [
+    "CLAUDE.md",
+    "docs/project-memory/README.md",
+    "docs/project-memory/architect/ARCHITECT_PROMPT.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
+    "docs/project-memory/architecture/adr/0001-git-as-shared-project-memory.md",
+    "docs/project-memory/architecture/adr/0002-github-actions-as-sole-orchestrator.md",
+    "docs/project-memory/architecture/adr/0005-deterministic-policy-and-risk-classes.md",
+    "docs/project-memory/architecture/adr/0009-claude-subscription-only-no-paid-ai-services.md",
+    "docs/project-memory/architecture/adr/0010-reviewer-is-a-separate-read-only-claude-session.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+    "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+    "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/architect-decision.schema.json",
+    "docs/project-memory/schemas/policy.schema.json",
+    "docs/project-memory/schemas/review-decision.schema.json",
+    "docs/project-memory/schemas/run-report.schema.json",
+    "docs/project-memory/schemas/task.schema.json",
+    "docs/project-memory/tasks/OPS-0001-shared-project-memory.md",
+    "docs/project-memory/tasks/TEMPLATE.md",
+    "ops/lib/json-schema.mjs",
+    "ops/tests/fixtures.test.mjs",
+    "ops/tests/fixtures/invalid/decision-advisory-flag-false.json",
+    "ops/tests/fixtures/invalid/decision-approve-with-blocker.json",
+    "ops/tests/fixtures/invalid/decision-claims-verified.json",
+    "ops/tests/fixtures/invalid/decision-confidence-out-of-range.json",
+    "ops/tests/fixtures/invalid/decision-lowers-class.json",
+    "ops/tests/fixtures/invalid/decision-needs-human-without-reason.json",
+    "ops/tests/fixtures/invalid/decision-next-task-mismatch.json",
+    "ops/tests/fixtures/invalid/decision-old-kind.json",
+    "ops/tests/fixtures/invalid/decision-proposal-class-too-low.json",
+    "ops/tests/fixtures/invalid/decision-reviewed-other-commit.json",
+    "ops/tests/fixtures/invalid/decision-reviewer-role-is-worker.json",
+    "ops/tests/fixtures/invalid/decision-same-session-as-worker.json",
+    "ops/tests/fixtures/invalid/decision-unknown-runtime.json",
+    "ops/tests/fixtures/invalid/decision-unknown-verdict.json",
+    "ops/tests/fixtures/invalid/decision-wrong-trust-level.json",
+    "ops/tests/fixtures/invalid/report-attempt-mismatch.json",
+    "ops/tests/fixtures/invalid/report-attestation-contradicted.json",
+    "ops/tests/fixtures/invalid/report-bad-sha.json",
+    "ops/tests/fixtures/invalid/report-claims-verified.json",
+    "ops/tests/fixtures/invalid/report-class-lowered.json",
+    "ops/tests/fixtures/invalid/report-extra-property.json",
+    "ops/tests/fixtures/invalid/report-failed-required-check.json",
+    "ops/tests/fixtures/invalid/report-head-mismatch.json",
+    "ops/tests/fixtures/invalid/report-missing-required-check.json",
+    "ops/tests/fixtures/invalid/report-old-kind.json",
+    "ops/tests/fixtures/invalid/report-outside-scope.json",
+    "ops/tests/fixtures/invalid/report-passed-nonzero-exit.json",
+    "ops/tests/fixtures/invalid/report-protected-undeclared.json",
+    "ops/tests/fixtures/invalid/report-time-reversed.json",
+    "ops/tests/fixtures/invalid/report-wrong-trust-level.json",
+    "ops/tests/fixtures/invalid/task-author-is-a-provider.json",
+    "ops/tests/fixtures/manifest.json",
+    "ops/tests/fixtures/valid/architect-decision.json",
+    "ops/tests/fixtures/valid/review-decision.json",
+    "ops/tests/fixtures/valid/run-report.json",
+    "ops/tests/helpers.mjs",
+    "ops/tests/validate-memory.test.mjs",
+    "ops/validate-memory.mjs"
+  ],
+  "deviations": [
+    {
+      "description": "OPS-0001B was modelled as attempt 2 of OPS-0001 rather than as a new task.",
+      "reason": "Task ids have the form PREFIX-NNNN, so OPS-0001B is not a valid id; the task contract allows several attempts and the owner asked for work on the same branch (HD-0011)."
+    },
+    {
+      "description": "Renamed the architect files to the reviewer's (ARCHITECT_PROMPT.md to REVIEWER_PROMPT.md, architect-decision.schema.json to review-decision.schema.json) and added docs/project-memory/reviewer/** to the OPS-0001 task's files_allowed, keeping architect/** so the attempt 1 report still validates.",
+      "reason": "The owner decided on a Claude-only reviewer, so the architect role no longer exists in the active architecture; the task record must permit the paths that attempt 2 changes."
+    },
+    {
+      "description": "Edited the historic attempt 1 report only to change report_kind to the provider-neutral worker_run_report; its content, including its note about the OpenAI schema question, is otherwise unchanged.",
+      "reason": "The contract no longer allows the provider-specific kind, and attempt 1 must still validate. Historic runs are exempt from the provider-neutrality scan."
+    },
+    {
+      "description": "Edited the OPS-0001 task record's front matter (created_by, out_of_scope wording, files_allowed) and added a revision history.",
+      "reason": "The record names the provider-neutral roles and the new paths; the owner allowed updating the OPS-0001 documentation as necessary. approval_reference and the authorization fields are unchanged."
+    },
+    {
+      "description": "Removed the $schema keyword from every contract and made it a validator error (SCHEMA-CLI-COMPAT).",
+      "reason": "An offline test showed the installed CLI's --json-schema validator rejects the 2020-12 dialect URI; without it the contracts are accepted."
+    },
+    {
+      "description": "The first three work commits do not each pass npm run ops:validate on their own; only the final tree does.",
+      "reason": "The documents, contracts, validator and feasibility document cross-reference one another and were split into commits by topic for review, not as independently valid steps."
+    },
+    {
+      "description": "No live reviewer session, cloud scheduled task, GitHub workflow or push was run.",
+      "reason": "The owner forbade creating secrets, keys or paid resources and pushing; feasibility is therefore established from official documentation and offline tests, and the live tests are listed as unverified (T1 to T7 in REVIEWER_FEASIBILITY.md)."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "external_api_integration",
+      "description": "The proposed seven-step automation is not supported as worded. Steps 2 to 6 are supported with a restricted Claude session run by the official GitHub Action (documented, subscription token), and step 7 is supported only through an experimental interface or by a human. Nothing was run live, so every claim is tagged by its evidence in REVIEWER_FEASIBILITY.md; tests T1 to T7 remain to be done after the owner decisions."
+    },
+    {
+      "severity": "minor",
+      "category": "policy_or_schema",
+      "description": "policy.json is still draft_pending_human_review and ADR-0010 is proposed. reviewer_runtime.selected is null, so any review is a trial that the validator marks with a warning (OQ-0031)."
+    },
+    {
+      "severity": "minor",
+      "category": "build_config",
+      "description": "GitHub's own documentation host could not be fetched from this environment, so GitHub-side facts (Actions on public repositories, rulesets, environments, fork-pull-request secret handling) rest on search-level evidence and must be confirmed when the workflow is first run."
+    },
+    {
+      "severity": "info",
+      "category": "build_config",
+      "description": "The production build is not byte-reproducible: it embeds a random build id, orders manifests non-deterministically and depends on the checkout path. Build comparisons must normalise those and use the same path."
+    },
+    {
+      "severity": "info",
+      "category": "policy_or_schema",
+      "description": "Whether automated use of a subscription token in CI is otherwise permitted by the provider's terms is not stated in the documentation reviewed; only the owner can accept that uncertainty (OQ-0032)."
+    }
+  ],
+  "assumptions": [
+    "started_at is the commit time of the attempt 1 report, a lower bound: attempt 2 began after it, but the exact start was not recorded.",
+    "HD-0010 is treated as the owner's complete statement of the subscription-only decision for the items it lists; it is not assumed to be the complete list of Phase 0 modifications, so OQ-0020 stays open.",
+    "Keeping the repository public is a working assumption and not a decision (OQ-0023).",
+    "The owner's instruction to run routine low-risk tasks automatically is recorded as a requirement (REQ-OPS-009); it does not authorise any workflow, push or token."
+  ],
+  "questions_for_human": [
+    "OQ-0028: do you authorise (A) a one-time push of one named branch (claude/ops-0002-ci-baseline) after review, (B) a standing push authorisation for claude/ branches, or (C) none? Activation of any workflow needs a decision.",
+    "OQ-0020: is HD-0010 the complete list of modifications to the Phase 0 architecture, and are ADR-0001 to ADR-0008 (as amended) ratified?",
+    "OQ-0023: do you confirm that the repository stays public (the working assumption)?",
+    "OQ-0031: which runtime hosts the reviewer (recommended: a restricted Claude session run by the official GitHub Action)?",
+    "OQ-0022: what are the plan tier and real usage limits, is extra usage off, are scheduled tasks and cloud sessions enabled, and is the Claude GitHub App installed?",
+    "OQ-0032 and OQ-0033: later decisions on the subscription token for CI and on how the next worker session is started; neither is needed for OPS-0002.",
+    "Do you authorise pushing claude/ops-0001-foundation for review? No push has been made and none is authorised."
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "The corrections are complete on the local branch. A human should answer OQ-0028 (and confirm OQ-0023 and OQ-0020 if they wish) before OPS-0002, a read-only baseline CI workflow, is approved and started.",
+    "suggested_next_task_title": "OPS-0002: Baseline CI workflow with read-only permissions (stage STG-3)"
+  }
+}
