@@ -1,0 +1,355 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0004",
+  "attempt_id": "OPS-0004-a2",
+  "attempt_number": 2,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0004-review-foundation",
+  "base_branch": "claude-dev",
+  "base_sha": "e929476809bee8f3c5980c0388115636a2458bd6",
+  "head_sha": "c68a6ee579f324b5cabd545ea7043cd9e5eea3a6",
+  "started_at": "2026-11-17T14:00:00Z",
+  "finished_at": "2026-11-17T16:08:22Z",
+  "outcome": "completed",
+  "summary": "Corrected OPS-0004 for the owner's actual workflow, a browser at claude.ai/code (HD-0020), locally only. (1) Researched Claude Code on the web from six official documentation pages plus observation in this cloud session (evidence tags in BROWSER_REVIEW.md): a separate browser session shares no documented filesystem, so the reviewer rebuilds the review packet itself from GitHub-held inputs (the pushed baseline branch, the pushed OPS-0003 branch, GitHub's CI data), compares the manifest hash with a pinned value and regenerates the CI evidence from GitHub's API for six-section comparison; read-only isolation is instructed and not enforced in a browser (the CLI's --restricted refuses to create cloud sessions; the GitHub proxy does not limit which branch is pushed), so every browser review is advisory; the one unavoidable human action is a one-time push of exactly the OPS-0004 branch (OQ-0037). (2) Rewrote the runbook (browser first, terminal optional) with the exact launch message and rehearsed its real command blocks end to end; reviewer prompt 2.2.0-draft. (3) Recorded HD-0018 (claude/** features, claude-dev staging, main production), HD-0019 (Instagram and video production separate from the repository) and HD-0020, REQ-OPS-011 to 013, ADR-0014, CLAUDE.md sections 3, 13 and 14, policy 0.6.0 (PROHIB-017, required files, requirements and headings). (4) Investigated creative/ and the eight unpublished Reel commits read-only and wrote INSTAGRAM_SEPARATION_PLAN.md: 140 tracked files are already published on claude-dev, 196 locally, main has none, 5.4 GB of renders exist only on this container's disk; plan only, nothing under creative/ or any Reel commit was touched. No code, schema, gate or test changed; 465 of 465 tests pass. Nothing was pushed, merged or deployed, and no reviewer was run.",
+  "commits": [
+    {
+      "sha": "c68a6ee579f324b5cabd545ea7043cd9e5eea3a6",
+      "subject": "OPS-0004 correction: browser-native reviewer procedure and permanent repository rules"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "CLAUDE.md",
+      "change_type": "modified",
+      "additions": 36,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/BROWSER_REVIEW.md",
+      "change_type": "added",
+      "additions": 124,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/REVIEW_PACKET.md",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0014-repository-structure-and-instagram-separation-are-permanent-rules.md",
+      "change_type": "added",
+      "additions": 33,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "modified",
+      "additions": 18,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "modified",
+      "additions": 19,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "modified",
+      "additions": 17,
+      "deletions": 6
+    },
+    {
+      "path": "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/reviewer/FIRST_REVIEW_RUNBOOK.md",
+      "change_type": "modified",
+      "additions": 234,
+      "deletions": 53
+    },
+    {
+      "path": "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 7
+    },
+    {
+      "path": "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/INSTAGRAM_SEPARATION_PLAN.md",
+      "change_type": "added",
+      "additions": 117,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0004-review-foundation.md",
+      "change_type": "modified",
+      "additions": 93,
+      "deletions": 14
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 6.5,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at the last work commit (without this report), empty environment, no credential. A local simulation, not a GitHub Actions run. Also run directly in the worktree: exit 0."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 6.7,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at the last work commit (without this report), empty environment, no credential. A local simulation, not a GitHub Actions run. Also run directly in the worktree: exit 0."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 38.7,
+      "output_excerpt": "   Generating static pages (56/56)",
+      "output_sha256": "ed2ad68b23f01817561e05e567c33a028cd2065488bcba6217380ab834c1699b",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at the last work commit (without this report), empty environment, no credential. A local simulation, not a GitHub Actions run. 56 static pages. Also run directly in the worktree: exit 0, 56 of 56."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.3,
+      "output_excerpt": "M1 project-memory validation\nOK: checked 135 file(s); 0 warning(s).",
+      "output_sha256": "aac6b31d4b09ff2d09498f09fdf336bf1b158e2c977926a5d30f443d5b8bf576",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at the last work commit (without this report), empty environment, no credential. A local simulation, not a GitHub Actions run. 135 files in the exported tree; the working tree also reads 135."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 27.6,
+      "output_excerpt": "# tests 465\n# pass 465\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "705f7c25ecf1b0f1db22a15726d4527c74e360153123d2c23bf9d04e327aba52",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at the last work commit (without this report), empty environment, no credential. A local simulation, not a GitHub Actions run. Same 465 tests as attempt 1: no code, schema, gate or test changed in this attempt."
+    },
+    {
+      "check_id": "browser-prompt-rehearsal",
+      "command": "the four command blocks of the browser launch message, run verbatim (steps 2, 3, 4 and 6) against a stand-in remote: a full non-shallow bare repository holding the baseline and OPS-0003 branches",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "step 2 fetched into a fresh bare repository and extracted 405 baseline files; step 3 regenerated the CI evidence from the live GitHub API (exit 3 expected) and verdict, trusted_base, workflow_run, jobs, token_permissions and test_evidence were all SAME; step 4 built and verified the packet and the manifest sha256 matched 97a24e36002dc6032cb9c40e27da66965191babff8efb42dbfe5e2ae3cc2076e; step 6 ran the gate on a MOCK decision: exit 0, REVIEW_VALID_HUMAN_APPROVAL_REQUIRED",
+      "output_sha256": null,
+      "notes": "The remote was a stand-in because GitHub cannot serve the unpushed baseline branch and the development clone is shallow. The decision was a mock written by a script, not a review. No reviewer was run."
+    },
+    {
+      "check_id": "live-github-observations",
+      "command": "git fetch of two pushed branches into an empty bare repository through the proxy; unauthenticated GET of the run, jobs, check-runs and job-log endpoints of api.github.com; git fetch of the unpushed OPS-0004 branch",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "two branches fetched in about 1 s with full ancestry; four GETs returned 200 including the job log; fetching the unpushed branch failed with 'couldn't find remote ref', as expected",
+      "output_sha256": null,
+      "notes": "Observed in this cloud session, which is of the same kind as a reviewer session but is not one. The development clone here is shallow (62 commits)."
+    },
+    {
+      "check_id": "real-ops-0003-packet-new-baseline",
+      "command": "node ops/review-packet.mjs build ... --baseline <last work commit>; verify; rebuilt in the browser-block rehearsal",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "valid: true; policy 0.6.0; prompt 2.2.0-draft; manifest_sha256 97a24e36002dc6032cb9c40e27da66965191babff8efb42dbfe5e2ae3cc2076e; same hash from an archive tool root and from the rehearsal's bare repository",
+      "output_sha256": null,
+      "notes": "Baseline c68a6ee579f324b5cabd545ea7043cd9e5eea3a6. Replaces attempt 1's hash ef1e492c... which belonged to baseline 4aeb1c0. A packet only: no reviewer was run."
+    },
+    {
+      "check_id": "production-paths-unchanged",
+      "command": "git diff --name-only 50a46ca c68a6ee -- src public creative .github package.json package-lock.json next.config.ts tsconfig.json vercel.json eslint.config.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "0 files",
+      "output_sha256": null,
+      "notes": "Every changed path of this branch against 50a46ca is under ops/, docs/project-memory/ or is CLAUDE.md."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git status/rev-parse/worktree list in the main tree; git merge-base --is-ancestor for each Reel commit; git ls-remote --heads origin; du of creative/",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree on claude-dev at 187e045, 8 commits ahead of origin/claude-dev; only uncommitted change is the original mode flip on creative/motion-ad/scripts/deliver-v8.sh; creative/ still 5.4G; none of the 8 Reel commits reachable from the OPS-0004 branch; worktrees OPS-0001 to OPS-0003 clean at 85e722c, 0aba5e8, 50a46ca; remote heads main b180378, claude-dev b7348bb, ops-0002 0aba5e8, ops-0003 50a46ca; no ops-0004 branch on the remote",
+      "output_sha256": null,
+      "notes": "Observed after the work commit."
+    },
+    {
+      "check_id": "instagram-archive-copies",
+      "command": "sha256sum -c SHA256SUMS.txt in the scratchpad copy directory",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "bundle, mbox and tar.gz all OK",
+      "output_sha256": "4a47ea50cbdd79219dcb8ccf9dbba29533d4f7e42ca8e5ed18ee463909f6b72e",
+      "notes": "Read-only copies of the TRACKED Reel work, made outside the repository. They do not include the 5.4 GB of untracked renders. The scratchpad is ephemeral: the files are only safe once the owner has them."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "policy_or_schema",
+      "docs_only"
+    ],
+    "rationale": "CLAUDE.md, the reviewer prompt, the policy and the task record are control-plane paths that the policy classes as B, plus governed project memory. The owner explicitly asked for the rules to be recorded in CLAUDE.md (HD-0020). No code, schema, gate or test and no website, .github or class C path was touched, and nothing was activated."
+  },
+  "protected_paths_touched": [
+    "CLAUDE.md",
+    "docs/project-memory/README.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/BROWSER_REVIEW.md",
+    "docs/project-memory/architecture/REVIEWER_FEASIBILITY.md",
+    "docs/project-memory/architecture/REVIEW_PACKET.md",
+    "docs/project-memory/architecture/adr/0014-repository-structure-and-instagram-separation-are-permanent-rules.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/requirements/MASTER_REQUIREMENTS.md",
+    "docs/project-memory/reviewer/FIRST_REVIEW_RUNBOOK.md",
+    "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+    "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+    "docs/project-memory/roadmap/INSTAGRAM_SEPARATION_PLAN.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/tasks/OPS-0004-review-foundation.md"
+  ],
+  "deviations": [
+    {
+      "description": "Updated the OPS-0004 task file's authorization fields for attempt 2: approval_reference HD-0020, CLAUDE.md and the requirements directory added to files_allowed, CLAUDE.md removed from files_forbidden, new acceptance criteria and out-of-scope items.",
+      "reason": "The owner asked for the rules to be recorded in CLAUDE.md and authorized the correction (HD-0020); OPS-0001 attempt 2 was recorded the same way."
+    },
+    {
+      "description": "Made read-only copies of the tracked Instagram work (a git bundle and a patch file of the eight unpublished commits, and a tar of the tracked creative/ files at 187e045) in the scratchpad, outside the repository.",
+      "reason": "The plan's first goal is to preserve the originals, and this container is ephemeral. Reading and copying changes nothing; the copies are not in any repository."
+    },
+    {
+      "description": "Added prohibited operation PROHIB-017 and bumped policy_version to 0.6.0; added the new requirements, CLAUDE.md headings and documents to the memory contract.",
+      "reason": "So that the permanent rules cannot be removed silently; no rule was relaxed."
+    },
+    {
+      "description": "The baseline for the first review is now the last work commit of this attempt, so the pinned manifest hash changed from attempt 1's.",
+      "reason": "The reviewer prompt, the policy and the runbook are part of the baseline and were corrected."
+    },
+    {
+      "description": "Did not implement a technical guard against Instagram files (validator check, .gitignore, CI) and did not touch the validator, the gate, the packet builder, the schemas or any test.",
+      "reason": "The instruction asked for a plan; the guard would fail CI while creative/ is still tracked, so it must land in the same change as the removal, which needs the owner's approval."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "The browser procedure has not been run in a real browser session. Branch fetching from a new session, access to api.github.com, the permission prompts in Accept edits mode, the reviewer finding its own session identifier, and which branch a new session starts on are unverified; the documentation does not say whether the browser lets the owner choose a branch."
+    },
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "Read-only isolation of a browser reviewer is instructed, not technically enforced: file edits run without asking in every mode, Auto runs most commands without asking, --restricted refuses to create cloud sessions, and the GitHub proxy does not limit which branch a push can update. Every browser review is advisory."
+    },
+    {
+      "severity": "major",
+      "category": "infrastructure_settings",
+      "description": "The first reviewer test needs a one-time push of exactly claude/ops-0004-review-foundation, which only the owner can authorize (OQ-0037). Until then no browser session can reach the baseline commit."
+    },
+    {
+      "severity": "major",
+      "category": "other",
+      "description": "5.4 GB of Instagram renders, exports, frames and audio exist only on this container's disk and are in no Git history; the eight unpublished Reel commits are only here and in the scratchpad copies. The container is ephemeral. The owner must choose a home for them (OQ-0038)."
+    },
+    {
+      "severity": "major",
+      "category": "other",
+      "description": "REQ-OPS-012 is violated today: 140 Instagram and marketing video files are tracked on the published claude-dev and on the two published OPS branches (30 commits). They stay in published history even after removal unless history is rewritten, which is not recommended (OQ-0039). main has none."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The Instagram rule is enforced by instruction only (CLAUDE.md section 13, PROHIB-017) until a technical guard lands with the removal."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The baseline is written by the developer session; the owner's review of OPS-0004 and the owner's check of the commit id on GitHub are the trust anchor. OPS-0003's trusted-base check remains advisory (OQ-0035) and the repository still lacks enforced separation between the owner's identity and the identity Claude acts under (OQ-0036)."
+    }
+  ],
+  "assumptions": [
+    "started_at is approximate: the correction began after the owner's message; attempt 1's report was committed at e929476.",
+    "Official documentation facts come from six pages read through a fetch tool on 2026-11-17; where its text was truncated or summarised, BROWSER_REVIEW.md says so. Behaviour of a real reviewer session is not asserted.",
+    "The development session's clone is shallow and its remote is a proxy; a reviewer session is assumed to be the same kind of environment, which is why the command blocks fetch into a fresh bare repository.",
+    "The archive copies of the tracked Reel work are in the scratchpad; they are not committed anywhere and do not include untracked media."
+  ],
+  "questions_for_human": [
+    "OQ-0037: do you authorize one normal push of exactly claude/ops-0004-review-foundation so that a browser reviewer can fetch the baseline?",
+    "OQ-0038: where should the Instagram production work live (a separate private repository, your own storage, or other), and is creative/website-showreel marketing production? The originals exist only on this container's disk.",
+    "OQ-0039: do you want published history rewritten (not recommended), and what should happen to the local claude-dev branch after the archive is confirmed?",
+    "Do you accept the last work commit of this attempt as the trusted baseline for the first reviewer test, after checking its id on GitHub?"
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "The correction is complete on the local branch. A human should review the browser procedure, the permanent rules and the Instagram plan, decide OQ-0037 (the push), OQ-0038 and OQ-0039, and only then authorize OPS-0005: one browser reviewer session on the OPS-0003 packet, started in Accept edits mode, judged by the owner, advisory only. Nothing here has run on GitHub or in a real browser session.",
+    "suggested_next_task_title": "OPS-0005: first browser reviewer session on the OPS-0003 packet (advisory; no automation)"
+  }
+}
