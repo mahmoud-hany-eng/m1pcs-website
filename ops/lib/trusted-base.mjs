@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isTaskId } from "./ids.mjs";
 
 export class TrustedBaseError extends Error {
   constructor(code, message) {
@@ -314,7 +315,7 @@ const startsWithAny = (p, prefixes) => prefixes.some((x) => p === x || p.startsW
  */
 export function trustedBaseCheck({ repoDir, base, head, taskId = null, anchor = "unanchored" }) {
   if (!fs.existsSync(repoDir)) throw new TrustedBaseError("TB-REPO", "the repository directory does not exist");
-  if (taskId !== null && !/^[A-Z]{2,5}-\d{4}$/.test(taskId)) throw new TrustedBaseError("TB-TASK", `${JSON.stringify(String(taskId).slice(0, 20))} is not a task id`);
+  if (taskId !== null && !isTaskId(taskId)) throw new TrustedBaseError("TB-TASK", `${JSON.stringify(String(taskId).slice(0, 20))} is not a task id`);
   if (!["unanchored", "protected_workflow"].includes(anchor)) throw new TrustedBaseError("TB-ANCHOR", "anchor must be unanchored or protected_workflow");
 
   const baseSha = resolveCommit(repoDir, base, "base");

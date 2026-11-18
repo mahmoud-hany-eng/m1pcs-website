@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { attemptNumberOf, branchBelongsToTask, branchPrefix } from "./lib/ids.mjs";
 import { lintSchema, validate } from "./lib/json-schema.mjs";
 import { checkWorkflowFiles, checkWorkflowText } from "./lib/workflow-safety.mjs";
 import {
@@ -212,7 +213,7 @@ export function validateTaskDocument(task, ctx, { filename = null, body = null }
   if (filename && !new RegExp(`^${task.task_id}-[a-z0-9]+(-[a-z0-9]+)*\\.md$`).test(filename)) {
     err("TASK-FILENAME", `file name "${filename}" must be "${task.task_id}-<slug>.md"`);
   }
-  if (!task.branch.startsWith(`claude/${task.task_id.toLowerCase()}-`)) err("TASK-BRANCH", `branch "${task.branch}" must start with "claude/${task.task_id.toLowerCase()}-"`);
+  if (!branchBelongsToTask(task.branch, task.task_id)) err("TASK-BRANCH", `branch "${task.branch}" must start with "${branchPrefix(task.task_id)}"`);
   if (task.max_attempts > policy.limits.max_attempts_per_task) err("TASK-LIMIT", `max_attempts ${task.max_attempts} exceeds policy.limits.max_attempts_per_task (${policy.limits.max_attempts_per_task})`);
   if (task.depends_on.includes(task.task_id)) err("TASK-DEPENDS", "a task cannot depend on itself");
   for (const dep of task.depends_on) if (ctx.taskIds && !ctx.taskIds.has(dep)) err("TASK-DEPENDS", `depends_on references unknown task ${dep}`);
@@ -263,7 +264,7 @@ export function validateReportDocument(report, ctx, { location = null } = {}) {
   if (!schemaResult.valid) return out;
 
   const { policy } = ctx;
-  const attemptSuffix = Number(report.attempt_id.split("-a")[1]);
+  const attemptSuffix = attemptNumberOf(report.attempt_id);
   if (!report.attempt_id.startsWith(`${report.task_id}-a`)) err("REPORT-IDS", `attempt_id ${report.attempt_id} must start with "${report.task_id}-a"`);
   else if (attemptSuffix !== report.attempt_number) err("REPORT-IDS", `attempt_number ${report.attempt_number} does not match attempt_id ${report.attempt_id}`);
   if (location) {

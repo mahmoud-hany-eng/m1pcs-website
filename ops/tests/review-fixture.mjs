@@ -32,10 +32,10 @@ function liveFor(sha) {
   return { run: swap(raw("run.json")), jobs: swap(raw("jobs.json")), checks: swap(raw("check-runs.synthetic.json")), log: raw("job.log.txt") };
 }
 
-function taskFile({ allowed, declaredClass, categories, maxAttempts, requirementRefs }) {
+function taskFile({ taskId, allowed, declaredClass, categories, maxAttempts, requirementRefs }) {
   const t = fixture("valid/task.json");
-  t.task_id = TASK_ID;
-  t.branch = "claude/ops-9100-fixture-review";
+  t.task_id = taskId;
+  t.branch = `claude/${taskId.toLowerCase()}-fixture-review`;
   t.title = "Fixture review task";
   t.requirement_refs = requirementRefs;
   t.files_allowed = allowed;
@@ -56,6 +56,7 @@ function taskFile({ allowed, declaredClass, categories, maxAttempts, requirement
  * @param {"A"|"B"|"C"} [o.declaredClass]
  * @param {string[]} [o.categories]
  * @param {number} [o.attempt]
+ * @param {string} [o.taskId]                        the task id (default OPS-9100; OPS-9101B exercises the optional letter)
  * @param {number} [o.maxAttempts]
  * @param {boolean} [o.ciPasses]
  * @param {(report: object) => void} [o.reportMutate]
@@ -64,6 +65,7 @@ function taskFile({ allowed, declaredClass, categories, maxAttempts, requirement
  * @param {boolean} [o.build]                        build the packet (default true)
  */
 export function makeWorld({
+  taskId = TASK_ID,
   files = { "docs/guides/example-guide.md": "# Example guide\n\nA short guide.\n" },
   allowed = ["docs/guides/**", "docs/project-memory/runs/**"],
   declaredClass = "B",
@@ -77,9 +79,9 @@ export function makeWorld({
   build = true,
 } = {}) {
   const repo = makeRepo();
-  const attemptId = `${TASK_ID}-a${attempt}`;
+  const attemptId = `${taskId}-a${attempt}`;
   // the trusted baseline: the governed files plus the approved task
-  repo.write(`docs/project-memory/tasks/${TASK_ID}-fixture-review.md`, taskFile({ allowed, declaredClass, categories, maxAttempts, requirementRefs: ["REQ-OPS-001", "REQ-OPS-007"] }));
+  repo.write(`docs/project-memory/tasks/${taskId}-fixture-review.md`, taskFile({ taskId, allowed, declaredClass, categories, maxAttempts, requirementRefs: ["REQ-OPS-001", "REQ-OPS-007"] }));
   baselineMutate(repo);
   repo.git("add", "-A");
   repo.git("commit", "-q", "-m", "baseline with the approved task");
@@ -90,17 +92,17 @@ export function makeWorld({
   const workSha = repo.git("rev-parse", "work").trim();
   const numstat = repo.git("diff", "--numstat", baselineSha, workSha).trim().split("\n").filter(Boolean).map((l) => l.split("\t"));
   const report = fixture("valid/run-report.json");
-  report.task_id = TASK_ID;
+  report.task_id = taskId;
   report.attempt_id = attemptId;
   report.attempt_number = attempt;
-  report.branch = "claude/ops-9100-fixture-review";
+  report.branch = `claude/${taskId.toLowerCase()}-fixture-review`;
   report.base_sha = baselineSha;
   report.head_sha = workSha;
   report.session = { id: "session_fixture_worker_01", url: null };
   report.commits = [{ sha: workSha, subject: "Fixture work" }];
   report.changed_files = numstat.map(([a, d, p]) => ({ path: p, change_type: "added", additions: Number(a), deletions: Number(d) }));
   reportMutate(report);
-  const reportRel = `docs/project-memory/runs/${TASK_ID}/${attemptId}/report.json`;
+  const reportRel = `docs/project-memory/runs/${taskId}/${attemptId}/report.json`;
   repo.branch("report", (r) => r.write(reportRel, `${JSON.stringify(report, null, 2)}\n`), { from: "work" });
   const headSha = repo.git("rev-parse", "report").trim();
 
@@ -124,7 +126,7 @@ export function makeWorld({
   const world = { repo, baselineSha, workSha, headSha, evidenceFile, evidence, report, reportRel, attemptId, packetDir: null, manifest: null };
   if (build) {
     world.packetDir = path.join(tmp(), "packet");
-    world.manifest = buildPacket({ repoDir: repo.dir, baseline: baselineSha, base: baselineSha, head: headSha, taskId: TASK_ID, attemptId, evidenceFile, outDir: world.packetDir, toolRoot: repo.dir }).manifest;
+    world.manifest = buildPacket({ repoDir: repo.dir, baseline: baselineSha, base: baselineSha, head: headSha, taskId, attemptId, evidenceFile, outDir: world.packetDir, toolRoot: repo.dir }).manifest;
   }
   return world;
 }

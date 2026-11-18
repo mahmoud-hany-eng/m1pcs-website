@@ -67,8 +67,8 @@
     },
     "branch": {
       "type": "string",
-      "description": "Work branch. Must start with claude/ and embed the lower-case task id.",
-      "pattern": "^claude/[a-z]{3,5}-[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Work branch. Must start with claude/ and embed the lower-case task id, including its optional letter (claude/ops-0005b-slug for OPS-0005B).",
+      "pattern": "^claude/[a-z]{3,5}-[0-9]{4}[a-z]?-[a-z0-9]+(-[a-z0-9]+)*$",
       "maxLength": 100
     },
     "files_allowed": {
@@ -170,8 +170,8 @@
   "$defs": {
     "task_id": {
       "type": "string",
-      "pattern": "^[A-Z]{3,5}-[0-9]{4}$",
-      "description": "Stable task identifier: <PREFIX>-<4 digits>. The prefix must be listed in policy.task_id_prefixes."
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>, with at most one capital letter after the digits (OPS-0005B is a correction of OPS-0005). The prefix must be listed in policy.task_id_prefixes."
     },
     "sha": {
       "type": "string",

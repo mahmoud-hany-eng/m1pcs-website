@@ -16,6 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { taskIdOfFileName } from "./ids.mjs";
 import { CLASS_ORDER, maxClass, matchesAny, pathPermission, staticPrefix, taskPreflight } from "./policy.mjs";
 import { deriveCi, sha256, verifyPacket } from "./review-packet.mjs";
 import { instructionLineCount, prohibitedCommandIds, secretShapes } from "./review-text.mjs";
@@ -56,8 +57,8 @@ function taskIdsOf(root) {
   const dir = path.join(root, PATHS.tasksDir);
   const ids = new Set();
   if (fs.existsSync(dir)) for (const n of fs.readdirSync(dir)) {
-    const m = /^([A-Z]{3,5}-[0-9]{4})-/.exec(n);
-    if (m) ids.add(m[1]);
+    const id = taskIdOfFileName(n);
+    if (id !== null) ids.add(id);
   }
   return ids;
 }

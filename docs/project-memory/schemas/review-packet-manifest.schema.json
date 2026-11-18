@@ -329,13 +329,13 @@
   "$defs": {
     "task_id": {
       "type": "string",
-      "pattern": "^[A-Z]{3,5}-[0-9]{4}$",
-      "description": "Stable task identifier: <PREFIX>-<4 digits>. The prefix must be listed in policy.task_id_prefixes."
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>, with at most one capital letter after the digits (OPS-0005B is a correction of OPS-0005). The prefix must be listed in policy.task_id_prefixes."
     },
     "attempt_id": {
       "type": "string",
-      "pattern": "^[A-Z]{3,5}-[0-9]{4}-a[1-9][0-9]?$",
-      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1."
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?-a[1-9][0-9]?$",
+      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1 (OPS-0005B-a1 belongs to OPS-0005B and not to OPS-0005)."
     },
     "sha": {
       "type": "string",

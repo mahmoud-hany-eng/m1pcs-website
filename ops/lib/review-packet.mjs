@@ -24,6 +24,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isAttemptId, isTaskId, taskIdOfAttempt } from "./ids.mjs";
 import { validate } from "./json-schema.mjs";
 import { classifyPaths } from "./policy.mjs";
 import { addedInstructionLineCount, foreignEmailCount, instructionLineCount, secretShapes } from "./review-text.mjs";
@@ -209,8 +210,8 @@ function sensitiveProblems(files, policy) {
  * @param {string} [o.toolRoot]  the checkout this tool runs from; it must be the baseline
  */
 export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, evidenceFile, outDir, toolRoot = DEFAULT_ROOT }) {
-  need(/^[A-Z]{3,5}-[0-9]{4}$/.test(taskId ?? ""), "PK-ARGS", "task must look like OPS-0003");
-  need(/^[A-Z]{3,5}-[0-9]{4}-a[1-9][0-9]?$/.test(attemptId ?? "") && attemptId.startsWith(`${taskId}-a`), "PK-ARGS", "attempt must look like OPS-0003-a1 and belong to the task");
+  need(isTaskId(taskId), "PK-ARGS", "task must look like OPS-0003 or OPS-0005B");
+  need(isAttemptId(attemptId) && taskIdOfAttempt(attemptId) === taskId, "PK-ARGS", "attempt must look like OPS-0003-a1 and belong to the task");
   need(typeof outDir === "string" && outDir !== "", "PK-ARGS", "an output directory is required");
   need(!fs.existsSync(outDir), "PK-OUT-EXISTS", "the output directory already exists; a packet is never overwritten");
   need(fs.existsSync(path.dirname(path.resolve(outDir))), "PK-ARGS", "the parent of the output directory does not exist");
