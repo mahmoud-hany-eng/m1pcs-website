@@ -11,7 +11,9 @@
     "start": "next start",
     "lint": "eslint .",
     "ops:validate": "node ops/validate-memory.mjs",
-    "ops:test": "node --test ops/tests/*.test.mjs"
+    "ops:test": "node --test ops/tests/*.test.mjs",
+    "db:test": "node --test supabase/tests/db.test.mjs",
+    "db:test:static": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test supabase/tests/static.test.mjs supabase/tests/platform-lib.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",
