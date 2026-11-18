@@ -1,0 +1,137 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 134036102635,
+      "run_id": 44082419253,
+      "workflow_name": "CI",
+      "head_branch": "claude/ops-0003-trusted-ci",
+      "run_url": "https://api.github.com/repos/mahmoud-hany-eng/m1pcs-website/actions/runs/44082419253",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUlMuSc8AAAAfNSyd6w",
+      "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+      "url": "https://api.github.com/repos/mahmoud-hany-eng/m1pcs-website/actions/jobs/134036102635",
+      "html_url": "https://github.com/mahmoud-hany-eng/m1pcs-website/actions/runs/44082419253/job/134036102635",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-11-17T12:21:49Z",
+      "started_at": "2026-11-17T12:21:50Z",
+      "completed_at": "2026-11-17T12:22:45Z",
+      "name": "verify",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-17T12:21:51Z",
+          "completed_at": "2026-11-17T12:21:52Z"
+        },
+        {
+          "name": "Check out the repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-17T12:21:52Z",
+          "completed_at": "2026-11-17T12:21:53Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-17T12:21:53Z",
+          "completed_at": "2026-11-17T12:21:55Z"
+        },
+        {
+          "name": "Guard - no provider credential in this job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-17T12:21:55Z",
+          "completed_at": "2026-11-17T12:21:55Z"
+        },
+        {
+          "name": "Install dependencies without running install scripts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-17T12:21:55Z",
+          "completed_at": "2026-11-17T12:22:03Z"
+        },
+        {
+          "name": "Lint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-17T12:22:03Z",
+          "completed_at": "2026-11-17T12:22:06Z"
+        },
+        {
+          "name": "Type check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-17T12:22:06Z",
+          "completed_at": "2026-11-17T12:22:10Z"
+        },
+        {
+          "name": "Validate project memory and workflows",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-17T12:22:10Z",
+          "completed_at": "2026-11-17T12:22:10Z"
+        },
+        {
+          "name": "Run the operations tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-17T12:22:10Z",
+          "completed_at": "2026-11-17T12:22:19Z"
+        },
+        {
+          "name": "Build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-17T12:22:19Z",
+          "completed_at": "2026-11-17T12:22:43Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-11-17T12:22:43Z",
+          "completed_at": "2026-11-17T12:22:43Z"
+        },
+        {
+          "name": "Post Check out the repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-11-17T12:22:43Z",
+          "completed_at": "2026-11-17T12:22:43Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-11-17T12:22:43Z",
+          "completed_at": "2026-11-17T12:22:43Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/mahmoud-hany-eng/m1pcs-website/check-runs/134036102635",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000001,
+      "runner_name": "GitHub Actions 1000000001",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

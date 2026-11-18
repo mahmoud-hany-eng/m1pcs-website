@@ -1,0 +1,99 @@
+{
+  "schema_version": "1",
+  "decision_kind": "architect_review_decision",
+  "trust": {
+    "level": "unverified_reviewer_claim",
+    "verified_by_orchestrator": false
+  },
+  "reviewer": {
+    "role": "reviewer",
+    "runtime": "actions_hosted_session",
+    "session": {
+      "id": "session_fixture_reviewer_01",
+      "url": null
+    }
+  },
+  "task_id": "OPS-9001",
+  "attempt_id": "OPS-9001-a1",
+  "reviewed": {
+    "head_sha": "2222222222222222222222222222222222222222",
+    "report_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "diff_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ci_result_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_version": "0.2.0",
+    "prompt_version": "2.0.0-draft"
+  },
+  "verdict": "approve",
+  "confidence": 0.82,
+  "summary": "The change matches the task and the independently computed evidence agrees with the report.",
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "nit",
+      "category": "docs_only",
+      "path": "docs/guides/example.md",
+      "line": 3,
+      "title": "Wording",
+      "detail": "A sentence could be shorter.",
+      "evidence_ref": "diff:docs/guides/example.md:3",
+      "recommendation": "Shorten it if convenient."
+    }
+  ],
+  "verification_assessment": {
+    "report_consistency": "consistent",
+    "ci_status": "passed",
+    "acceptance_criteria": [
+      {
+        "id": "AC-1",
+        "met": "yes",
+        "note": "The file exists in the diff."
+      }
+    ]
+  },
+  "risk_assessment": {
+    "advised_class": "A",
+    "categories": [
+      "docs_only"
+    ],
+    "rationale": "Only documentation changed.",
+    "advisory_only": true
+  },
+  "next_step": {
+    "action": "propose_next_task",
+    "rationale": "A follow-up guide is the next roadmap item.",
+    "next_task": {
+      "title": "Add a second example guide",
+      "objective": "Add a second example guide page to the documentation folder as a follow-up demonstration.",
+      "depends_on": [
+        "OPS-9001"
+      ],
+      "blocked_by_open_questions": [],
+      "requirement_refs": [],
+      "declared_risk_class": "A",
+      "declared_risk_categories": [
+        "docs_only"
+      ],
+      "files_allowed": [
+        "docs/guides/**"
+      ],
+      "files_forbidden": [],
+      "out_of_scope": [
+        "Any code change"
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "AC-1",
+          "statement": "The second guide exists.",
+          "verification_method": "inspection",
+          "command": null
+        }
+      ],
+      "required_checks": [],
+      "max_attempts": 2,
+      "prompt_markdown": "Add docs/guides/second.md with a short example guide. Change nothing else. Record the result in the run report."
+    }
+  },
+  "stop_reason": null,
+  "questions_for_human": [],
+  "memory_update_suggestions": []
+}

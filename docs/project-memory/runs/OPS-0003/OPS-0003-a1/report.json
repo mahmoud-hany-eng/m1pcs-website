@@ -1,0 +1,471 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0003",
+  "attempt_id": "OPS-0003-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0003-trusted-ci",
+  "base_branch": "claude-dev",
+  "base_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+  "head_sha": "7a71c29bdeb26c46579a50bf8f0ea55f5f8383b2",
+  "started_at": "2026-11-17T11:18:30Z",
+  "finished_at": "2026-11-17T12:05:24Z",
+  "outcome": "completed",
+  "summary": "Implemented, locally only (HD-0015), a trusted-base verification tool (ops/lib/trusted-base.mjs) that judges a change with the validator, policy and schemas of an established base revision, reading the head only as data and never executing it, and a CI evidence document (ops/lib/ci-evidence.mjs, ops/ci-evidence.mjs, a strict schema registered in the validator) built from GitHub's Actions and Checks data with expectations taken from the base, test counts labelled as claims and the first live run (43995081483) stored as a fixture. A second job in ci.yml was deliberately NOT added: it would not be an independent boundary, so the result is always advisory_only, nothing is claimed as independent enforcement, and control-plane changes stay human-approved (ADR-0012, TRUSTED_CI.md). 64 new negative-heavy tests on real throwaway git repositories; a 30-weakening mutation check found four untested rules, now tested. Documented the evidence design, exact GitHub branch rules for main and claude-dev with what is observable (and the finding that Claude acts as the owner, so rules bind it only as far as they bind the owner), the eight Reel commits, and the next task (OPS-0004 proposal). Updated project memory to the verified reality: HD-0014 (one-time push and first live run), HD-0015, OQ-0035, OQ-0036, REC-OPS-022..024. Nothing is pushed; nothing ran on GitHub for this branch.",
+  "commits": [
+    {
+      "sha": "3fdce1454e2925830f1553d266059b52b97fe3f1",
+      "subject": "OPS-0003: trusted-base verification, CI evidence, tests, and settings guide"
+    },
+    {
+      "sha": "59a0f1831d9760174fc04a1f355c8343dea73401",
+      "subject": "OPS-0003: refuse a base without a workflow policy cleanly"
+    },
+    {
+      "sha": "673bb5dec1f3fdc4f9feefd88664cbd898d0d891",
+      "subject": "OPS-0003: keep files the head adds under the replaced rule directories"
+    },
+    {
+      "sha": "7a71c29bdeb26c46579a50bf8f0ea55f5f8383b2",
+      "subject": "OPS-0003: record the final test counts and the tool applied to this branch"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "docs/project-memory/architecture/CI_EVIDENCE.md",
+      "change_type": "added",
+      "additions": 84,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/TRUSTED_CI.md",
+      "change_type": "added",
+      "additions": 119,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0012-trusted-base-verification-is-advisory-until-anchored.md",
+      "change_type": "added",
+      "additions": 37,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "modified",
+      "additions": 13,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "modified",
+      "additions": 18,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "modified",
+      "additions": 10,
+      "deletions": 3
+    },
+    {
+      "path": "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+      "change_type": "added",
+      "additions": 161,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+      "change_type": "added",
+      "additions": 85,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/schemas/ci-evidence.schema.json",
+      "change_type": "added",
+      "additions": 1403,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0003-trusted-ci.md",
+      "change_type": "added",
+      "additions": 136,
+      "deletions": 0
+    },
+    {
+      "path": "ops/ci-evidence.mjs",
+      "change_type": "added",
+      "additions": 154,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/ci-evidence.mjs",
+      "change_type": "added",
+      "additions": 339,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/trusted-base.mjs",
+      "change_type": "added",
+      "additions": 426,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/ci-evidence.test.mjs",
+      "change_type": "added",
+      "additions": 520,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/live-run-43995081483.check-runs.synthetic.json",
+      "change_type": "added",
+      "additions": 15,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/live-run-43995081483.job.log.txt",
+      "change_type": "added",
+      "additions": 83,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/live-run-43995081483.jobs.json",
+      "change_type": "added",
+      "additions": 129,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/live-run-43995081483.run.json",
+      "change_type": "added",
+      "additions": 21,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/git-fixture.mjs",
+      "change_type": "added",
+      "additions": 66,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/trusted-base.test.mjs",
+      "change_type": "added",
+      "additions": 360,
+      "deletions": 0
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 4.3,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run on the committed work tree at 673bb5d (the last code commit) in the isolated worktree; the one later commit changes a single documentation file, and npm run ops:validate was run again after it (OK, 110 files)."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 2.1,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run on the committed work tree at 673bb5d (the last code commit) in the isolated worktree; the one later commit changes a single documentation file, and npm run ops:validate was run again after it (OK, 110 files). No output means no errors."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 25.5,
+      "output_excerpt": "   Generating static pages (0/56) ...\n   Generating static pages (14/56) \r\n   Generating static pages (28/56) \r\n   Generating static pages (42/56) \r\n ✓ Generating static pages (56/56)\n+ First Load JS shared by all                                    103 kB\n○  (Static)  prerendered as static content\n●  (SSG)     prerendered as static HTML (uses generateStaticParams)",
+      "output_sha256": "ddcf9580f3b0472bad935d2aa257d370a611a182168419b26713ba73e49beab4",
+      "notes": "Run on the committed work tree at 673bb5d (the last code commit) in the isolated worktree; the one later commit changes a single documentation file, and npm run ops:validate was run again after it (OK, 110 files)."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.3,
+      "output_excerpt": "OK: checked 110 file(s); 0 warning(s).",
+      "output_sha256": "78a707d9de7a57a3cae69b07797de14bc0c23a99fe52cbdb0c31da7e5519dfc8",
+      "notes": "Run on the committed work tree at 673bb5d (the last code commit) in the isolated worktree; the one later commit changes a single documentation file, and npm run ops:validate was run again after it (OK, 110 files)."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 16.1,
+      "output_excerpt": "# tests 417\n# pass 417\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "5e6ff654ed8eab2fdb68c0688513a4d437611636fe8a3f4d48d812f0ba843124",
+      "notes": "Run on the committed work tree at 673bb5d (the last code commit) in the isolated worktree; the one later commit changes a single documentation file, and npm run ops:validate was run again after it (OK, 110 files). 417 tests: the 353 of OPS-0002 plus 64 new (29 trusted-base, 35 CI evidence)."
+    },
+    {
+      "check_id": "trusted-base-tests",
+      "command": "node --test ops/tests/trusted-base.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "# tests 29 / # pass 29 / # fail 0. Attacks that must be caught: lockstep weakening of workflow, policy and schema that passes the branch's own validator; a weakened checker; a checker edit alone; a second and an export-ignore-hidden workflow; package script ops:validate replaced by true, and npm hooks; website, immutable and secret paths; CLAUDE.md and reviewer prompt; planted code in the head (never runs); symbolic links in head and base; option injection and unknown revisions; unrelated histories; a base with no logic; a moved base; a head widening its own task file; deleting a rule; credentials in the child environment; CLI exit codes.",
+      "output_sha256": null,
+      "notes": "AC-1. Each test makes a branch of a throwaway git repository built from the real governed files. Two tests first run the branch's OWN validator and require it to pass, so the gap they show is real."
+    },
+    {
+      "check_id": "ci-evidence-tests",
+      "command": "node --test ops/tests/ci-evidence.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "# tests 35 / # pass 35 / # fail 0. Built on the real data of the first live run (run 43995081483, job 133745025105, commit 0aba5e8) and hostile variations: other commit, workflow, event, branch, conclusion; skipped, missing, added, renamed and reordered steps; a rewritten workflow; a second job; wrong check-run app; write token permissions; forged test summaries in other steps; planted secrets and oversize fields; malformed GitHub data; a base without a workflow policy; schema tampering; CLI usage errors.",
+      "output_sha256": null,
+      "notes": "AC-2. The check-run fixture is SYNTHETIC in shape (its id, name, status and conclusion equal the real check run; the app slug was not observed). The job log fixture is a real 83-line excerpt."
+    },
+    {
+      "check_id": "mutation-check",
+      "command": "ad hoc scratch script: weaken one security rule at a time in a scratch copy of ops/lib/trusted-base.mjs and ops/lib/ci-evidence.mjs, run both new test files each time",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "30 deliberate weakenings (ignore the base policy or schemas, skip symlink refusal on head or base, ignore base task file, accept any check-run app, ignore the expected commit, steps, event or token permissions, read test counts from any step, hide package-script changes, never require a human, and similar). The first run of 28 found 4 that no test noticed (base symlink refusal, build-input flag, task file source, which log segment counts); tests were added. Two more, for the overlay rule, were added with their tests. The final run: all 30 killed.",
+      "output_sha256": null,
+      "notes": "The script is a scratch tool in the session scratchpad and is not part of the repository."
+    },
+    {
+      "check_id": "ci-simulation",
+      "command": "ad hoc: run the exact steps parsed from .github/workflows/ci.yml, in order, in a git-archive export of HEAD, CI=true, no credential, bash -e -o pipefail",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 72.3,
+      "output_excerpt": "7 run steps, all exit 0 at 673bb5d: test -z \"${ANTHROPIC_API_KEY:-}${ANTHROP 0 s; npm ci --ignore-scripts --no-audit --no- 13.1 s; npm run lint 3.7 s; npx tsc --noEmit 5.8 s; npm run ops:validate 0.2 s; npm run ops:test 11.9 s; npm run build 37.6 s. Environment names: CI, CURL_CA_BUNDLE, HOME, HTTPS_PROXY, NODE_EXTRA_CA_CERTS, NO_PROXY, PATH, REQUESTS_CA_BUNDLE, SSL_CERT_FILE, https_proxy, no_proxy; none looked like a credential. The guard exited non-zero for a dummy ANTHROPIC_API_KEY and for a dummy ANTHROPIC_AUTH_TOKEN.",
+      "output_sha256": null,
+      "notes": "LOCAL SIMULATION, NOT A GITHUB ACTIONS RUN: the checkout and Node-setup actions were not run (the export and the installed Node 22.23.4 stood in). This branch has never run on GitHub; the workflow file itself is unchanged since the run that did (run 43995081483)."
+    },
+    {
+      "check_id": "build-output-unchanged",
+      "command": "ad hoc: build pristine origin/claude-dev, then this branch, both fresh (no cache) at the SAME path; hash every output file with the random build id removed",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "288 of 288 build output files identical at 673bb5d versus origin/claude-dev (b7348bb). git diff of src/, public/, creative/, .github/, CLAUDE.md, package.json, package-lock.json, next.config.ts, tsconfig.json and vercel.json against the OPS-0002 tip (0aba5e8) is empty; src, public, creative, next.config.ts, tsconfig.json and vercel.json against origin/claude-dev is empty.",
+      "output_sha256": null,
+      "notes": "A first comparison, made with a warm build cache on the branch side, differed in 16 *_client-reference-manifest.js files. Two builds of the SAME commit (warm and fresh) differ in exactly those files, so the difference was build non-determinism, not the change; the fresh comparison is the one recorded. Same-path builds only."
+    },
+    {
+      "check_id": "each-commit-validates",
+      "command": "npm run ops:validate and node --test ops/tests/*.test.mjs at the final code head; ci-simulation at 673bb5d",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "673bb5d: validate OK (110 files), 417 pass / 0 fail. 7a71c29 (documentation only): validate OK (110 files). Earlier work commits were validated when they were the head (3fdce14: 414 pass; 59a0f18: 417 pass after the fix tests).",
+      "output_sha256": null,
+      "notes": "The implementation and its documentation are one commit because the policy requires the documents to exist and the documents link to the code."
+    },
+    {
+      "check_id": "tool-applied-to-this-branch",
+      "command": "node ops/ci-evidence.mjs --repository <owner>/<name> --repo-dir . --base 0aba5e8 --head 673bb5d --task OPS-0003; test $? -eq 3",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "The tool exited 3 (human review required), which is its designed answer for this change, so the compound command exits 0. Base rules pass on the head's files (110 checked under each root); 28 changed paths, 13 control-plane, 28 protected; flags policy_changed, schemas_changed, ops_code_changed; workflow, package scripts and build inputs unchanged; task OPS-0003 has no approved task file in the base; evidence incomplete (no GitHub data for this branch).",
+      "output_sha256": null,
+      "notes": "Exit code 3 means a human must review; 0 would have meant the evidence asks for none. Running the tool on real history found two faults in it (a crash on a base without workflow_policy; a false alarm for an added schema file); both were fixed and tested."
+    },
+    {
+      "check_id": "live-run-fixture",
+      "command": "node ops/ci-evidence.mjs with the stored data of run 43995081483 (see ops/tests/fixtures/ci)",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "Workflow conclusion success; one job verify, nine expected steps all success; token permissions contents: read and metadata: read; 353 of 353 tests as printed; 93 files checked; 56 static pages; all blocking consistency checks pass. Against a base showing no change to the CI definition the verdict is: CI passed, definition unchanged, no human review required by the evidence.",
+      "output_sha256": null,
+      "notes": "The check-runs part of this fixture is synthetic (see ci-evidence-tests)."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git status/rev-parse/diff/worktree list in the main tree; git merge-base --is-ancestor for each Reel commit; git ls-remote --heads origin",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree still on claude-dev at 187e045, 8 commits ahead of origin/claude-dev; its only uncommitted change is the original mode flip on creative/motion-ad/scripts/deliver-v8.sh. None of the 8 Reel commits is an ancestor of claude/ops-0003-trusted-ci. The Reel commits change 60 paths, all under creative/motion-ad/; this branch changes 28 paths, none under creative/; the two sets are disjoint. origin/main is b180378, origin/claude-dev is b7348bb, origin/claude/ops-0002-ci-baseline is 0aba5e8, and no claude/ops-0003 branch exists on the remote.",
+      "output_sha256": null,
+      "notes": "Observed after the work commits, before this report was written. Four worktrees exist (main tree, ops-0001, ops-0002, ops-0003); ops-0001 and ops-0002 were not modified."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "policy_or_schema",
+      "tests_only",
+      "docs_only"
+    ],
+    "rationale": "The work adds code under ops/, a schema and a policy change (all control-plane paths that the policy classes as B) plus governed project memory. No .github file, no website file and no class C path was touched, and nothing was activated."
+  },
+  "protected_paths_touched": [
+    "docs/project-memory/README.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+    "docs/project-memory/architecture/CI_EVIDENCE.md",
+    "docs/project-memory/architecture/TRUSTED_CI.md",
+    "docs/project-memory/architecture/adr/0012-trusted-base-verification-is-advisory-until-anchored.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+    "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+    "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+    "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+    "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/ci-evidence.schema.json",
+    "docs/project-memory/tasks/OPS-0003-trusted-ci.md",
+    "ops/ci-evidence.mjs",
+    "ops/lib/ci-evidence.mjs",
+    "ops/lib/trusted-base.mjs",
+    "ops/tests/ci-evidence.test.mjs",
+    "ops/tests/fixtures/ci/live-run-43995081483.check-runs.synthetic.json",
+    "ops/tests/fixtures/ci/live-run-43995081483.job.log.txt",
+    "ops/tests/fixtures/ci/live-run-43995081483.jobs.json",
+    "ops/tests/fixtures/ci/live-run-43995081483.run.json",
+    "ops/tests/git-fixture.mjs",
+    "ops/tests/trusted-base.test.mjs",
+    "ops/validate-memory.mjs"
+  ],
+  "deviations": [
+    {
+      "description": "Did not build part A of OPS-0003-PROPOSAL.md (a second job in ci.yml that checks out the base). Built the check as a tool and an evidence format instead, and left .github/ untouched.",
+      "reason": "The instruction states that a second job in the same modifiable workflow is not an independent boundary: a pull_request run uses the workflow file of the pull request's merge commit and a required check is matched by name. The workflow-safety checker also enforces exactly one job."
+    },
+    {
+      "description": "Parts C (a pin-refresh procedure) and D (a check-name stability test) of the OPS-0003 proposal were not built.",
+      "reason": "They were not in the OPS-0003 instruction; they remain open and are noted in the proposal's status banner."
+    },
+    {
+      "description": "Registered a new schema (ci-evidence.schema.json) in the validator's schema map, bumped policy_version to 0.4.0 and added the new code, schema and documents to memory_contract.required_files.",
+      "reason": "The validator must lint the new contract and require the new files; no rule was relaxed."
+    },
+    {
+      "description": "Edited the status lines of OPS-0002-ACTIVATION.md, OPS-0002-PROPOSAL.md, OPS-0003-PROPOSAL.md and CI_ARCHITECTURE.md, and ARCHITECTURE.md text, to state that the workflow ran on GitHub (HD-0014) and what OPS-0003 changed.",
+      "reason": "The instruction asked to update the roadmap and decisions to verified reality; the older statements that nothing was pushed would otherwise be false."
+    },
+    {
+      "description": "Made two fixes to the tool after the first commit (a clean refusal for a base without a workflow policy; keeping files the head only adds under the replaced directories), as separate commits.",
+      "reason": "Both were found by running the tool on real revision pairs, not by the first tests."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "ci_workflows",
+      "description": "Nothing in OPS-0003 has run on GitHub. The tool and the evidence format were tested only on fixtures and throwaway repositories. A first run needs a push, which needs the owner's explicit approval naming the branch (OQ-0028)."
+    },
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "The trusted-base check is advisory. It becomes independent only when it is run by something the change cannot alter (the reviewer's trusted workspace, a required reviewer who is not the author, or an organisation-level required workflow). Until the owner chooses (OQ-0035), control-plane changes rely on human review."
+    },
+    {
+      "severity": "major",
+      "category": "infrastructure_settings",
+      "description": "Claude acts as the owner (the actor of every push and of run 43995081483), so branch rules bind the automation only as far as they bind the owner, and requiring approvals would block every merge unless the owner may bypass. A separate Write-only identity is the real hardening; whether a Claude session can use one is unverified (OQ-0036). No GitHub setting was observed beyond branch protection flags (all false) and collaborators (only the owner); rulesets, Actions settings and secrets are not observable from here."
+    },
+    {
+      "severity": "minor",
+      "category": "tests_only",
+      "description": "The check-runs fixture is synthetic in shape (the app slug github-actions was not observed), and whether an unauthenticated client may download a job log from a public repository was not verified. The job log is optional in the evidence tool."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The evidence document is unauthenticated tool output. A consumer must fetch the GitHub data and run the tool itself from the base; signing would need a secret or an attestation action, neither approved."
+    },
+    {
+      "severity": "info",
+      "category": "other",
+      "description": "The eight Reel commits and the creative file-mode change are untouched. Their path set is disjoint from this branch's, so they cannot conflict. Before any rule requiring pull requests is enabled on claude-dev, the owner should preserve them (bundle file or one named push to a separate branch), see GITHUB_SETTINGS_GUIDE.md section 7 and OQ-0019."
+    }
+  ],
+  "assumptions": [
+    "started_at is the creation time of the task branch (from the reflog); the read-only inspection of GitHub settings and the official documentation began a little earlier, in the same session.",
+    "The repository owner's GitHub login is public (it is in the remote URL and the workflow run) and is used only in fixtures that record the real run; no email address or credential appears in any committed file.",
+    "Documentation statements marked [D] were read from the public github/docs source repository on 2026-11-17; the statements that a pull request's author cannot approve it, and that duplicate verify runs on a pull request must both pass, were not found in the documentation read and are marked [U].",
+    "No Claude session, token, secret or paid resource was created; the tool never calls GitHub, and the fixtures are stored data."
+  ],
+  "questions_for_human": [
+    "OQ-0028: do you authorise a push of claude/ops-0003-trusted-ci (and, with it, nothing else), so that its tests run on GitHub for the first time? Each further branch needs its own approval naming it.",
+    "OQ-0035: which anchor do you accept for the trusted-base check: the reviewer's trusted workspace (recommended first), a required reviewer who is not the author, or an organisation-level required workflow?",
+    "OQ-0036: do you want to apply the single-identity branch rules now as safety rails (Profile 1), and investigate a separate Write-only identity for the automation before STG-6 (Profile 2)?",
+    "OQ-0034: do you set the Actions settings and the rulesets from GITHUB_SETTINGS_GUIDE.md, and confirm the settings I cannot observe (default token permission, fork-run approval)?",
+    "OQ-0019: how should the eight Reel commits be preserved and integrated (keep local with a bundle backup, one named push to a separate branch, or a separate private repository)?"
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "OPS-0003 is complete on the local branch and has never run on GitHub. A human should review the tool, the anchoring analysis (ADR-0012) and the settings guide, answer OQ-0035 and OQ-0036, decide whether to push the branch for a first GitHub run (OQ-0028), and only then consider OPS-0004.",
+    "suggested_next_task_title": "OPS-0004: Completion detector, review packet and decision gate (offline, no model; proposal only)"
+  }
+}

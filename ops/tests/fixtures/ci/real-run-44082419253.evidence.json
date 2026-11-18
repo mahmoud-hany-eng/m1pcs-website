@@ -1,0 +1,716 @@
+{
+  "schema_version": "1",
+  "evidence_kind": "ci_evidence",
+  "generated_at": "2026-11-17T12:23:39Z",
+  "collector": {
+    "tool": "ops/ci-evidence.mjs",
+    "tool_source": "working_tree",
+    "role": "human"
+  },
+  "trust": {
+    "level": "unauthenticated_tool_output",
+    "authenticated_by_github": false,
+    "note": "A file cannot prove where it came from. Obtain the GitHub data yourself, run this tool yourself from the base revision, and never accept an evidence file produced by the branch under review."
+  },
+  "repository": "mahmoud-hany-eng/m1pcs-website",
+  "subject": {
+    "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+    "base_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+    "merge_base_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+    "branch": "claude/ops-0003-trusted-ci"
+  },
+  "trusted_base": {
+    "tool": {
+      "name": "ops/trusted-base",
+      "version": "1.0.0"
+    },
+    "trusted_logic": {
+      "source_commit": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+      "file_count": 62,
+      "manifest_sha256": "53475a70bfa4d25db71362ea879cd637f594c99eb9df0bd9ccfef42deb2a76e9"
+    },
+    "evaluated": {
+      "base_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+      "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+      "merge_base_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75"
+    },
+    "execution_context": {
+      "anchor": "unanchored",
+      "anchor_is_claim": true
+    },
+    "changes": {
+      "total": 29,
+      "truncated": false,
+      "paths": [
+        {
+          "path": "docs/project-memory/README.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/architecture/CI_EVIDENCE.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/architecture/TRUSTED_CI.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/architecture/adr/0012-trusted-base-verification-is-advisory-until-anchored.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/policy/policy.json",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "policy_or_schema",
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/roadmap/ROADMAP.md",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/runs/OPS-0003/OPS-0003-a1/report.json",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "A",
+          "restriction": "none",
+          "categories": [
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/schemas/ci-evidence.schema.json",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "policy_or_schema",
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "docs/project-memory/tasks/OPS-0003-trusted-ci.md",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "protected",
+          "categories": [
+            "ops_control_plane",
+            "docs_only"
+          ]
+        },
+        {
+          "path": "ops/ci-evidence.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/lib/ci-evidence.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/lib/trusted-base.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/ci-evidence.test.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane",
+            "tests_only"
+          ]
+        },
+        {
+          "path": "ops/tests/fixtures/ci/live-run-43995081483.check-runs.synthetic.json",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/fixtures/ci/live-run-43995081483.job.log.txt",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/fixtures/ci/live-run-43995081483.jobs.json",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/fixtures/ci/live-run-43995081483.run.json",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/git-fixture.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        },
+        {
+          "path": "ops/tests/trusted-base.test.mjs",
+          "status": "A",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane",
+            "tests_only"
+          ]
+        },
+        {
+          "path": "ops/validate-memory.mjs",
+          "status": "M",
+          "mode_new": "100644",
+          "class": "B",
+          "restriction": "control_plane",
+          "categories": [
+            "ops_control_plane"
+          ]
+        }
+      ]
+    },
+    "flags": {
+      "workflow_files_changed": false,
+      "policy_changed": true,
+      "schemas_changed": true,
+      "ops_code_changed": true,
+      "claude_md_changed": false,
+      "reviewer_prompt_changed": false,
+      "build_inputs_changed": false,
+      "link_or_submodule_added": false
+    },
+    "control_plane_paths": [
+      "docs/project-memory/policy/policy.json",
+      "docs/project-memory/schemas/ci-evidence.schema.json",
+      "ops/ci-evidence.mjs",
+      "ops/lib/ci-evidence.mjs",
+      "ops/lib/trusted-base.mjs",
+      "ops/tests/ci-evidence.test.mjs",
+      "ops/tests/fixtures/ci/live-run-43995081483.check-runs.synthetic.json",
+      "ops/tests/fixtures/ci/live-run-43995081483.job.log.txt",
+      "ops/tests/fixtures/ci/live-run-43995081483.jobs.json",
+      "ops/tests/fixtures/ci/live-run-43995081483.run.json",
+      "ops/tests/git-fixture.mjs",
+      "ops/tests/trusted-base.test.mjs",
+      "ops/validate-memory.mjs"
+    ],
+    "protected_paths": [
+      "docs/project-memory/README.md",
+      "docs/project-memory/architecture/ARCHITECTURE.md",
+      "docs/project-memory/architecture/CI_ARCHITECTURE.md",
+      "docs/project-memory/architecture/CI_EVIDENCE.md",
+      "docs/project-memory/architecture/TRUSTED_CI.md",
+      "docs/project-memory/architecture/adr/0012-trusted-base-verification-is-advisory-until-anchored.md",
+      "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "docs/project-memory/policy/policy.json",
+      "docs/project-memory/roadmap/GITHUB_SETTINGS_GUIDE.md",
+      "docs/project-memory/roadmap/OPS-0002-ACTIVATION.md",
+      "docs/project-memory/roadmap/OPS-0002-PROPOSAL.md",
+      "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+      "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+      "docs/project-memory/roadmap/ROADMAP.md",
+      "docs/project-memory/schemas/ci-evidence.schema.json",
+      "docs/project-memory/tasks/OPS-0003-trusted-ci.md",
+      "ops/ci-evidence.mjs",
+      "ops/lib/ci-evidence.mjs",
+      "ops/lib/trusted-base.mjs",
+      "ops/tests/ci-evidence.test.mjs",
+      "ops/tests/fixtures/ci/live-run-43995081483.check-runs.synthetic.json",
+      "ops/tests/fixtures/ci/live-run-43995081483.job.log.txt",
+      "ops/tests/fixtures/ci/live-run-43995081483.jobs.json",
+      "ops/tests/fixtures/ci/live-run-43995081483.run.json",
+      "ops/tests/git-fixture.mjs",
+      "ops/tests/trusted-base.test.mjs",
+      "ops/validate-memory.mjs"
+    ],
+    "immutable_paths": [],
+    "package_scripts": {
+      "changed": false,
+      "changed_keys": [],
+      "ci_entrypoints_changed": false
+    },
+    "rules": {
+      "head_data_under_base_policy": {
+        "ok": true,
+        "errors": 0,
+        "warnings": 0,
+        "files_checked": 111,
+        "sample": [],
+        "truncated": false
+      },
+      "head_policy_under_base_validator": {
+        "ok": true,
+        "errors": 0,
+        "warnings": 0,
+        "files_checked": 111,
+        "sample": [],
+        "truncated": false
+      }
+    },
+    "task_scope": {
+      "task_id": "OPS-0003",
+      "source": "not_found_in_base",
+      "violations": []
+    },
+    "verdict": {
+      "base_rules_pass": true,
+      "control_plane_changed": true,
+      "human_review_required": true,
+      "enforcement": "advisory_only",
+      "reasons": [
+        "28 changed path(s) are protected, control-plane or immutable under the base policy",
+        "the base policy computes class B for these paths, and that class needs human approval before a run and before a merge",
+        "task OPS-0003 has no approved task file in the base revision, so its scope cannot be established"
+      ]
+    }
+  },
+  "github_ci": {
+    "workflow_run": {
+      "id": 44082419253,
+      "run_number": 2,
+      "run_attempt": 1,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "head_branch": "claude/ops-0003-trusted-ci",
+      "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+      "workflow_path": ".github/workflows/ci.yml",
+      "workflow_name": "CI",
+      "html_url": "https://github.com/mahmoud-hany-eng/m1pcs-website/actions/runs/44082419253",
+      "created_at": "2026-11-17T12:21:48Z",
+      "run_started_at": "2026-11-17T12:21:48Z",
+      "updated_at": "2026-11-17T12:22:46Z",
+      "actor_login": "mahmoud-hany-eng",
+      "head_repository": "mahmoud-hany-eng/m1pcs-website"
+    },
+    "jobs": [
+      {
+        "id": 134036102635,
+        "name": "verify",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+        "runner_labels": [
+          "ubuntu-24.04"
+        ],
+        "html_url": "https://github.com/mahmoud-hany-eng/m1pcs-website/actions/runs/44082419253/job/134036102635",
+        "started_at": "2026-11-17T12:21:50Z",
+        "completed_at": "2026-11-17T12:22:45Z",
+        "steps": [
+          {
+            "number": 1,
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 2,
+            "name": "Check out the repository",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 3,
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 4,
+            "name": "Guard - no provider credential in this job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 5,
+            "name": "Install dependencies without running install scripts",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 6,
+            "name": "Lint",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 7,
+            "name": "Type check",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 8,
+            "name": "Validate project memory and workflows",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 9,
+            "name": "Run the operations tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 10,
+            "name": "Build",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 19,
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 20,
+            "name": "Post Check out the repository",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "number": 21,
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": 134036106861,
+        "name": "Vercel Preview Comments",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+        "app_slug": "vercel"
+      },
+      {
+        "id": 134036102635,
+        "name": "verify",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+        "app_slug": "github-actions"
+      }
+    ],
+    "token_permissions": {
+      "source": "job_log",
+      "permissions": [
+        {
+          "scope": "contents",
+          "access": "read"
+        },
+        {
+          "scope": "metadata",
+          "access": "read"
+        }
+      ]
+    },
+    "test_evidence": {
+      "source": "job_log_parse",
+      "authority": "claim_by_output_of_the_code_under_test",
+      "tests": 417,
+      "pass": 417,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "validate_files_checked": 111,
+      "build_static_pages": 56
+    },
+    "consistency": [
+      {
+        "id": "run.head_sha_is_expected",
+        "passed": true,
+        "blocking": true,
+        "detail": "run 50a46ca88a68 vs expected 50a46ca88a68"
+      },
+      {
+        "id": "run.workflow_path_is_expected",
+        "passed": true,
+        "blocking": true,
+        "detail": "\".github/workflows/ci.yml\" vs \".github/workflows/ci.yml\""
+      },
+      {
+        "id": "run.event_is_allowed",
+        "passed": true,
+        "blocking": true,
+        "detail": "event \"push\"; allowed push, pull_request"
+      },
+      {
+        "id": "run.branch_is_expected",
+        "passed": true,
+        "blocking": true,
+        "detail": "\"claude/ops-0003-trusted-ci\" vs \"claude/ops-0003-trusted-ci\""
+      },
+      {
+        "id": "run.completed_successfully",
+        "passed": true,
+        "blocking": true,
+        "detail": "status completed, conclusion success"
+      },
+      {
+        "id": "run.first_attempt",
+        "passed": true,
+        "blocking": false,
+        "detail": "attempt 1"
+      },
+      {
+        "id": "run.not_from_fork",
+        "passed": true,
+        "blocking": false,
+        "detail": "head repository mahmoud-hany-eng/m1pcs-website"
+      },
+      {
+        "id": "jobs.exactly_one_expected_job",
+        "passed": true,
+        "blocking": true,
+        "detail": "1 job(s): verify; expected exactly one named \"verify\""
+      },
+      {
+        "id": "jobs.bound_to_run_and_commit",
+        "passed": true,
+        "blocking": true,
+        "detail": "every job's run id and commit match the run and the expected commit"
+      },
+      {
+        "id": "jobs.completed_successfully",
+        "passed": true,
+        "blocking": true,
+        "detail": "status completed, conclusion success"
+      },
+      {
+        "id": "steps.exactly_the_expected_sequence",
+        "passed": true,
+        "blocking": true,
+        "detail": "9 step(s) vs 9 expected in the trusted workflow"
+      },
+      {
+        "id": "steps.all_succeeded",
+        "passed": true,
+        "blocking": true,
+        "detail": "every expected step concluded success (a skipped step is not success)"
+      },
+      {
+        "id": "checks.match_jobs_from_actions_app",
+        "passed": true,
+        "blocking": true,
+        "detail": "each job has a check run of the same id, name, commit and conclusion, reported by the github-actions app"
+      },
+      {
+        "id": "log.token_is_read_only",
+        "passed": true,
+        "blocking": true,
+        "detail": "the job's token had contents: read and metadata: read only"
+      },
+      {
+        "id": "log.tests_clean_as_printed",
+        "passed": true,
+        "blocking": false,
+        "detail": "tests 417, pass 417, fail 0 (a claim by the code under test)"
+      }
+    ]
+  },
+  "verdict": {
+    "ci_passed": true,
+    "ci_trust_basis": "ci_definition_modified_from_base",
+    "control_plane_changed": true,
+    "human_review_required": true,
+    "evidence_complete": true,
+    "reasons": [
+      "the change modifies what CI runs (workflow, ops code, policy, schemas, package scripts or build inputs); its green result is not evidence about those changes",
+      "28 changed path(s) are protected, control-plane or immutable under the base policy",
+      "the base policy computes class B for these paths, and that class needs human approval before a run and before a merge",
+      "task OPS-0003 has no approved task file in the base revision, so its scope cannot be established"
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+##[group]GITHUB_TOKEN Permissions
+Contents: read
+Metadata: read
+##[endgroup]
+Secret source: Actions
+Cache mode: write
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Download action repository 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' (SHA:949feb2413d6458794dcd2491c4babbbce0c15c1)
+Complete job name: verify
+##[group]Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+with:
+  node-version: 22
+  package-manager-cache: false
+  check-latest: false
+  token: ***
+##[endgroup]
+Found in cache @ /opt/hostedtoolcache/node/22.23.4/x64
+##[group]Environment details
+node: v22.23.4
+npm: 10.9.9
+yarn: 1.22.22
+##[endgroup]
+##[group]Run test -z "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}"
+[36;1mtest -z "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}"[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+##[group]Run npm ci --ignore-scripts --no-audit --no-fund
+[36;1mnpm ci --ignore-scripts --no-audit --no-fund[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 385 packages in 11s
+##[group]Run npm run lint
+[36;1mnpm run lint[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+
+> m1-gaming-pcs@0.1.0 lint
+> eslint .
+
+##[group]Run npx tsc --noEmit
+[36;1mnpx tsc --noEmit[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+##[group]Run npm run ops:validate
+[36;1mnpm run ops:validate[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+
+> m1-gaming-pcs@0.1.0 ops:validate
+> node ops/validate-memory.mjs
+
+M1 project-memory validation (root: /home/runner/work/m1pcs-website/m1pcs-website)
+OK: checked 93 file(s); 0 warning(s).
+##[group]Run npm run ops:test
+[36;1mnpm run ops:test[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+
+> m1-gaming-pcs@0.1.0 ops:test
+# tests 353
+# suites 0
+# pass 353
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4923.021396
+##[group]Run npm run build
+> next build
+ ✓ Compiled successfully in 13.2s
+   Generating static pages (0/56) ...
+   Generating static pages (14/56) 
+   Generating static pages (28/56) 
+   Generating static pages (42/56) 
+ ✓ Generating static pages (56/56)
+   Finalizing page optimization ...
+Route (app)                                                        Size  First Load JS
+##[group]Post Set up Node.js

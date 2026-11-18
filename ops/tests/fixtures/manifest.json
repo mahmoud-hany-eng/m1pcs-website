@@ -1,0 +1,333 @@
+{
+  "description": "Each entry names an invalid fixture, the document kind, why it is invalid, and message fragments that the validator's output must contain.",
+  "cases": [
+    {
+      "file": "invalid/task-missing-objective.json",
+      "kind": "task",
+      "why": "A required field is absent.",
+      "expect": [
+        "missing required property \"objective\""
+      ]
+    },
+    {
+      "file": "invalid/task-extra-property.json",
+      "kind": "task",
+      "why": "Unknown fields are rejected (strict schema).",
+      "expect": [
+        "unexpected property \"priority\""
+      ]
+    },
+    {
+      "file": "invalid/task-bad-id.json",
+      "kind": "task",
+      "why": "Task ids have a fixed format.",
+      "expect": [
+        "does not match pattern"
+      ]
+    },
+    {
+      "file": "invalid/task-unknown-prefix.json",
+      "kind": "task",
+      "why": "The prefix must be listed in the policy.",
+      "expect": [
+        "prefix \"ZZZ\" is not listed"
+      ]
+    },
+    {
+      "file": "invalid/task-class-too-low.json",
+      "kind": "task",
+      "why": "A declared class cannot be lower than the class policy computes from the files.",
+      "expect": [
+        "below the class B that policy computes"
+      ]
+    },
+    {
+      "file": "invalid/task-leading-wildcard.json",
+      "kind": "task",
+      "why": "files_allowed must start with a literal path segment.",
+      "expect": [
+        "starts with a wildcard"
+      ]
+    },
+    {
+      "file": "invalid/task-class-c.json",
+      "kind": "task",
+      "why": "Class C work is never a runnable task.",
+      "expect": [
+        "never autonomous"
+      ]
+    },
+    {
+      "file": "invalid/task-immutable-path.json",
+      "kind": "task",
+      "why": "Original build photos can never be in scope.",
+      "expect": [
+        "immutable path"
+      ]
+    },
+    {
+      "file": "invalid/task-branch-mismatch.json",
+      "kind": "task",
+      "why": "The branch must embed the task id.",
+      "expect": [
+        "must start with \"claude/ops-9001-\""
+      ]
+    },
+    {
+      "file": "invalid/task-too-many-attempts.json",
+      "kind": "task",
+      "why": "The policy caps attempts.",
+      "expect": [
+        "exceeds policy.limits.max_attempts_per_task"
+      ]
+    },
+    {
+      "file": "invalid/task-author-is-a-provider.json",
+      "kind": "task",
+      "why": "created_by is a role (human, planner, reviewer, worker), never a provider name.",
+      "expect": [
+        "is not one of"
+      ]
+    },
+    {
+      "file": "invalid/report-claims-verified.json",
+      "kind": "report",
+      "why": "A worker report can never claim to be verified.",
+      "expect": [
+        "must be false"
+      ]
+    },
+    {
+      "file": "invalid/report-wrong-trust-level.json",
+      "kind": "report",
+      "why": "A worker report is always an unverified claim.",
+      "expect": [
+        "must be \"unverified_worker_claim\""
+      ]
+    },
+    {
+      "file": "invalid/report-old-kind.json",
+      "kind": "report",
+      "why": "The document kind is provider-neutral; the old provider-specific kind is rejected.",
+      "expect": [
+        "must be \"worker_run_report\""
+      ]
+    },
+    {
+      "file": "invalid/report-passed-nonzero-exit.json",
+      "kind": "report",
+      "why": "A passed check must have exit code 0.",
+      "expect": [
+        "marked passed but exit_code is 1"
+      ]
+    },
+    {
+      "file": "invalid/report-attempt-mismatch.json",
+      "kind": "report",
+      "why": "attempt_number must equal the attempt id suffix.",
+      "expect": [
+        "does not match attempt_id"
+      ]
+    },
+    {
+      "file": "invalid/report-bad-sha.json",
+      "kind": "report",
+      "why": "SHAs are full 40-character hashes.",
+      "expect": [
+        "does not match pattern"
+      ]
+    },
+    {
+      "file": "invalid/report-head-mismatch.json",
+      "kind": "report",
+      "why": "head_sha is the last work commit.",
+      "expect": [
+        "head_sha must equal the sha of the last work commit"
+      ]
+    },
+    {
+      "file": "invalid/report-outside-scope.json",
+      "kind": "report",
+      "why": "Changed files must be inside files_allowed.",
+      "expect": [
+        "changed paths the task does not permit"
+      ]
+    },
+    {
+      "file": "invalid/report-class-lowered.json",
+      "kind": "report",
+      "why": "A worker cannot report a class below the computed one.",
+      "expect": [
+        "below the class B that policy computes"
+      ]
+    },
+    {
+      "file": "invalid/report-protected-undeclared.json",
+      "kind": "report",
+      "why": "Protected paths must be declared.",
+      "expect": [
+        "protected_paths_touched omits"
+      ]
+    },
+    {
+      "file": "invalid/report-attestation-contradicted.json",
+      "kind": "report",
+      "why": "A self-attestation is contradicted by the paths.",
+      "expect": [
+        "attestations are claims"
+      ]
+    },
+    {
+      "file": "invalid/report-missing-required-check.json",
+      "kind": "report",
+      "why": "A completed report must evidence every required check.",
+      "expect": [
+        "required check \"lint\" has no verification entry"
+      ]
+    },
+    {
+      "file": "invalid/report-failed-required-check.json",
+      "kind": "report",
+      "why": "A completed outcome cannot hide a failed required check.",
+      "expect": [
+        "required check \"lint\" is failed but the outcome is \"completed\""
+      ]
+    },
+    {
+      "file": "invalid/report-time-reversed.json",
+      "kind": "report",
+      "why": "Timestamps must be ordered.",
+      "expect": [
+        "earlier than started_at"
+      ]
+    },
+    {
+      "file": "invalid/report-extra-property.json",
+      "kind": "report",
+      "why": "No unknown fields, so no hidden verified flag.",
+      "expect": [
+        "unexpected property \"verified\""
+      ]
+    },
+    {
+      "file": "invalid/decision-approve-with-blocker.json",
+      "kind": "decision",
+      "why": "Approving while listing a blocker is inconsistent.",
+      "expect": [
+        "contradicts 1 blocker/major"
+      ]
+    },
+    {
+      "file": "invalid/decision-confidence-out-of-range.json",
+      "kind": "decision",
+      "why": "Confidence is between 0 and 1.",
+      "expect": [
+        "above the maximum 1"
+      ]
+    },
+    {
+      "file": "invalid/decision-next-task-mismatch.json",
+      "kind": "decision",
+      "why": "propose_next_task needs a proposal.",
+      "expect": [
+        "must be present exactly when"
+      ]
+    },
+    {
+      "file": "invalid/decision-lowers-class.json",
+      "kind": "decision",
+      "why": "The reviewer may not advise a class below its own categories.",
+      "expect": [
+        "cannot lower a class set by policy"
+      ]
+    },
+    {
+      "file": "invalid/decision-proposal-class-too-low.json",
+      "kind": "decision",
+      "why": "A proposal cannot understate its class.",
+      "expect": [
+        "below class B computed by policy"
+      ]
+    },
+    {
+      "file": "invalid/decision-advisory-flag-false.json",
+      "kind": "decision",
+      "why": "The reviewer's risk view is always advisory.",
+      "expect": [
+        "must be true"
+      ]
+    },
+    {
+      "file": "invalid/decision-needs-human-without-reason.json",
+      "kind": "decision",
+      "why": "needs_human must say why.",
+      "expect": [
+        "needs a stop_reason or at least one question_for_human"
+      ]
+    },
+    {
+      "file": "invalid/decision-unknown-verdict.json",
+      "kind": "decision",
+      "why": "There is no verdict that overrides policy.",
+      "expect": [
+        "is not one of"
+      ]
+    },
+    {
+      "file": "invalid/decision-claims-verified.json",
+      "kind": "decision",
+      "why": "A review is an unverified claim and can never present itself as verified evidence.",
+      "expect": [
+        "must be false"
+      ]
+    },
+    {
+      "file": "invalid/decision-wrong-trust-level.json",
+      "kind": "decision",
+      "why": "A review's trust level is fixed.",
+      "expect": [
+        "must be \"unverified_reviewer_claim\""
+      ]
+    },
+    {
+      "file": "invalid/decision-reviewer-role-is-worker.json",
+      "kind": "decision",
+      "why": "The role that wrote a review is always the reviewer role.",
+      "expect": [
+        "must be \"reviewer\""
+      ]
+    },
+    {
+      "file": "invalid/decision-same-session-as-worker.json",
+      "kind": "decision",
+      "why": "A reviewer may never be the worker's own session.",
+      "expect": [
+        "must be a separate session"
+      ]
+    },
+    {
+      "file": "invalid/decision-reviewed-other-commit.json",
+      "kind": "decision",
+      "why": "A review must be of the work head that was reported.",
+      "expect": [
+        "differs from the report's head_sha"
+      ]
+    },
+    {
+      "file": "invalid/decision-unknown-runtime.json",
+      "kind": "decision",
+      "why": "Only runtimes that policy lists may host a reviewer.",
+      "expect": [
+        "is not one of"
+      ]
+    },
+    {
+      "file": "invalid/decision-old-kind.json",
+      "kind": "decision",
+      "why": "The old document kind is rejected.",
+      "expect": [
+        "must be \"review_decision\""
+      ]
+    }
+  ]
+}

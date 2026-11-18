@@ -1,0 +1,44 @@
+{
+  "schema_version": "1",
+  "task_id": "OPS-9001",
+  "title": "Example documentation task",
+  "objective": "Add an example guide page to the documentation folder as a demonstration fixture.",
+  "depends_on": [],
+  "blocked_by_open_questions": [],
+  "requirement_refs": [],
+  "declared_risk_class": "C",
+  "declared_risk_categories": [
+    "docs_only"
+  ],
+  "base_branch": "claude-dev",
+  "branch": "claude/ops-9001-example-guide",
+  "files_allowed": [
+    "docs/guides/**"
+  ],
+  "files_forbidden": [
+    "docs/guides/private/**"
+  ],
+  "out_of_scope": [
+    "Any code change"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "statement": "The guide file exists and is readable.",
+      "verification_method": "inspection",
+      "command": null
+    }
+  ],
+  "required_checks": [
+    {
+      "id": "lint",
+      "command": "npm run lint",
+      "description": "ESLint",
+      "must_pass": true
+    }
+  ],
+  "max_attempts": 2,
+  "approval_reference": null,
+  "created_at": "2026-01-02T03:04:05Z",
+  "created_by": "human"
+}
