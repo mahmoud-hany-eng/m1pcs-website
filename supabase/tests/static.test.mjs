@@ -29,9 +29,15 @@ const migrations = walk("supabase/migrations", (p) => p.endsWith(".sql")).sort()
 const scanned = [
   ...walk("supabase", (p) => p !== SELF && !p.endsWith(".png")),
   ...walk("src/lib/platform"),
+  ...walk("src/lib/accounts"),
+  ...walk("src/components/account"),
+  ...walk("src/app/account"),
+  ...walk("src/app/auth"),
+  "src/middleware.ts",
   ".env.example",
-  ...walk("docs/project-memory/architecture", (p) => /SUPABASE/i.test(p)),
+  ...walk("docs/project-memory/architecture", (p) => /SUPABASE|DEPOSIT_POLICY|ADMIN_ACCESS|CUSTOMER_ACCOUNTS/i.test(p)),
   ...walk("docs/project-memory/runs/PLAT-0001"),
+  ...walk("docs/project-memory/runs/PLAT-0002"),
 ].filter((p) => existsSync(join(ROOT, p)));
 
 describe("migrations are well formed", () => {
@@ -96,8 +102,8 @@ describe("nothing secret or personal is committed", () => {
     ["a Supabase access token", /sbp_[0-9a-f]{20,}/],
     ["a connection string with a password", /postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@/i],
     ["a private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
-    ["an assigned service-role key", /SUPABASE_SERVICE_ROLE_KEY\s*=\s*\S/],
-    ["an assigned database password", /(?:DB_PASSWORD|POSTGRES_PASSWORD)\s*=\s*\S/i],
+    ["an assigned service-role key", /SUPABASE_SERVICE_ROLE_KEY[ \t]*=[ \t]*\S/],
+    ["an assigned database password", /(?:DB_PASSWORD|POSTGRES_PASSWORD)[ \t]*=[ \t]*\S/i],
   ];
   it("no file holds a credential", () => {
     assert.ok(scanned.length > 15, "the scan found too few files to be meaningful");
@@ -128,6 +134,8 @@ describe("nothing secret or personal is committed", () => {
       assert.equal(m[2].trim(), "", `${m[1]} must have no value`);
     }
     assert.ok(names.includes("NEXT_PUBLIC_SUPABASE_URL") && names.includes("NEXT_PUBLIC_SUPABASE_ANON_KEY") && names.includes("SUPABASE_SERVICE_ROLE_KEY"));
+    for (const name of ["CUSTOMER_ACCOUNTS_ENABLED", "CUSTOMER_ACCOUNTS_SITE_URL", "CUSTOMER_ACCOUNTS_PREVIEW_LABEL"]) assert.ok(names.includes(name), `${name} must be documented`);
+    assert.ok(!names.includes("NEXT_PUBLIC_CUSTOMER_ACCOUNTS_ENABLED"), "the feature flag is a server variable, never a public one");
     assert.ok(!names.some((n) => n.startsWith("NEXT_PUBLIC_") && /SERVICE|SECRET|PRIVATE/.test(n)), "a secret must not carry a public prefix");
   });
 
@@ -167,30 +175,139 @@ describe("customer-facing TypeScript carries no private concept", () => {
   });
 });
 
-describe("the public quotation flow does not depend on the platform", () => {
-  it("no website file outside src/lib/platform imports the platform code or a Supabase client", () => {
-    const files = walk("src", (p) => /\.(ts|tsx|js|jsx|mjs)$/.test(p) && !p.startsWith("src/lib/platform/"));
+const ACCOUNT_AREAS = ["src/lib/accounts/", "src/lib/platform/", "src/app/account/", "src/app/auth/", "src/components/account/", "src/middleware.ts"];
+const inAccountArea = (p) => ACCOUNT_AREAS.some((area) => p === area || p.startsWith(area));
+const sourceFiles = () => walk("src", (p) => /\.(ts|tsx|js|jsx|mjs)$/.test(p));
+const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+describe("the public website does not depend on the customer-account code (Phase 2 isolation)", () => {
+  it("no website file outside the account areas imports the account code, the platform code or a Supabase package", () => {
+    const files = sourceFiles().filter((p) => !inAccountArea(p));
     assert.ok(files.length > 50, "the scan found too few website files");
     for (const p of files) {
       const text = read(p);
-      assert.doesNotMatch(text, /lib\/platform/, `${p} must not import the platform code in Phase 1`);
-      assert.doesNotMatch(text, /@supabase\//, `${p} must not import a Supabase package in Phase 1`);
+      assert.doesNotMatch(text, /lib\/(accounts|platform)/, `${p} must not import the account or platform code`);
+      assert.doesNotMatch(text, /@supabase\//, `${p} must not import a Supabase package`);
+      assert.doesNotMatch(text, /CUSTOMER_ACCOUNTS/, `${p} must not read the account feature flag`);
     }
   });
 
-  it("package.json adds no Supabase dependency and has the database test scripts", () => {
+  it("a Supabase package is imported only by the server-side account modules, the middleware and the confirm route", () => {
+    const allowed = ["src/lib/accounts/server/", "src/middleware.ts", "src/app/auth/confirm/route.ts"];
+    const importers = sourceFiles().filter((p) => /from\s+["']@supabase\//.test(read(p)));
+    assert.ok(importers.length >= 3, "expected the client, the middleware and the confirm route");
+    for (const p of importers) assert.ok(allowed.some((a) => p === a || p.startsWith(a)), `${p} imports a Supabase package outside the allowed server modules`);
+  });
+
+  it("no Supabase client exists in the browser: no createBrowserClient and no plain createClient anywhere in src", () => {
+    for (const p of sourceFiles()) {
+      const text = strip(read(p));
+      assert.doesNotMatch(text, /createBrowserClient/, p);
+      assert.doesNotMatch(text, /\bcreateClient\s*\(/, p);
+    }
+  });
+
+  it("a client component never imports a Supabase package, next/headers or a server module other than the server actions", () => {
+    let seen = 0;
+    for (const p of sourceFiles()) {
+      const text = read(p);
+      if (!/^\s*["']use client["']/.test(text)) continue;
+      seen += 1;
+      assert.doesNotMatch(text, /from\s+["']@supabase\//, `${p}: a client component must not import Supabase`);
+      assert.doesNotMatch(text, /from\s+["']next\/headers["']/, `${p}: a client component must not read request headers`);
+      for (const [, target] of text.matchAll(/from\s+["']@\/lib\/accounts\/server\/([a-z-]+)["']/g)) {
+        assert.equal(target, "actions", `${p}: a client component may import only the server actions, not ${target}`);
+      }
+    }
+    assert.ok(seen >= 8, "expected the existing client components and the account forms");
+  });
+
+  it("the service-role key is not referenced anywhere in the account code", () => {
+    for (const p of sourceFiles().filter(inAccountArea).filter((f) => !f.startsWith("src/lib/platform/"))) {
+      assert.doesNotMatch(strip(read(p)), /SERVICE_ROLE|service_role|SUPABASE_SECRET|sb_secret/i, `${p} must not touch a privileged key`);
+    }
+  });
+
+  it("the feature flag is a server variable: no NEXT_PUBLIC name for it, and no process.env read of a public key in the account code", () => {
+    for (const p of sourceFiles().filter(inAccountArea).filter((f) => !f.startsWith("src/lib/platform/"))) {
+      const text = strip(read(p));
+      assert.doesNotMatch(text, /NEXT_PUBLIC_CUSTOMER/, p);
+      assert.doesNotMatch(text, /process\.env\.NEXT_PUBLIC_SUPABASE/, `${p}: pass process.env to the env contract instead, so nothing is inlined into a bundle`);
+    }
+  });
+
+  it("package.json holds exactly two Supabase packages, both pinned to an exact version, as runtime dependencies", () => {
     const pkg = JSON.parse(read("package.json"));
-    for (const section of ["dependencies", "devDependencies", "optionalDependencies"]) {
-      assert.ok(!Object.keys(pkg[section] ?? {}).some((n) => n.startsWith("@supabase/") || n === "supabase"), `${section} must not hold Supabase packages in Phase 1`);
+    const all = { ...pkg.devDependencies, ...pkg.optionalDependencies, ...pkg.dependencies };
+    assert.deepEqual(Object.keys(all).filter((n) => n.startsWith("@supabase/") || n === "supabase").sort(), ["@supabase/ssr", "@supabase/supabase-js"]);
+    for (const name of ["@supabase/ssr", "@supabase/supabase-js"]) {
+      assert.ok(pkg.dependencies[name], `${name} must be a runtime dependency`);
+      assert.match(pkg.dependencies[name], /^\d+\.\d+\.\d+$/, `${name} must be pinned to an exact version, not a range`);
     }
-    assert.ok(pkg.scripts["db:test"] && pkg.scripts["db:test:static"]);
+    for (const script of ["db:test", "db:test:static", "accounts:e2e"]) assert.ok(pkg.scripts[script], script);
   });
 
-  it("the quote form and the WhatsApp message builder do not mention the platform at all", () => {
+  it("the quote form and the WhatsApp message builder do not mention the platform or the accounts at all", () => {
     for (const p of ["src/components/forms/QuoteForm.tsx", "src/lib/whatsapp.ts", "src/lib/quote-schema.ts", "src/types/quote.ts"]) {
       assert.ok(existsSync(join(ROOT, p)), `${p} must still exist`);
-      assert.doesNotMatch(read(p), /supabase|lib\/platform/i, p);
+      assert.doesNotMatch(read(p), /supabase|lib\/platform|lib\/accounts|CUSTOMER_ACCOUNTS/i, p);
     }
+  });
+});
+
+describe("every customer-account entry point is guarded", () => {
+  it("each account layout and auth layout asserts the feature flag", () => {
+    for (const p of ["src/app/account/layout.tsx", "src/app/auth/layout.tsx"]) assert.match(read(p), /assertAccountsEnabled\(\)/, p);
+  });
+
+  it("each account page verifies the session itself, and does not rely on a layout", () => {
+    const pages = walk("src/app/account", (p) => p.endsWith("/page.tsx"));
+    assert.ok(pages.length >= 7, `expected the dashboard pages, found ${pages.length}`);
+    for (const p of pages) assert.match(read(p), /require(SignedIn|CustomerContext|LinkedCustomer)\(/, `${p} must call a session guard`);
+  });
+
+  it("each server action asserts the flag or verifies the session before doing anything else", () => {
+    const source = read("src/lib/accounts/server/actions.ts");
+    const functions = [...source.matchAll(/export async function (\w+)\([^)]*\)[^{]*\{([\s\S]{0,260})/g)];
+    assert.ok(functions.length >= 8, `expected the account actions, found ${functions.length}`);
+    for (const [, name, start] of functions) assert.match(start, /assertEnabled\(\)|await require(SignedIn|CustomerContext|LinkedCustomer)\(/, `${name} must start with a guard`);
+  });
+
+  it("the confirm route answers 404 while the flag is off, and only accepts the three email types the feature sends", () => {
+    const route = read("src/app/auth/confirm/route.ts");
+    assert.match(route, /customerAccountsGate\(process\.env\)\.enabled/);
+    assert.match(route, /status: 404/);
+    const types = route.match(/ALLOWED_TYPES[^=]*=\s*\[([^\]]*)\]/)[1].match(/"[a-z_]+"/g).sort();
+    assert.deepEqual(types, ['"email"', '"magiclink"', '"signup"']);
+  });
+
+  it("every redirect goes to a fixed path, a checked next path, or the sign-in address", () => {
+    for (const p of ["src/lib/accounts/server/actions.ts", "src/app/auth/confirm/route.ts", "src/lib/accounts/server/guard.ts"]) {
+      const text = strip(read(p));
+      for (const [, argument] of text.matchAll(/\bredirect\(([^)]*(?:\([^)]*\))?[^)]*)\)/g)) {
+        const a = argument.trim();
+        const ok = /^"\/[^"]*"$/.test(a) || /^"\/[^"]*"\)?$/.test(a) || a === "next" || /^signInUrl\(/.test(a);
+        assert.ok(ok, `${p}: redirect(${a}) is not a fixed path, a checked next path, or a sign-in address`);
+      }
+    }
+    assert.match(read("src/lib/accounts/server/actions.ts"), /const next = safeAccountPath\(/);
+    assert.match(read("src/app/auth/confirm/route.ts"), /const next = safeAccountPath\(/);
+  });
+
+  it("the middleware runs only for /account and /auth, and does nothing at all while the flag is off", () => {
+    const text = read("src/middleware.ts");
+    assert.match(text, /matcher:\s*\["\/account\/:path\*",\s*"\/auth\/:path\*"\]/);
+    const body = text.slice(text.indexOf("export async function middleware"));
+    assert.match(body, /^export async function middleware\(request: NextRequest\) \{\s*\n\s*if \(!customerAccountsGate\(process\.env\)\.enabled\) return NextResponse\.next\(\);/);
+  });
+
+  it("every place that writes a session cookie hardens it", () => {
+    for (const p of ["src/lib/accounts/server/client.ts", "src/middleware.ts"]) assert.match(read(p), /hardenCookieOptions\(/, p);
+  });
+
+  it("the account pages are never indexed", () => {
+    for (const p of ["src/app/account/layout.tsx", "src/app/auth/layout.tsx"]) assert.match(read(p), /robots:\s*\{\s*index:\s*false/, p);
+    assert.match(read("src/middleware.ts"), /X-Robots-Tag/);
   });
 });
 
