@@ -157,6 +157,19 @@ test("a forger who rewrites the evidence AND recomputes the manifest is caught b
   }
 });
 
+test("the verifier names each contradiction the derivation finds, even when the document and the manifest honestly say the CI did not pass", () => {
+  const dir = copyPacket(OK.packetDir);
+  const e = readPacketJson(dir, "trusted/ci-evidence.json");
+  e.github_ci.jobs[0].steps.find((x) => x.name === "Build").conclusion = "failure"; // the record still says steps.all_succeeded passed
+  e.verdict.ci_passed = false;
+  e.verdict.evidence_complete = false;
+  forge(dir, "trusted/ci-evidence.json", `${JSON.stringify(e, null, 2)}\n`);
+  editManifest(dir, (m) => { m.ci.ci_passed = false; m.ci.evidence_complete = false; });
+  const v = verifyPacket(dir, { toolRoot: OK.repo.dir });
+  assert.equal(v.ok, false, "a document that contradicts its own data is not a verified packet, whatever it says about the outcome");
+  assert.ok(v.errors.some((x) => x.code === "PK-EVIDENCE-INCONSISTENT" && x.message.includes("steps.all_succeeded")), v.errors.map((x) => `${x.code}: ${x.message}`).join(" | "));
+});
+
 test("a forger who also rewrites the manifest's CI summary to match the forged claims is still caught", () => {
   const dir = copyPacket(OK.packetDir);
   const e = readPacketJson(dir, "trusted/ci-evidence.json");
