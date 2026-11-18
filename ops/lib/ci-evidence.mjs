@@ -292,14 +292,16 @@ const LOG_MANDATORY_CHECK_IDS = ["log.permission_block_is_single_and_initial", "
  */
 export const MANDATORY_CHECK_IDS = Object.freeze(["checks.match_jobs_from_actions_app", ...LOG_MANDATORY_CHECK_IDS]);
 
+/** What the first collector (OPS-0003) already made mandatory. Documents written then lack the three log-structure checks. */
+export const EARLIER_MANDATORY_CHECK_IDS = Object.freeze(["checks.match_jobs_from_actions_app", "log.token_is_read_only"]);
+
 /**
- * Normalise and cross-check the GitHub data for one run.
- * @returns the `github_ci` section (including its consistency checks)
+ * The consistency checks that need only normalised GitHub data: the run, the jobs, the steps and the check runs. The collector
+ * runs them on the data it has just normalised; a consumer runs the SAME function on the data embedded in a document and compares
+ * the answers with the recorded ones, so a recorded result that the embedded data does not support is found (OPS-0006).
+ * Jobs embedded in a document carry no run id; a missing run id is treated as "not reported", as for an unreported one.
  */
-export function buildGithubCi({ run, jobs, checkRuns = null, jobLog = null, expected }) {
-  const r = normalizeRun(run);
-  const js = normalizeJobs(jobs);
-  const cs = checkRuns === null ? null : normalizeChecks(checkRuns);
+export function coreChecks(r, js, cs, expected) {
   const checks = [];
   const add = (id, passed, detail, blocking = true) => checks.push({ id, passed: Boolean(passed), blocking, detail: String(detail).slice(0, 400) });
 
@@ -313,7 +315,7 @@ export function buildGithubCi({ run, jobs, checkRuns = null, jobLog = null, expe
 
   const named = js.filter((j) => j.name === expected.job_name);
   add("jobs.exactly_one_expected_job", js.length === 1 && named.length === 1, `${js.length} job(s): ${js.map((j) => j.name).join(", ") || "none"}; expected exactly one named ${JSON.stringify(expected.job_name)}`);
-  add("jobs.bound_to_run_and_commit", js.every((j) => (j.run_id === null || j.run_id === r.id) && j.head_sha === expected.head_sha), "every job's run id and commit match the run and the expected commit");
+  add("jobs.bound_to_run_and_commit", js.every((j) => (j.run_id === null || j.run_id === undefined || j.run_id === r.id) && j.head_sha === expected.head_sha), "every job's run id and commit match the run and the expected commit");
   const job = named[0] ?? null;
   add("jobs.completed_successfully", job !== null && job.status === "completed" && job.conclusion === "success", job ? `status ${job.status}, conclusion ${job.conclusion}` : "no expected job");
   const userSteps = job ? job.steps.filter((s) => !PSEUDO_STEP(s.name)) : [];
@@ -327,6 +329,19 @@ export function buildGithubCi({ run, jobs, checkRuns = null, jobLog = null, expe
     const bad = js.filter((j) => !cs.some((c) => c.id === j.id && c.app_slug === "github-actions" && c.head_sha === j.head_sha && c.conclusion === j.conclusion && c.name === j.name)).map((j) => j.name);
     add("checks.match_jobs_from_actions_app", js.length > 0 && bad.length === 0, bad.length ? `no matching check run from the github-actions app for: ${bad.join(", ")}` : "each job has a check run of the same id, name, commit and conclusion, reported by the github-actions app");
   } else add("checks.match_jobs_from_actions_app", false, `${NOT_RUN}no check-run data was supplied, so nothing shows that the github-actions app reported these jobs`);
+  return checks;
+}
+
+/**
+ * Normalise and cross-check the GitHub data for one run.
+ * @returns the `github_ci` section (including its consistency checks)
+ */
+export function buildGithubCi({ run, jobs, checkRuns = null, jobLog = null, expected }) {
+  const r = normalizeRun(run);
+  const js = normalizeJobs(jobs);
+  const cs = checkRuns === null ? null : normalizeChecks(checkRuns);
+  const checks = coreChecks(r, js, cs, expected);
+  const add = (id, passed, detail, blocking = true) => checks.push({ id, passed: Boolean(passed), blocking, detail: String(detail).slice(0, 400) });
 
   let tokenPermissions = null;
   let tests = null;
@@ -370,13 +385,21 @@ export function buildGithubCi({ run, jobs, checkRuns = null, jobLog = null, expe
 
 const CI_DEFINITION_FLAGS = ["workflow_files_changed", "ops_code_changed", "policy_changed", "schemas_changed", "build_inputs_changed"];
 
+/** Whether CI's own definition is the base's, from the trusted-base section: the one rule, used by the collector and by its consumers. */
+export function trustBasisOf(trustedBase, githubCi) {
+  if (!githubCi) return "ci_not_collected";
+  if (!trustedBase) return "base_unchecked";
+  const changed = CI_DEFINITION_FLAGS.some((f) => trustedBase.flags[f]) || trustedBase.package_scripts.ci_entrypoints_changed;
+  return changed ? "ci_definition_modified_from_base" : "ci_definition_unchanged_from_base";
+}
+
 const MISSING_LABEL = { trusted_base: "the trusted-base check", github_run_data: "GitHub run and job data", check_runs: "check-run data", job_log: "the job log" };
 
 /**
  * Which mandatory inputs of a complete assessment were not supplied, in a fixed order. `job_log` is missing exactly when no test
  * evidence was parsed (it is set whenever a log was supplied), and `check_runs` exactly when no check-run list was kept.
  */
-function missingEvidence(trustedBase, githubCi) {
+export function missingEvidenceOf(trustedBase, githubCi) {
   const out = [];
   if (trustedBase === null) out.push("trusted_base");
   if (githubCi === null) out.push("github_run_data", "check_runs", "job_log");
@@ -402,19 +425,14 @@ export function buildEvidenceDocument({ repository, headSha, baseSha = null, bra
   for (const c of blockingFailed) if (!c.detail.startsWith(NOT_RUN)) reasons.push(`CI evidence check failed: ${c.id} (${c.detail})`);
   for (const id of absentMandatory) reasons.push(`CI evidence check missing: ${id} (the mandatory check is not in the document)`);
 
-  const missing = missingEvidence(trustedBase, githubCi);
+  const missing = missingEvidenceOf(trustedBase, githubCi);
   const skipped = githubCi ? githubCi.consistency.filter((c) => c.blocking && !c.passed && c.detail.startsWith(NOT_RUN)).map((c) => c.id) : [];
   if (githubCi && (missing.includes("check_runs") || missing.includes("job_log"))) {
     reasons.push(`mandatory evidence missing: ${missing.filter((m) => m === "check_runs" || m === "job_log").map((m) => MISSING_LABEL[m]).join(" and ")}; ci_passed cannot be true and the evidence is not complete without it (${skipped.length} mandatory check(s) did not run)`);
   }
 
-  let basis = "ci_not_collected";
+  const basis = trustBasisOf(trustedBase, githubCi);
   if (githubCi) {
-    if (!trustedBase) basis = "base_unchecked";
-    else {
-      const changed = CI_DEFINITION_FLAGS.some((f) => trustedBase.flags[f]) || trustedBase.package_scripts.ci_entrypoints_changed;
-      basis = changed ? "ci_definition_modified_from_base" : "ci_definition_unchanged_from_base";
-    }
     if (basis === "base_unchecked") reasons.push("no base revision was checked, so nothing shows that the CI definition is the established one");
     if (basis === "ci_definition_modified_from_base") reasons.push("the change modifies what CI runs (workflow, ops code, policy, schemas, package scripts or build inputs); its green result is not evidence about those changes");
   }

@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { taskIdOfFileName } from "./ids.mjs";
 import { CLASS_ORDER, maxClass, matchesAny, pathPermission, staticPrefix, taskPreflight } from "./policy.mjs";
-import { deriveCi, sha256, verifyPacket } from "./review-packet.mjs";
+import { sha256, verifyPacket } from "./review-packet.mjs";
 import { instructionLineCount, prohibitedCommandIds, secretShapes } from "./review-text.mjs";
 import { DEFAULT_ROOT, PATHS, validateDecisionDocument } from "../validate-memory.mjs";
 
@@ -154,7 +154,7 @@ export function evaluateDecision({ packetDir, decisionFile, toolRoot = DEFAULT_R
   }
   manifest = pv.manifest;
   manifestSha = sha256(fs.readFileSync(path.join(packetDir, "MANIFEST.json")));
-  const { policy, task, report, evidence, changedFiles, classification, tool } = pv.data;
+  const { policy, task, report, evidence, ci, changedFiles, classification, tool } = pv.data;
 
   // 2. the decision: readable, bounded, a regular file
   let buf = null;
@@ -207,12 +207,28 @@ export function evaluateDecision({ packetDir, decisionFile, toolRoot = DEFAULT_R
   if (!rev.id || !dev.id) add("invalid", "DG-SESSION-UNVERIFIED", "the reviewer's or the worker's session identifier is missing, so separation between them cannot be verified");
   else if (rev.id === dev.id || (rev.url && dev.url && rev.url === dev.url)) add("invalid", "DG-SESSION-SAME", "the reviewer session is the session that did the work; a reviewer must be a separate session");
 
-  // 6. what GitHub's data says, recomputed, against what the reviewer claims
-  const ci = deriveCi(evidence);
+  // 6. what GitHub's data says, derived by the packet tool from the evidence's own data and the baseline's expectations (never the
+  //    verdict the evidence states about itself), against what the reviewer claims
   const ciStatus = ci.passed ? "passed" : "failed";
   if (decision.verification_assessment.ci_status !== ciStatus) add("invalid", "DG-CI-CONTRADICTION", `the decision says CI ${decision.verification_assessment.ci_status}, but the evidence (GitHub's data, recomputed) says ${ciStatus}`);
-  if (evidence.verdict.ci_trust_basis !== "ci_definition_unchanged_from_base") human("DG-HUMAN-CI-DEFINITION", `CI's own definition is not shown to be unchanged from the base (${evidence.verdict.ci_trust_basis}), so a green result is not evidence about those changes`);
-  if (!evidence.verdict.evidence_complete) add("warning", "DG-EVIDENCE-INCOMPLETE", "the CI evidence is incomplete (it lacks the trusted-base section or the GitHub data)");
+  if (ci.trustBasis !== "ci_definition_unchanged_from_base") human("DG-HUMAN-CI-DEFINITION", `CI's own definition is not shown to be unchanged from the base (${ci.trustBasis}), so a green result is not evidence about those changes`);
+  if (!evidence.verdict.evidence_complete || !ci.complete) add("warning", "DG-EVIDENCE-INCOMPLETE", "the CI evidence is incomplete (it lacks the trusted-base section, the GitHub data, the check runs or the job log)");
+  if (!ci.complete) {
+    const why = ci.problems.filter((p) => p.kind !== "failed").slice(0, 3).map((p) => p.message).join("; ") || "mandatory evidence is missing";
+    add("corrections", "DG-EVIDENCE-NOT-COMPLETE", `the evidence is not complete as the packet tool derives it from the data inside the evidence and the baseline's expectations, so it cannot support an approval: ${why}`);
+  }
+  if (ci.legacy) add("warning", "DG-EVIDENCE-LEGACY", "the evidence is of the earlier shape, written before the mandatory log checks existed; collect it again with the current tool");
+
+  // 6b. the baseline: only one that predates the work and holds the approved task is independent verification
+  const bl = manifest.trusted_baseline;
+  if (!bl.independent) {
+    if (bl.exception === null) add("corrections", "DG-BASELINE-NOT-INDEPENDENT", `the baseline is not independent (relation to the head: ${bl.relation_to_head}; reviewed paths already in it: ${bl.reviewed_paths_in_baseline}) and no exception is recorded, so this is not independent verification`);
+    else {
+      add("warning", "DG-BASELINE-EXCEPTION", `the baseline is not independent (relation to the head: ${bl.relation_to_head}; reviewed paths already in it: ${bl.reviewed_paths_in_baseline}); it is accepted only under the recorded exception ${bl.exception.approval_reference}`);
+      human("DG-HUMAN-BASELINE-EXCEPTION", `this review's baseline is a recorded exception (${bl.exception.approval_reference}), not independent verification; a person must weigh that`);
+    }
+  }
+  if (!bl.scope_established_by_evidence) add("warning", "DG-SCOPE-NOT-ESTABLISHED-BY-BASE", "the evidence's trusted-base check did not judge the task's scope against a task file in the base revision; the gate's own scope check against the baseline's task file is the only one");
 
   // 7. risk: the policy computes it from the actual changed paths; the reviewer may raise it, never lower it
   const computedClass = maxClass(classification.class, task.declared_risk_class, report.risk.declared_class);
@@ -273,7 +289,8 @@ export function evaluateDecision({ packetDir, decisionFile, toolRoot = DEFAULT_R
     categories: classification.categories,
     changed_files: changedFiles.files.length,
     attempt: { number: attemptNumber, max: maxAttempts },
-    ci: { passed: ci.passed, run_id: ci.runId, conclusion: ci.conclusion, trust_basis: evidence.verdict.ci_trust_basis },
+    ci: { passed: ci.passed, run_id: ci.runId, conclusion: ci.conclusion, trust_basis: ci.trustBasis, evidence_complete: ci.complete, evidence_legacy: ci.legacy },
+    baseline: { independent: bl.independent, relation_to_head: bl.relation_to_head, reviewed_paths_in_baseline: bl.reviewed_paths_in_baseline, exception: bl.exception === null ? null : bl.exception.approval_reference },
   };
   return finish();
 }

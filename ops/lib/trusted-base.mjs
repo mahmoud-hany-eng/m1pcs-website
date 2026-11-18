@@ -305,6 +305,20 @@ function summariseRun(run) {
 const startsWithAny = (p, prefixes) => prefixes.some((x) => p === x || p.startsWith(`${x}/`));
 
 /**
+ * Which paths define what CI runs (the workflow, ops/, the policy, the schemas, the build inputs). One rule, used here and by the
+ * consumers of an evidence document (OPS-0006), which apply it to the changed paths they computed themselves.
+ */
+export function ciDefinitionFlagsOf(paths) {
+  return {
+    workflow_files_changed: paths.some((p) => startsWithAny(p, [".github"])),
+    policy_changed: paths.some((p) => startsWithAny(p, [POLICY_DIR])),
+    schemas_changed: paths.some((p) => startsWithAny(p, [SCHEMAS_DIR])),
+    ops_code_changed: paths.some((p) => startsWithAny(p, ["ops"])),
+    build_inputs_changed: paths.some((p) => BUILD_INPUTS.includes(p)),
+  };
+}
+
+/**
  * Judge the change base..head with the validation logic and the policy of `base`.
  * @param {object} o
  * @param {string} o.repoDir  a git repository (or worktree) that contains both revisions
@@ -363,14 +377,15 @@ export function trustedBaseCheck({ repoDir, base, head, taskId = null, anchor = 
     const classesNeedingApproval = new Set(worker.approval.human_approval_before_run_for_classes);
 
     const paths = changed.map((c) => c.path);
+    const ciFlags = ciDefinitionFlagsOf(paths);
     const flags = {
-      workflow_files_changed: paths.some((p) => startsWithAny(p, [".github"])),
-      policy_changed: paths.some((p) => startsWithAny(p, [POLICY_DIR])),
-      schemas_changed: paths.some((p) => startsWithAny(p, [SCHEMAS_DIR])),
-      ops_code_changed: paths.some((p) => startsWithAny(p, ["ops"])),
+      workflow_files_changed: ciFlags.workflow_files_changed,
+      policy_changed: ciFlags.policy_changed,
+      schemas_changed: ciFlags.schemas_changed,
+      ops_code_changed: ciFlags.ops_code_changed,
       claude_md_changed: paths.includes("CLAUDE.md"),
       reviewer_prompt_changed: paths.some((p) => startsWithAny(p, ["docs/project-memory/reviewer"])),
-      build_inputs_changed: paths.some((p) => BUILD_INPUTS.includes(p)),
+      build_inputs_changed: ciFlags.build_inputs_changed,
       link_or_submodule_added: Boolean(linkChange),
     };
     const pkg = packageScriptChanges(repoDir, mergeBaseSha, headSha);

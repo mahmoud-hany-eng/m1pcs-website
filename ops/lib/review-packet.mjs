@@ -25,10 +25,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { isAttemptId, isTaskId, taskIdOfAttempt } from "./ids.mjs";
+import { EARLIER_MANDATORY_CHECK_IDS, MANDATORY_CHECK_IDS, coreChecks, expectationsFromWorkflow, missingEvidenceOf, trustBasisOf } from "./ci-evidence.mjs";
 import { validate } from "./json-schema.mjs";
 import { classifyPaths } from "./policy.mjs";
 import { addedInstructionLineCount, foreignEmailCount, instructionLineCount, secretShapes } from "./review-text.mjs";
-import { changedPaths, git, readBlobAtRevision, resolveCommit } from "./trusted-base.mjs";
+import { changedPaths, ciDefinitionFlagsOf, git, readBlobAtRevision, resolveCommit } from "./trusted-base.mjs";
 import { DEFAULT_ROOT, PATHS, parseTaskFile } from "../validate-memory.mjs";
 
 export class PacketError extends Error {
@@ -109,7 +110,24 @@ function loadToolContext(toolRoot) {
     schemas[key] = JSON.parse(text(schemaBytes[key]));
   }
   const policyBytes = read(PATHS.policy);
-  return { root: toolRoot, schemas, schemaBytes, policy: JSON.parse(text(policyBytes)), policyBytes, promptBytes: read(PROMPT_PATH), requirementsText: text(read(PATHS.requirements)) };
+  const policy = JSON.parse(text(policyBytes));
+  // what a correct CI run looks like comes from the baseline's own workflow file, never from the evidence being judged
+  const wfPath = policy.workflow_policy && Array.isArray(policy.workflow_policy.required_workflow_files) ? policy.workflow_policy.required_workflow_files[0] : null;
+  let workflowText = null;
+  if (typeof wfPath === "string" && !wfPath.startsWith("/") && !wfPath.split("/").includes("..")) {
+    try {
+      workflowText = text(read(wfPath));
+    } catch {
+      workflowText = null;
+    }
+  }
+  let humanDecisionsText = "";
+  try {
+    humanDecisionsText = text(read(PATHS.humanDecisions));
+  } catch {
+    humanDecisionsText = "";
+  }
+  return { root: toolRoot, schemas, schemaBytes, policy, policyBytes, promptBytes: read(PROMPT_PATH), requirementsText: text(read(PATHS.requirements)), workflowText, humanDecisionsText };
 }
 export { loadToolContext };
 
@@ -123,19 +141,105 @@ export function toolTaskFile(ctx, taskId) {
 
 /* -------------------------------------------------------------- derived facts */
 
-/** What GitHub's data in an evidence document says, recomputed (never read from the document's own verdict). */
-export function deriveCi(evidence) {
-  const g = evidence.github_ci;
-  if (!g) return { present: false, passed: false, runId: null, conclusion: null, headSha: null };
+/** The trusted expectations of a correct CI run, from the baseline's workflow and policy, or null when they cannot be derived. */
+export function trustedExpectations(tool, headSha, repository = "owner/name") {
+  if (!tool.workflowText) return null;
+  try {
+    return expectationsFromWorkflow(tool.workflowText, tool.policy, { repository, headSha, branch: null });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What an evidence document says about CI, DERIVED from the data inside it and from trusted expectations, never read from the
+ * document's own verdict (OPS-0006). A forged or earlier-shape document therefore cannot read as passed or complete.
+ *
+ * `trusted` is { expected, changedPaths, baseSha }: the expectations from the baseline's workflow (trustedExpectations), the
+ * changed paths the consumer computed itself, and the revision the change starts from. Without it nothing can be re-evaluated, so
+ * the result is never complete (a document is only as good as what could be checked).
+ *
+ * Problems have a kind: "inconsistent" (the document contradicts its own data or the expectations: refuse it), "failed" (GitHub's
+ * data shows a failure) or "incomplete" (not enough was checked or supplied). passed is false for the first two; complete needs
+ * none of the three. legacy means the verdict has no missing_evidence: it was written before the mandatory log checks existed.
+ */
+export function deriveCi(evidence, trusted = null) {
+  const g = evidence && evidence.github_ci && typeof evidence.github_ci === "object" ? evidence.github_ci : null;
+  const verdict = (evidence && evidence.verdict) || {};
+  const legacy = !Array.isArray(verdict.missing_evidence);
+  const trustedBase = (evidence && evidence.trusted_base) || null;
+  const problems = [];
+  const problem = (code, kind, message) => problems.push({ code, kind, message });
+  const result = { present: false, passed: false, complete: false, legacy, runId: null, conclusion: null, headSha: null, trustBasis: trustBasisOf(trustedBase, g), missing: missingEvidenceOf(trustedBase, g), problems, recordedOnly: [], recomputed: false };
+  if (!g) {
+    problem("EV-NO-GITHUB-DATA", "incomplete", "the evidence holds no GitHub run data");
+    return result;
+  }
   const run = g.workflow_run;
-  const blockingFailed = g.consistency.filter((c) => c.blocking && !c.passed);
-  return {
-    present: true,
-    passed: blockingFailed.length === 0 && run.status === "completed" && run.conclusion === "success",
-    runId: run.id,
-    conclusion: run.conclusion,
-    headSha: run.head_sha,
-  };
+  const jobs = Array.isArray(g.jobs) ? g.jobs : [];
+  const recorded = Array.isArray(g.consistency) ? g.consistency : [];
+  result.present = true;
+  result.runId = run.id;
+  result.conclusion = run.conclusion;
+  result.headSha = run.head_sha;
+
+  const byId = new Map();
+  for (const c of recorded) byId.set(c.id, [...(byId.get(c.id) ?? []), c]);
+  for (const [id, list] of byId) if (list.length > 1) problem("EV-DUPLICATE-CHECK", "inconsistent", `the check ${id} is recorded ${list.length} times`);
+  const entry = (id) => (byId.get(id) ?? [null])[0];
+  const failedIds = recorded.filter((c) => c.blocking && !c.passed).map((c) => c.id);
+  if (failedIds.length) problem("EV-CHECK-FAILED", "failed", `blocking check(s) failed: ${[...new Set(failedIds)].slice(0, 6).join(", ")}`);
+  const runOk = run.status === "completed" && run.conclusion === "success";
+  if (!runOk) problem("EV-RUN-NOT-SUCCESSFUL", "failed", `the run is ${run.status} with conclusion ${run.conclusion}`);
+
+  // re-evaluate what the embedded data decides, with the collector's own check logic and the baseline's expectations
+  if (trusted && trusted.expected) {
+    result.recomputed = true;
+    let embedded = null;
+    try {
+      embedded = coreChecks(run, jobs, g.checks ?? null, trusted.expected);
+    } catch {
+      problem("EV-RECOMPUTE-ERROR", "inconsistent", "the GitHub data inside the evidence cannot be re-evaluated");
+    }
+    for (const c of embedded ?? []) {
+      const rec = entry(c.id);
+      if (!rec) problem("EV-CHECK-ABSENT", "inconsistent", `the check ${c.id} is not recorded`);
+      else if (rec.passed !== c.passed || rec.blocking !== c.blocking) problem("EV-RECOMPUTE-MISMATCH", "inconsistent", `${c.id} is recorded as passed ${rec.passed} (blocking ${rec.blocking}), but the data inside the evidence gives passed ${c.passed} (blocking ${c.blocking})`);
+    }
+    const tp = g.token_permissions;
+    const tokenOk = Boolean(tp && Array.isArray(tp.permissions)) && tp.permissions.every((x) => x.access === "read" && (x.scope === "contents" || x.scope === "metadata"));
+    const tokenRec = entry("log.token_is_read_only");
+    if (tokenRec && tokenRec.passed !== tokenOk) problem("EV-RECOMPUTE-MISMATCH", "inconsistent", `log.token_is_read_only is recorded as passed ${tokenRec.passed}, but the token permissions inside the evidence give passed ${tokenOk}`);
+  } else problem("EV-NOT-RECOMPUTED", "incomplete", trusted ? "the baseline's workflow gives no expectations, so the GitHub data inside the evidence was not re-evaluated" : "no trusted expectations were given, so the GitHub data inside the evidence was not re-evaluated");
+
+  // the mandatory checks must exist, block, and (checked above) pass; the log-structure ones can only be taken as recorded
+  for (const id of MANDATORY_CHECK_IDS) {
+    const rec = entry(id);
+    const earlier = EARLIER_MANDATORY_CHECK_IDS.includes(id);
+    if (!rec) problem(legacy ? "EV-LEGACY-MANDATORY-ABSENT" : "EV-MANDATORY-ABSENT", legacy ? "incomplete" : "inconsistent", legacy ? `evidence of the earlier shape lacks ${id}, which is mandatory today` : `the mandatory check ${id} is not recorded`);
+    else if (!rec.blocking) problem("EV-MANDATORY-NOT-BLOCKING", "inconsistent", `the mandatory check ${id} is recorded as non-blocking`);
+    else if (!earlier) result.recordedOnly.push(id);
+  }
+  if (g.checks === null || g.checks === undefined) problem("EV-INPUT-MISSING", "incomplete", "no check-run data is inside the evidence");
+  if (!g.test_evidence || !g.token_permissions) problem("EV-INPUT-MISSING", "incomplete", "no job-log data (token permissions, test evidence) is inside the evidence");
+  if (!trustedBase) problem("EV-INPUT-MISSING", "incomplete", "the evidence holds no trusted-base section");
+
+  // what the document claims about itself must equal what was derived (a current-shape document); earlier ones are flagged as legacy
+  if (!legacy && JSON.stringify(verdict.missing_evidence) !== JSON.stringify(result.missing)) problem("EV-VERDICT-CLAIM", "inconsistent", `the verdict lists missing evidence ${JSON.stringify(verdict.missing_evidence)}, but ${JSON.stringify(result.missing)} was derived`);
+  if (verdict.ci_trust_basis !== result.trustBasis) problem("EV-TRUST-BASIS", "inconsistent", `the verdict says ${verdict.ci_trust_basis}, but the trusted-base section gives ${result.trustBasis}`);
+  if (trusted && Array.isArray(trusted.changedPaths) && trustedBase && evidence.subject && evidence.subject.base_sha === trusted.baseSha) {
+    const touched = Object.values(ciDefinitionFlagsOf(trusted.changedPaths)).some(Boolean);
+    if (touched && result.trustBasis === "ci_definition_unchanged_from_base") problem("EV-TRUST-BASIS", "inconsistent", "the evidence says CI's definition is unchanged, but the changed paths include a workflow, ops/, policy, schema or build input");
+  }
+
+  result.passed = runOk && !problems.some((p) => p.kind === "inconsistent" || p.kind === "failed");
+  result.complete = result.passed && problems.length === 0 && result.missing.length === 0;
+  if (!legacy && result.recomputed && Boolean(verdict.evidence_complete) !== result.complete) {
+    problem("EV-VERDICT-CLAIM", "inconsistent", `the verdict says evidence_complete ${verdict.evidence_complete}, but ${result.complete} was derived`);
+    result.passed = false;
+    result.complete = false;
+  }
+  return result;
 }
 
 /** The set of paths named by the `diff --git` headers of a patch. */
@@ -194,6 +298,55 @@ function sensitiveProblems(files, policy) {
   return problems;
 }
 
+/* ---------------------------------------------------------------- the baseline */
+
+const decisionRecorded = (decisionsText, id) => new RegExp(`^### ${id}( |$)`, "m").test(decisionsText ?? "");
+
+/**
+ * How the trusted baseline relates to the work under review (OPS-0006). A baseline is independent verification only if it is an
+ * ancestor of the head and none of the reviewed code is already in it. The approved task definition must be in it (the builder
+ * refuses otherwise); here we also record whether the base holds the same definition and whether the evidence's trusted-base check
+ * could judge the task's scope from it.
+ */
+function baselineAssessment({ repoDir, baselineSha, baseSha, headSha, changed, taskPath, taskBlob, evidence }) {
+  const isAncestor = (a, b) => {
+    try {
+      git(repoDir, ["merge-base", "--is-ancestor", a, b]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  let relation = "unrelated";
+  if (baselineSha === headSha) relation = "is_head";
+  else if (isAncestor(baselineSha, headSha)) relation = "ancestor_of_head";
+  else if (isAncestor(headSha, baselineSha)) relation = "descends_from_head";
+  let inBaseline = 0;
+  for (const c of changed) {
+    if (c.path === taskPath) continue;
+    const atHead = readBlobAtRevision(repoDir, headSha, c.path);
+    const atBaseline = readBlobAtRevision(repoDir, baselineSha, c.path);
+    if (atHead !== null && atBaseline !== null) {
+      if (Buffer.compare(atHead, atBaseline) === 0) inBaseline += 1;
+    } else if (atHead === null && atBaseline === null && readBlobAtRevision(repoDir, baseSha, c.path) !== null) inBaseline += 1; // the deletion is already in the baseline
+  }
+  const baseBlob = readBlobAtRevision(repoDir, baseSha, taskPath);
+  const tb = evidence && evidence.trusted_base;
+  const reasons = [];
+  if (relation === "is_head") reasons.push("the baseline is the commit under review");
+  else if (relation === "descends_from_head") reasons.push("the baseline descends from the reviewed head, so it contains the code under review");
+  else if (relation === "unrelated") reasons.push("the baseline is not an ancestor of the head, so it does not predate the work");
+  if (inBaseline > 0) reasons.push(`${inBaseline} reviewed path(s) already have the reviewed content in the baseline`);
+  return {
+    relation_to_head: relation,
+    reviewed_paths_in_baseline: inBaseline,
+    base_has_task_file: baseBlob !== null && Buffer.compare(baseBlob, taskBlob) === 0,
+    scope_established_by_evidence: Boolean(tb && tb.task_scope && tb.task_scope.source === "base_revision"),
+    independent: relation === "ancestor_of_head" && inBaseline === 0,
+    reasons,
+  };
+}
+
 /* ---------------------------------------------------------------------- build */
 
 /**
@@ -208,8 +361,9 @@ function sensitiveProblems(files, policy) {
  * @param {string} o.evidenceFile  a CI evidence document (ops/ci-evidence.mjs output)
  * @param {string} o.outDir      a directory that does not exist yet
  * @param {string} [o.toolRoot]  the checkout this tool runs from; it must be the baseline
+ * @param {string|null} [o.baselineException]  a decision (HD-nnnn) that records why a baseline that is not independent is accepted
  */
-export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, evidenceFile, outDir, toolRoot = DEFAULT_ROOT }) {
+export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, evidenceFile, outDir, toolRoot = DEFAULT_ROOT, baselineException = null }) {
   need(isTaskId(taskId), "PK-ARGS", "task must look like OPS-0003 or OPS-0005B");
   need(isAttemptId(attemptId) && taskIdOfAttempt(attemptId) === taskId, "PK-ARGS", "attempt must look like OPS-0003-a1 and belong to the task");
   need(typeof outDir === "string" && outDir !== "", "PK-ARGS", "an output directory is required");
@@ -301,10 +455,25 @@ export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, 
   const evidenceSchema = validate(tool.schemas.evidence, evidence);
   need(evidenceSchema.valid, "PK-EVIDENCE", `the CI evidence does not match its schema: ${evidenceSchema.errors[0]}`);
   need(evidence.subject.head_sha === headSha, "PK-EVIDENCE", "the CI evidence is about a different commit than the head");
-  const ci = deriveCi(evidence);
+  // completeness and the CI facts are DERIVED here from the data inside the evidence and the baseline's expectations; the verdict
+  // the document states about itself is only compared with them, never believed (OPS-0006)
+  const ci = deriveCi(evidence, { expected: trustedExpectations(tool, headSha, evidence.repository), changedPaths: paths, baseSha });
   need(ci.present, "PK-EVIDENCE", "the CI evidence holds no GitHub run data");
   need(ci.headSha === headSha, "PK-EVIDENCE", "the GitHub run in the evidence was for a different commit than the head");
+  const inconsistent = ci.problems.filter((p) => p.kind === "inconsistent");
+  need(inconsistent.length === 0, "PK-EVIDENCE", `the CI evidence contradicts its own data or the baseline's expectations: ${inconsistent.slice(0, 3).map((p) => p.message).join("; ")}`);
   need(evidence.verdict.ci_passed === ci.passed, "PK-EVIDENCE", "the evidence's own verdict disagrees with its consistency checks");
+
+  // the baseline must predate the work and hold the approved task; a weaker one is refused unless an exception is recorded
+  const bl = baselineAssessment({ repoDir, baselineSha, baseSha, headSha, changed, taskPath: taskNames[0], taskBlob, evidence });
+  let exception = null;
+  if (baselineException !== null && baselineException !== undefined) {
+    need(/^HD-[0-9]{4}$/.test(baselineException), "PK-BASELINE-EXCEPTION", "a baseline exception must name a human decision such as HD-0017");
+    need(!bl.independent, "PK-BASELINE-EXCEPTION", "the baseline is independent, so no exception is needed or allowed");
+    need(decisionRecorded(tool.humanDecisionsText, baselineException), "PK-BASELINE-EXCEPTION", `${baselineException} is not in the baseline's decision log`);
+    exception = { approval_reference: baselineException, reasons: bl.reasons.slice(0, 6) };
+  }
+  need(bl.independent || exception !== null, "PK-BASELINE-NOT-INDEPENDENT", `the baseline is not independent (${bl.reasons.join("; ")}), so a review from it is not independent verification. Use a baseline that predates the work and holds the approved task definition, or record an explicit exception with a decision`);
 
   // 6. assemble, scan, write
   const files = new Map();
@@ -331,8 +500,12 @@ export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, 
     tool: PACKET_TOOL,
     trust: { authenticated: false, note: "A manifest cannot prove who built it. Build the packet yourself from a checkout of the baseline, check it with the verify command, and never accept a packet built by the branch under review." },
     subject: { task_id: taskId, attempt_id: attemptId, branch: null, base_sha: baseSha, head_sha: headSha, merge_base_sha: mergeBase, report_head_sha: reportHead },
-    trusted_baseline: { commit: baselineSha, policy_version: tool.policy.policy_version, prompt_version: prompt.version, task_file_matches_head: taskMatchesHead },
-    ci: { run_id: ci.runId, conclusion: ci.conclusion, ci_passed: ci.passed, ci_trust_basis: evidence.verdict.ci_trust_basis, evidence_complete: evidence.verdict.evidence_complete },
+    trusted_baseline: {
+      commit: baselineSha, policy_version: tool.policy.policy_version, prompt_version: prompt.version, task_file_matches_head: taskMatchesHead,
+      relation_to_head: bl.relation_to_head, reviewed_paths_in_baseline: bl.reviewed_paths_in_baseline, base_has_task_file: bl.base_has_task_file,
+      scope_established_by_evidence: bl.scope_established_by_evidence, independent: bl.independent, exception,
+    },
+    ci: { run_id: ci.runId, conclusion: ci.conclusion, ci_passed: ci.passed, ci_trust_basis: ci.trustBasis, evidence_complete: ci.complete, evidence_legacy: ci.legacy },
     change: { files_changed: totals.files, additions: totals.additions, deletions: totals.deletions, diff_bytes: diffBuf.length },
     files: LAYOUT.map((spec) => ({ path: spec.path, role: spec.role, trust: spec.trust, sha256: sha256(files.get(spec.path)), bytes: files.get(spec.path).length })),
     indicators: indicatorList(files),
@@ -502,16 +675,21 @@ export function verifyPacket(packetDir, { toolRoot = DEFAULT_ROOT, expectBaselin
   if (!same) err("PK-DIFF-FILES", "the files in diff.patch are not exactly the files in changed-files.json");
 
   // the CI evidence: schema, commit, and a verdict that its own data supports
+  let ciAssessment = null;
   const es = validate(tool.schemas.evidence, parsed.ci_evidence);
   if (!es.valid) err("PK-EVIDENCE", `trusted/ci-evidence.json does not match its schema: ${es.errors[0]}`);
   else {
-    const ci = deriveCi(parsed.ci_evidence);
+    // derived from the data inside the evidence, the changed paths computed above and the baseline's own workflow; the document's
+    // verdict is only compared with the derivation
+    const ci = deriveCi(parsed.ci_evidence, { expected: trustedExpectations(tool, manifest.subject.head_sha, parsed.ci_evidence.repository), changedPaths: paths, baseSha: manifest.subject.base_sha });
+    ciAssessment = ci;
     if (parsed.ci_evidence.subject.head_sha !== manifest.subject.head_sha) err("PK-EVIDENCE", "the CI evidence is about another commit than the packet's head");
     if (!ci.present) err("PK-EVIDENCE", "the CI evidence holds no GitHub run data");
     else {
       if (ci.headSha !== manifest.subject.head_sha) err("PK-EVIDENCE", "the GitHub run in the evidence was for another commit than the packet's head");
+      for (const p of ci.problems.filter((x) => x.kind === "inconsistent")) err("PK-EVIDENCE-INCONSISTENT", p.message);
       if (parsed.ci_evidence.verdict.ci_passed !== ci.passed) err("PK-EVIDENCE-INCONSISTENT", "the evidence's verdict says one thing and its own consistency checks say another");
-      if (manifest.ci.ci_passed !== ci.passed || manifest.ci.run_id !== ci.runId || manifest.ci.conclusion !== ci.conclusion || manifest.ci.ci_trust_basis !== parsed.ci_evidence.verdict.ci_trust_basis || manifest.ci.evidence_complete !== parsed.ci_evidence.verdict.evidence_complete) err("PK-EVIDENCE-INCONSISTENT", "the manifest's CI summary does not match the evidence");
+      if (manifest.ci.ci_passed !== ci.passed || manifest.ci.run_id !== ci.runId || manifest.ci.conclusion !== ci.conclusion || manifest.ci.ci_trust_basis !== ci.trustBasis || manifest.ci.evidence_complete !== ci.complete || manifest.ci.evidence_legacy !== ci.legacy) err("PK-EVIDENCE-INCONSISTENT", "the manifest's CI summary does not match what is derived from the evidence");
     }
   }
 
@@ -525,6 +703,16 @@ export function verifyPacket(packetDir, { toolRoot = DEFAULT_ROOT, expectBaselin
   for (const p of sensitiveProblems(files, parsed.policy)) err(p.code, p.message);
   if (JSON.stringify(indicatorList(files)) !== JSON.stringify(manifest.indicators)) err("PK-INDICATORS", "the manifest's instruction-like-text counts do not match the files");
 
+  // the baseline's claims must agree with each other (the builder computed them from git; a verifier without the repository cannot)
+  const tbm = manifest.trusted_baseline;
+  if (tbm.independent !== (tbm.relation_to_head === "ancestor_of_head" && tbm.reviewed_paths_in_baseline === 0)) err("PK-BASELINE-INCONSISTENT", "the manifest calls the baseline independent or not independent against its own relation and path count");
+  if (tbm.exception !== null) {
+    if (tbm.independent) err("PK-BASELINE-INCONSISTENT", "the manifest records a baseline exception for an independent baseline");
+    if (!decisionRecorded(tool.humanDecisionsText, tbm.exception.approval_reference)) err("PK-BASELINE-EXCEPTION", `${tbm.exception.approval_reference} is not in this checkout's decision log`);
+  }
+  const evidenceTb = parsed.ci_evidence && parsed.ci_evidence.trusted_base;
+  if (tbm.scope_established_by_evidence !== Boolean(evidenceTb && evidenceTb.task_scope && evidenceTb.task_scope.source === "base_revision")) err("PK-BASELINE-INCONSISTENT", "the manifest's scope claim does not match the evidence's trusted-base section");
+
   if (errors.length) return fail();
-  return { ok: true, errors, manifest, data: { policy: parsed.policy, task: parsedTask.data, taskBody: parsedTask.body, report: parsed.run_report, evidence: parsed.ci_evidence, changedFiles: cf, commits: parsed.commits, classification: cls, tool } };
+  return { ok: true, errors, manifest, data: { policy: parsed.policy, task: parsedTask.data, taskBody: parsedTask.body, report: parsed.run_report, evidence: parsed.ci_evidence, ci: ciAssessment, changedFiles: cf, commits: parsed.commits, classification: cls, tool } };
 }

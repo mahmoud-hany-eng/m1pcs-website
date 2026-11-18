@@ -121,13 +121,83 @@
         "task_file_matches_head": {
           "type": "boolean",
           "description": "Whether the task file at the head is byte-identical to the baseline's (a worker may not redefine its own task)."
+        },
+        "relation_to_head": {
+          "type": "string",
+          "enum": [
+            "ancestor_of_head",
+            "is_head",
+            "descends_from_head",
+            "unrelated"
+          ],
+          "description": "How the baseline commit relates to the head under review. Only ancestor_of_head predates the implementation; the others mean the baseline is, contains, or has nothing to do with the reviewed code."
+        },
+        "reviewed_paths_in_baseline": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many of the reviewed changed paths (other than the task definition) already have the reviewed content in the baseline. Anything above zero means the baseline contains part of the code under review."
+        },
+        "base_has_task_file": {
+          "type": "boolean",
+          "description": "Whether the revision the change starts from holds the same task definition as the baseline, so that the trusted-base check could judge the task's scope from it."
+        },
+        "scope_established_by_evidence": {
+          "type": "boolean",
+          "description": "Whether the CI evidence's trusted-base section judged the task's scope against a task file recorded in the base revision. False means the gate's own scope check is the only one."
+        },
+        "independent": {
+          "type": "boolean",
+          "description": "True only when the baseline is an ancestor of the head and none of the reviewed code is in it. A packet whose baseline is not independent is not independent verification, whatever its other checks say."
+        },
+        "exception": {
+          "description": "Set when a baseline that is not independent was accepted on purpose.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "No exception: the baseline is independent."
+            },
+            {
+              "type": "object",
+              "description": "The recorded exception.",
+              "properties": {
+                "approval_reference": {
+                  "type": "string",
+                  "pattern": "^HD-[0-9]{4}$",
+                  "description": "A human decision in the baseline's decision log that records the exception."
+                },
+                "reasons": {
+                  "type": "array",
+                  "description": "Why the baseline is not independent.",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 300,
+                    "description": "A reason."
+                  },
+                  "minItems": 1,
+                  "maxItems": 6
+                }
+              },
+              "required": [
+                "approval_reference",
+                "reasons"
+              ],
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "required": [
         "commit",
         "policy_version",
         "prompt_version",
-        "task_file_matches_head"
+        "task_file_matches_head",
+        "relation_to_head",
+        "reviewed_paths_in_baseline",
+        "base_has_task_file",
+        "scope_established_by_evidence",
+        "independent",
+        "exception"
       ],
       "additionalProperties": false
     },
@@ -156,7 +226,7 @@
         },
         "ci_passed": {
           "type": "boolean",
-          "description": "Every blocking consistency check held and the run succeeded."
+          "description": "Derived by the packet tool, never copied from the evidence's verdict."
         },
         "ci_trust_basis": {
           "type": "string",
@@ -170,7 +240,11 @@
         },
         "evidence_complete": {
           "type": "boolean",
-          "description": "The evidence has both the trusted-base section and the GitHub data."
+          "description": "Derived by the packet tool from the evidence's own data and the baseline's expectations, never copied from the evidence's verdict."
+        },
+        "evidence_legacy": {
+          "type": "boolean",
+          "description": "True when the evidence is of the earlier shape, written before the mandatory log checks existed. Such evidence is never complete."
         }
       },
       "required": [
@@ -178,7 +252,8 @@
         "conclusion",
         "ci_passed",
         "ci_trust_basis",
-        "evidence_complete"
+        "evidence_complete",
+        "evidence_legacy"
       ],
       "additionalProperties": false
     },
