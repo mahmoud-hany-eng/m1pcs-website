@@ -1,0 +1,372 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0006",
+  "attempt_id": "OPS-0006-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0006-consumer-integrity",
+  "base_branch": "claude/ops-0005b-evidence-hardening",
+  "base_sha": "1243d896348a42a92af07a1ea345ee72b2657e4b",
+  "head_sha": "ae1297b03571464589a927080c66c9b6ded666b9",
+  "started_at": "2026-11-18T01:30:00Z",
+  "finished_at": "2026-11-18T02:12:00Z",
+  "outcome": "completed",
+  "summary": "The packet builder, the packet verifier and the decision gate now derive CI-evidence completeness and the trust basis themselves, from the GitHub data inside the evidence and the baseline's own workflow and policy, instead of reading evidence_complete, ci_passed and the trust basis from the document. A forged verdict cannot hide missing check-run or job-log validation, a document that contradicts its own data is refused, and earlier-shaped (legacy) evidence parses but is flagged and cannot qualify. Task ids accept one optional capital letter (OPS-0005B) with the matching lower-case branch letter, defined once in ops/lib/ids.mjs and carried by four schemas and four readers, with a consistency test. A baseline that is the reviewed head, descends from it, or already contains reviewed content is refused unless an exception names an existing decision, and the manifest and the gate say whether a baseline is independent. The pre-implementation baseline is cc0476484c002c41c3f6cc24310810655f887cf8: a commit that contains only the schema-valid task definition. Nothing was pushed, merged or deployed. HUMAN_DECISIONS.md, the OPS-0005B records and every forbidden path are unchanged.",
+  "commits": [
+    {
+      "sha": "cc0476484c002c41c3f6cc24310810655f887cf8",
+      "subject": "OPS-0006: record the schema-valid task definition and acceptance criteria (review baseline)"
+    },
+    {
+      "sha": "cd724880fbfd6f4797469d4e82c8a50d00dfe292",
+      "subject": "OPS-0006: accept one optional uppercase letter on task ids, with the matching branch"
+    },
+    {
+      "sha": "b898d81c4db517d1b17661da6f2e3b2606794678",
+      "subject": "OPS-0006: consumers derive evidence completeness themselves; baseline checks"
+    },
+    {
+      "sha": "5839615db0197244e383df7802c62ac670293822",
+      "subject": "OPS-0006: tests for forged evidence, legacy evidence and review baselines"
+    },
+    {
+      "sha": "84a52b27526b2497b54f0ad8566abda46cac14c1",
+      "subject": "OPS-0006: document consumer derivation, legacy evidence, baseline checks and the M1 platform recommendation"
+    },
+    {
+      "sha": "68929166b0da5fb170061d34078b1e8a46a49363",
+      "subject": "OPS-0006 tests: forged evidence that deletes non-mandatory core checks is refused"
+    },
+    {
+      "sha": "ae1297b03571464589a927080c66c9b6ded666b9",
+      "subject": "OPS-0006: close two test gaps found by mutation testing; record test and mutation results"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "docs/project-memory/architecture/CI_EVIDENCE.md",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/architecture/REVIEW_PACKET.md",
+      "change_type": "modified",
+      "additions": 15,
+      "deletions": 5
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 25,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/schemas/review-decision.schema.json",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/schemas/review-packet-manifest.schema.json",
+      "change_type": "modified",
+      "additions": 83,
+      "deletions": 8
+    },
+    {
+      "path": "docs/project-memory/schemas/run-report.schema.json",
+      "change_type": "modified",
+      "additions": 5,
+      "deletions": 5
+    },
+    {
+      "path": "docs/project-memory/schemas/task.schema.json",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0006-consumer-integrity.md",
+      "change_type": "added",
+      "additions": 240,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/ci-evidence.mjs",
+      "change_type": "modified",
+      "additions": 33,
+      "deletions": 15
+    },
+    {
+      "path": "ops/lib/decision-gate.mjs",
+      "change_type": "modified",
+      "additions": 27,
+      "deletions": 9
+    },
+    {
+      "path": "ops/lib/ids.mjs",
+      "change_type": "added",
+      "additions": 46,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/review-packet.mjs",
+      "change_type": "modified",
+      "additions": 212,
+      "deletions": 23
+    },
+    {
+      "path": "ops/lib/trusted-base.mjs",
+      "change_type": "modified",
+      "additions": 22,
+      "deletions": 6
+    },
+    {
+      "path": "ops/review-packet.mjs",
+      "change_type": "modified",
+      "additions": 9,
+      "deletions": 3
+    },
+    {
+      "path": "ops/tests/baseline-checks.test.mjs",
+      "change_type": "added",
+      "additions": 160,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/evidence-consumers.test.mjs",
+      "change_type": "added",
+      "additions": 253,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/identifiers.test.mjs",
+      "change_type": "added",
+      "additions": 265,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/real-evidence.test.mjs",
+      "change_type": "modified",
+      "additions": 19,
+      "deletions": 8
+    },
+    {
+      "path": "ops/tests/review-fixture.mjs",
+      "change_type": "modified",
+      "additions": 12,
+      "deletions": 10
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 2
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "install-clean-env",
+      "command": "npm ci --ignore-scripts --no-audit --no-fund",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 11.0,
+      "output_excerpt": "added 385 packages in 11s\nnpm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.",
+      "output_sha256": "a3144e5c10cf698a443a850cbe7ed40e427b8d622af614290e4c9543ab47ec15",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run."
+    },
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 4.6,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 5.0,
+      "output_excerpt": "(no output)",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.2,
+      "output_excerpt": "\nM1 project-memory validation (root: <local scratch directory>/sim/tree)\nWARNING [TASK-UNAPPROVED] docs/project-memory/tasks/OPS-0006-consumer-integrity.md\n          class B task without approval_reference: it is a proposal and must not be run until a human approval is recorded\nOK: checked 143 file(s); 1 warning(s).",
+      "output_sha256": "a4e7af00978225ae411b851755ae4a5c08725cbeb593257bd1a5e3d29ec656c5",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run. One expected warning: TASK-UNAPPROVED (the task has no approval_reference; it is a worker-created proposal)."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 38.7,
+      "output_excerpt": "1..296\n# tests 540\n# suites 0\n# pass 540\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 38532.098908",
+      "output_sha256": "c08e82f6fdfa7a31a891bc00506d529a1ec9cc18fccb87d179c0d5661b5b78d1",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run. 540 tests: the 490 of OPS-0005B and 50 new ones."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 33.8,
+      "output_excerpt": "r data. Set these before going live.\n[m1-config] NEXT_PUBLIC_SITE_URL is not set — falling back to https://monepcs.qa for canonical, sitemap and Open Graph URLs. Set it on the Vercel Production environment to the exact live origin.\n[m1-config] Missing environment variable(s): NEXT_PUBLIC_WHATSAPP_NUMBER, NEXT_PUBLIC_CONTACT_EMAIL, NEXT_PUBLIC_CONTACT_PHONE — the corresponding contact UI will be hidden rather than show placeholder data. Set these before going live.\n[m1-config] NEXT_PUBLIC_SITE_URL is not set — falling back to https://monepcs.qa for canonical, sitemap and Open Graph URLs. Set it on the Vercel Production environment to the exact live origin.\n[m1-config] Missing environment variable(s): NEXT_PUBLIC_WHATSAPP_NUMBER, NEXT_PUBLIC_CONTACT_EMAIL, NEXT_PUBLIC_CONTACT_PHONE — the corresponding contact UI will be hidden rather than show placeholder data. Set these before going live.",
+      "output_sha256": "8765361c7cb61b0b664b657ef23133d465418b65d53cbcdac3bb80991aa8c7d4",
+      "notes": "Run by a local simulation of .github/workflows/ci.yml's steps, in a clean git export of the last work commit with an otherwise empty environment (PATH, a private HOME, CI=true, LANG and proxy/CA settings only; no token). It is NOT a GitHub Actions run. The build prints the usual missing-environment-variable notices; they are the same as in CI."
+    },
+    {
+      "check_id": "mutation-targeted",
+      "command": "python3 mutate.py (scratch, not committed): 34 weakenings of the new rules, one at a time, in a copy of the final tree",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 501.0,
+      "output_excerpt": "killed 31 of 34 on the first run. Survivors: E02 (a missing non-mandatory core check is ignored), E13 (the verifier ignores inconsistent evidence), E16 (the gate reads the trust basis from the verdict).",
+      "output_sha256": "168bb3152e97b3457add628d7ca3cfb4eb34869dad28d8a65d908cc009795537",
+      "notes": "Local simulation. E02 and E13 were real gaps in the tests: two tests were added (see mutation-recheck). E16 is an equivalent mutant: the verifier, which the gate runs first, already rejects a verdict that differs from the derivation."
+    },
+    {
+      "check_id": "mutation-recheck",
+      "command": "python3 recheck.py (scratch): E02 and E13 against the strengthened consumer tests, with an unmutated control",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 60.0,
+      "output_excerpt": "CONTROL (unmutated): pass\nKILLED   E02 a missing core check is ignored | forged evidence is refused by the packet builder: checks that are not mandatory but are de\nKILLED   E13 the verifier ignores inconsistent evidence | the verifier names each contradiction the derivation finds, even when the document and the",
+      "output_sha256": "0be8fc3e80e0ad934b0840402530185711fe1099d5d76e050cc4009dbc385f88",
+      "notes": "Local simulation. After the two tests were added, 33 of 34 weakenings are caught and 1 is an equivalent mutant."
+    },
+    {
+      "check_id": "real-evidence-regression",
+      "command": "bash real-regression.sh (scratch): the real, unmodified GitHub data of run 44082419253 and the original OPS-0005 reviewer decision, through the final tools",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 2.0,
+      "output_excerpt": "No exception: PK-BASELINE-NOT-INDEPENDENT (exit 2). With HD-0017: builds, recorded as not independent. Original OPS-0005 decision: REQUIRES_CORRECTIONS (DG-EVIDENCE-NOT-COMPLETE, legacy evidence), human_approval_required true, reviewer_approval_is_binding false, automation all false. Evidence collected again from the same real data: complete, not legacy.",
+      "output_sha256": "966aaff788969c7c8781c30e303f11def758e8cafc9df622b3d07a6088431caf",
+      "notes": "Uses stored real GitHub responses, not a new GitHub Actions run. Nothing in this branch has run on GitHub."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "policy_or_schema",
+      "tests_only",
+      "docs_only"
+    ],
+    "rationale": "The work changes the review control plane (the packet builder, verifier and decision gate), four schemas and the tests that guard them, so policy computes class B and every changed path is protected. It adds no write capability, no workflow, no secret, no dependency and no website file; it only makes the consumers stricter."
+  },
+  "protected_paths_touched": [
+    "docs/project-memory/architecture/CI_EVIDENCE.md",
+    "docs/project-memory/architecture/REVIEW_PACKET.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/review-decision.schema.json",
+    "docs/project-memory/schemas/review-packet-manifest.schema.json",
+    "docs/project-memory/schemas/run-report.schema.json",
+    "docs/project-memory/schemas/task.schema.json",
+    "docs/project-memory/tasks/OPS-0006-consumer-integrity.md",
+    "ops/lib/ci-evidence.mjs",
+    "ops/lib/decision-gate.mjs",
+    "ops/lib/ids.mjs",
+    "ops/lib/review-packet.mjs",
+    "ops/lib/trusted-base.mjs",
+    "ops/review-packet.mjs",
+    "ops/tests/baseline-checks.test.mjs",
+    "ops/tests/evidence-consumers.test.mjs",
+    "ops/tests/identifiers.test.mjs",
+    "ops/tests/real-evidence.test.mjs",
+    "ops/tests/review-fixture.mjs",
+    "ops/validate-memory.mjs"
+  ],
+  "deviations": [
+    {
+      "description": "Two OPS-0005B tests (in ops/tests/real-evidence.test.mjs) were changed on purpose: one expected a legacy-shaped document to give the same gate result as a current one, the other expected deriveCi to equal the document's own verdict.",
+      "reason": "Both encoded the behaviour this task supersedes (a document's claims about itself were accepted). They are inside the task's allowed paths and the change is listed in REVIEW_PACKET.md."
+    },
+    {
+      "description": "The OPS-0005B task definition and run record were not converted to schema-valid files. They are still Markdown: roadmap/OPS-0005B-TASK.md and runs/OPS-0005B/OPS-0005B-a1/RUN-RECORD.md.",
+      "reason": "The task forbids silently modifying the OPS-0005B report and rewriting history. A normalisation was demonstrated only in a scratch copy; the proposed method is in the final report."
+    },
+    {
+      "description": "The task's approval_reference is null, so ops:validate prints the warning TASK-UNAPPROVED.",
+      "reason": "The owner's message authorised a local Class B implementation, but no HD record exists, and the task file may not be used to expand the worker's own permissions. A person records the decision."
+    },
+    {
+      "description": "The mutation run is a scratch tool and is not committed.",
+      "reason": "Consistent with earlier tasks: the list of weakenings and results are in the run report and REVIEW_PACKET.md."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "An evidence file is still an unauthenticated document. The consumers derive what they can from the GitHub data inside it, but cannot recompute the three log-structure checks (they are required as recorded and named). A forger who invents a self-consistent document with fabricated GitHub data passes every offline check; only fetching the data from GitHub and rebuilding the packet to compare its hash closes this (OQ-0035)."
+    },
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "Nothing on this branch or on the OPS-0005B branch has run on GitHub Actions or been reviewed by an independent session. The clean-environment results are local simulations."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The baseline's relation to the work is computed by the builder from git; a verifier without the repository can check that the claims agree with each other and with the evidence but cannot repeat the computation. The gate cannot judge whether an exception is justified, only that the named decision exists."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The derivation takes its expectations from the baseline's workflow. Evidence collected against another workflow (CI changed between the base and the baseline) fails closed and a person looks."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The original OPS-0003 packet's gate result changes from the earlier outcome to requires-corrections because its evidence is of the earlier shape; the original OPS-0005 reviewer decision stays advisory (human approval required, never binding, automation all false)."
+    },
+    {
+      "severity": "info",
+      "category": "other",
+      "description": "A mode-only change (100644 to 100755) to creative/motion-ad/scripts/deliver-v8.sh exists in the claude-dev working tree from 2026-11-01. It predates this task and was not touched."
+    }
+  ],
+  "assumptions": [
+    "started_at is approximate: the first commit of the branch (the baseline) is at 2026-11-18T01:36:47Z; finished_at is when the report was written.",
+    "The pre-implementation baseline is cc0476484c002c41c3f6cc24310810655f887cf8, the first commit above the OPS-0005B tip 1243d89; it changes one file, the task definition.",
+    "Every OPS-0006 test other than the two OPS-0005B tests named in the deviations is new; the suite has 540 tests (490 + 50).",
+    "The clean-environment simulation, the mutation run and the real-data regression are local; they are not GitHub Actions runs and do not replace one.",
+    "base_sha is the OPS-0005B tip the branch was created from, not the pre-implementation baseline."
+  ],
+  "questions_for_human": [
+    "Do you authorize one normal push of exactly claude/ops-0005b-evidence-hardening and claude/ops-0006-consumer-integrity so the CI workflow runs on them (no merge, no deploy)?",
+    "Do you want an HD record for OPS-0006 (it clears TASK-UNAPPROVED), and, for the historical OPS-0005B records, the scratch normalisation applied as a new, clearly labelled transcription commit?",
+    "OQ-0030 (branch rules) and OQ-0035 (authenticated evidence) remain open; do you want them answered before the first live CI check?"
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "Local work is complete and verified locally. An independent review of OPS-0005B and OPS-0006 against their distinct baselines (00b987c and cc04764) and a live CI check on both branches, which needs an explicit push approval from the owner, are the next steps. No further implementation is recommended before those.",
+    "suggested_next_task_title": "OPS-0007: live CI check and independent review of OPS-0005B and OPS-0006 (no new features)"
+  }
+}
