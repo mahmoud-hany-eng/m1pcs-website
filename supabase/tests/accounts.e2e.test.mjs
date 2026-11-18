@@ -460,6 +460,32 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       await withoutPrivateData("payments");
     });
 
+    it("on a phone no account page scrolls sideways, and every price on an order is on screen", async () => {
+      const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      const phonePage = await phone.newPage();
+      await signInOk(phonePage, emu.users.alice);
+      const paths = ["/account", "/account/orders", `/account/orders/${aliceOpen()}`, `/account/orders/${aliceDelivered()}`, `/account/orders/${aliceCancelled()}`, "/account/payments", "/account/loyalty", "/account/profile", "/account/claim"];
+      for (const path of paths) {
+        await phonePage.goto(`${on.base}${path}`);
+        await text(phonePage);
+        const { scroll, width } = await phonePage.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth }));
+        assert.ok(scroll <= width + 1, `${path} is ${scroll}px wide on a ${width}px screen`);
+      }
+      // The line totals, not just the descriptions, are inside the visible screen.
+      await phonePage.goto(`${on.base}/account/orders/${aliceDelivered()}`);
+      await text(phonePage);
+      const hidden = await phonePage.evaluate(() => {
+        const out = [];
+        for (const element of document.querySelectorAll("main li p, main td")) {
+          const box = element.getBoundingClientRect();
+          if (box.width > 0 && box.right > window.innerWidth + 1) out.push(element.textContent.trim().slice(0, 40));
+        }
+        return out;
+      });
+      assert.deepEqual(hidden, [], "nothing in the order is pushed off the right edge");
+      await phone.close();
+    });
+
     it("another customer's order is not found, and looks exactly like an order that does not exist", async () => {
       await page.goto(`${on.base}/account/orders/${refs["Bob Test:pending_confirmation"]}`);
       const others = await text(page);

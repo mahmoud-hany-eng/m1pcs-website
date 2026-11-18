@@ -71,28 +71,44 @@ export function MoneySummary({ order }: { order: OrderSummaryView }) {
 export function ItemsTable({ items }: { items: OrderItemView[] }) {
   if (items.length === 0) return <p className="text-sm text-text-secondary">The items on this order have not been listed yet.</p>;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[28rem] text-left text-sm">
-        <thead className="text-xs uppercase tracking-[0.14em] text-text-muted">
-          <tr>
-            <th className="pb-2 font-semibold">Item</th>
-            <th className="pb-2 text-right font-semibold">Qty</th>
-            <th className="pb-2 text-right font-semibold">Unit price</th>
-            <th className="pb-2 text-right font-semibold">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => (
-            <tr key={`${item.description}-${index}`} className="border-t border-border align-top">
-              <td className="py-3 pr-3 text-white">{item.description}</td>
-              <td className="py-3 text-right text-text-secondary">{item.quantity}</td>
-              <td className="py-3 text-right text-text-secondary">{item.unitPrice}</td>
-              <td className="py-3 text-right font-semibold text-white">{item.lineTotal}</td>
+    <>
+      {/* On a phone each item is a short stacked row, so the price is never off-screen; the table is for wider screens. */}
+      <ul className="flex flex-col divide-y divide-border sm:hidden">
+        {items.map((item, index) => (
+          <li key={`${item.description}-${index}`} className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+            <div className="min-w-0">
+              <p className="text-sm text-white">{item.description}</p>
+              <p className="text-xs text-text-secondary">
+                {item.quantity} × {item.unitPrice}
+              </p>
+            </div>
+            <p className="shrink-0 text-sm font-semibold text-white">{item.lineTotal}</p>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[28rem] text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.14em] text-text-muted">
+            <tr>
+              <th className="pb-2 font-semibold">Item</th>
+              <th className="pb-2 text-right font-semibold">Qty</th>
+              <th className="pb-2 text-right font-semibold">Unit price</th>
+              <th className="pb-2 text-right font-semibold">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {items.map((item, index) => (
+              <tr key={`${item.description}-${index}`} className="border-t border-border align-top">
+                <td className="py-3 pr-3 text-white">{item.description}</td>
+                <td className="py-3 text-right text-text-secondary">{item.quantity}</td>
+                <td className="py-3 text-right text-text-secondary">{item.unitPrice}</td>
+                <td className="py-3 text-right font-semibold text-white">{item.lineTotal}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
