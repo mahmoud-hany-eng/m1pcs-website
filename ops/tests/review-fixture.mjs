@@ -117,7 +117,7 @@ export function makeWorld({
   const policy = JSON.parse(repo.read("docs/project-memory/policy/policy.json"));
   const expected = expectationsFromWorkflow(repo.read(".github/workflows/ci.yml"), policy, { repository: "owner/name", headSha, branch: null });
   const githubCi = buildGithubCi({ run: live.run, jobs: live.jobs, checkRuns: live.checks, jobLog: live.log, expected });
-  const trustedBase = trustedBaseCheck({ repoDir: repo.dir, base: baselineSha, head: headSha });
+  const trustedBase = trustedBaseCheck({ repoDir: repo.dir, base: baselineSha, head: headSha, taskId });
   const evidence = buildEvidenceDocument({ repository: "owner/name", headSha, baseSha: baselineSha, trustedBase, githubCi, collector: { tool: "ops/ci-evidence.mjs", tool_source: "working_tree", role: "human" }, now: new Date("2026-01-02T03:04:05Z") });
   evidenceMutate(evidence);
   const evidenceFile = path.join(tmp(), "ci-evidence.json");

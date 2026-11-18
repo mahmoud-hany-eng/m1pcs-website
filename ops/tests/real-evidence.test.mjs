@@ -66,7 +66,12 @@ test("a new document built from the real data equals the stored one except for t
   delete normalised.verdict.missing_evidence;
   normalised.github_ci = withoutAdditions(normalised.github_ci);
   assert.deepEqual(normalised, stored, "nothing else changed: the new collector reaches the same conclusions on the same real data");
-  assert.deepEqual(deriveCi(fresh), deriveCi(stored), "the packet builder's own derivation agrees on old and new documents");
+  // OPS-0006: the consumers derive completeness themselves, so the earlier document is now flagged as legacy and incomplete while
+  // the new one is not; what GitHub's data says (passed, run, commit) is the same for both
+  const fresher = deriveCi(fresh);
+  const older = deriveCi(stored);
+  for (const key of ["present", "passed", "runId", "conclusion", "headSha"]) assert.deepEqual(fresher[key], older[key], key);
+  assert.deepEqual([older.legacy, fresher.legacy], [true, false], "only the earlier document is of the earlier shape");
 });
 
 test("what the real data says, field by field, and which of it is a claim", () => {
@@ -190,20 +195,26 @@ const requestChanges = (d) => {
   d.next_step = { action: "revise_same_task", rationale: "Fix the finding.", next_task: null };
 };
 
-test("evidence written by the earlier version of the tool still builds a packet and gets the same gate result as new evidence", () => {
+test("evidence written by the earlier version of the tool still builds a packet, but is reported as legacy and incomplete and never gets a valid gate result", () => {
   const current = world();
   const earlier = world({ evidenceMutate: earlierShape });
-  assert.equal(earlier.manifest.ci.ci_passed, true);
-  assert.equal(earlier.manifest.ci.evidence_complete, true);
+  assert.equal(earlier.manifest.ci.ci_passed, true, "nothing in it shows a failure");
+  assert.equal(earlier.manifest.ci.evidence_complete, false, "but the consumers derive completeness themselves, and the mandatory log checks are absent");
+  assert.equal(earlier.manifest.ci.evidence_legacy, true);
   assert.equal("missing_evidence" in earlier.evidence.verdict, false);
   assert.ok("missing_evidence" in current.evidence.verdict);
   const a = decide(current);
   const b = decide(earlier);
   assert.equal(a.result, RESULTS.VALID);
-  assert.equal(b.result, RESULTS.VALID);
-  assert.deepEqual(b.reasons, a.reasons);
-  assert.deepEqual(b.warnings, a.warnings);
-  assert.deepEqual(b.human_approval_reasons, a.human_approval_reasons);
+  assert.equal(b.result, RESULTS.CORRECTIONS, "legacy evidence cannot silently qualify");
+  assert.ok(codes(b).includes("DG-EVIDENCE-NOT-COMPLETE"));
+  assert.ok(b.warnings.some((x) => x.code === "DG-EVIDENCE-LEGACY"));
+  assert.ok(!codes(b).includes("DG-CI-FAILED"), "it is not reported as a CI failure: nothing failed, it is not proven");
+  for (const r of [a, b]) {
+    assert.equal(r.human_approval_required, true);
+    assert.equal(r.reviewer_approval_is_binding, false);
+    assert.deepEqual(r.automation, { merge: false, deploy: false, authorize_sensitive_change: false, launch_task: false });
+  }
 });
 
 test("evidence without the check runs or the job log can never reach a valid gate result, whatever the reviewer says", () => {
