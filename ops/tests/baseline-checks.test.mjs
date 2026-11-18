@@ -8,7 +8,7 @@ import path from "node:path";
 import { after, test } from "node:test";
 import { RESULTS, evaluateDecision } from "../lib/decision-gate.mjs";
 import { PacketError, buildPacket, verifyPacket } from "../lib/review-packet.mjs";
-import { TASK_ID, cleanupTmp, copyPacket, editManifest, goodDecision, makeWorld, tmp, writeDecision } from "./review-fixture.mjs";
+import { TASK_ID, cleanupTmp, collectEvidence, copyPacket, editManifest, goodDecision, makeWorld, tmp, writeDecision, writeEvidence } from "./review-fixture.mjs";
 
 const worlds = [];
 const world = (opts) => {
@@ -154,7 +154,9 @@ test("a scope that the base could not establish is recorded, warned about, and s
 
 test("whether the base holds the same task definition is recorded: a base from before the definition says so", () => {
   const parent = sha(OK, `${OK.baselineSha}~1`);
-  const { manifest } = build(OK, { base: parent });
+  // the evidence has to be collected for the comparison the packet is about (attempt 2): this test once offered evidence for another base
+  const evidenceFile = writeEvidence(collectEvidence({ repo: OK.repo, headSha: OK.headSha, baseSha: parent, taskId: OK.taskId }));
+  const { manifest } = build(OK, { base: parent, evidenceFile });
   assert.equal(manifest.trusted_baseline.base_has_task_file, false);
   assert.equal(manifest.trusted_baseline.independent, true, "the baseline itself is still independent");
 });

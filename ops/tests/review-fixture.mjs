@@ -49,6 +49,33 @@ function taskFile({ taskId, allowed, declaredClass, categories, maxAttempts, req
 }
 
 /**
+ * CI evidence for `headSha`, collected the way ops/ci-evidence.mjs collects it, with the REAL collector code, against the revision
+ * `baseSha`. A test that wants genuine evidence for a comparison other than the packet's passes another `baseSha`: nothing in the
+ * document is edited by hand, so it is internally consistent for the comparison it describes (OPS-0006 attempt 2).
+ */
+export function collectEvidence({ repo, headSha, baseSha, taskId, ciPasses = true }) {
+  const live = liveFor(headSha);
+  if (!ciPasses) {
+    live.run.conclusion = "failure";
+    live.jobs.jobs[0].conclusion = "failure";
+    live.jobs.jobs[0].steps.find((s) => s.name === "Build").conclusion = "failure";
+    live.checks.check_runs[0].conclusion = "failure";
+  }
+  const policy = JSON.parse(repo.read("docs/project-memory/policy/policy.json"));
+  const expected = expectationsFromWorkflow(repo.read(".github/workflows/ci.yml"), policy, { repository: "owner/name", headSha, branch: null });
+  const githubCi = buildGithubCi({ run: live.run, jobs: live.jobs, checkRuns: live.checks, jobLog: live.log, expected });
+  const trustedBase = trustedBaseCheck({ repoDir: repo.dir, base: baseSha, head: headSha, taskId });
+  return buildEvidenceDocument({ repository: "owner/name", headSha, baseSha, trustedBase, githubCi, collector: { tool: "ops/ci-evidence.mjs", tool_source: "working_tree", role: "human" }, now: new Date("2026-01-02T03:04:05Z") });
+}
+
+/** Write an evidence document to a fresh file (inside a temporary directory that cleanupTmp removes) and return its path. */
+export function writeEvidence(evidence) {
+  const file = path.join(tmp(), "ci-evidence.json");
+  fs.writeFileSync(file, `${JSON.stringify(evidence, null, 2)}\n`);
+  return file;
+}
+
+/**
  * Build one complete world: repository, evidence, packet.
  * @param {object} o
  * @param {Record<string,string|Buffer>} [o.files]   files the worker adds or changes (default: one allowed guide)
@@ -107,23 +134,12 @@ export function makeWorld({
   const headSha = repo.git("rev-parse", "report").trim();
 
   // the CI evidence for that head, built the way ops/ci-evidence.mjs builds it
-  const live = liveFor(headSha);
-  if (!ciPasses) {
-    live.run.conclusion = "failure";
-    live.jobs.jobs[0].conclusion = "failure";
-    live.jobs.jobs[0].steps.find((s) => s.name === "Build").conclusion = "failure";
-    live.checks.check_runs[0].conclusion = "failure";
-  }
-  const policy = JSON.parse(repo.read("docs/project-memory/policy/policy.json"));
-  const expected = expectationsFromWorkflow(repo.read(".github/workflows/ci.yml"), policy, { repository: "owner/name", headSha, branch: null });
-  const githubCi = buildGithubCi({ run: live.run, jobs: live.jobs, checkRuns: live.checks, jobLog: live.log, expected });
-  const trustedBase = trustedBaseCheck({ repoDir: repo.dir, base: baselineSha, head: headSha, taskId });
-  const evidence = buildEvidenceDocument({ repository: "owner/name", headSha, baseSha: baselineSha, trustedBase, githubCi, collector: { tool: "ops/ci-evidence.mjs", tool_source: "working_tree", role: "human" }, now: new Date("2026-01-02T03:04:05Z") });
+  const evidence = collectEvidence({ repo, headSha, baseSha: baselineSha, taskId, ciPasses });
   evidenceMutate(evidence);
   const evidenceFile = path.join(tmp(), "ci-evidence.json");
   fs.writeFileSync(evidenceFile, `${JSON.stringify(evidence, null, 2)}\n`);
 
-  const world = { repo, baselineSha, workSha, headSha, evidenceFile, evidence, report, reportRel, attemptId, packetDir: null, manifest: null };
+  const world = { repo, taskId, baselineSha, workSha, headSha, evidenceFile, evidence, report, reportRel, attemptId, packetDir: null, manifest: null };
   if (build) {
     world.packetDir = path.join(tmp(), "packet");
     world.manifest = buildPacket({ repoDir: repo.dir, baseline: baselineSha, base: baselineSha, head: headSha, taskId, attemptId, evidenceFile, outDir: world.packetDir, toolRoot: repo.dir }).manifest;

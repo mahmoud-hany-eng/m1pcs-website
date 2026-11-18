@@ -151,13 +151,69 @@ export function trustedExpectations(tool, headSha, repository = "owner/name") {
   }
 }
 
+const SHA40 = /^[0-9a-f]{40}$/;
+const shortSha = (s) => (typeof s === "string" && SHA40.test(s) ? s.slice(0, 12) : JSON.stringify(s) ?? "none");
+
+/**
+ * The evidence must describe the comparison THIS packet is about, and nothing else (OPS-0006 attempt 2, finding F-1). Evidence
+ * collected for another base can be perfectly consistent on its own terms, and can say CI's definition is unchanged for a change
+ * that modifies the review control plane; the earlier check of the changed paths ran only when the evidence's base happened to equal
+ * the packet's, so a mismatch skipped it silently. Now a mismatch is a refusal and nothing is substituted.
+ *
+ * The consumer supplies what it computed itself: the base, the merge-base of base and head, the head, and the changed paths from
+ * git (or, in the verifier, from the packet). Each identity in the evidence has to equal them: the subject's and the trusted-base
+ * evaluation's. The recorded changed paths have to be the computed ones, and the CI-definition flags and the trust basis are
+ * checked against flags computed from the consumer's own paths, whatever base the evidence names.
+ */
+function bindComparison(evidence, trusted, trustedBase, result, problem) {
+  const missing = ["baseSha", "mergeBaseSha", "headSha"].filter((k) => !SHA40.test(String(trusted[k] ?? "")));
+  if (missing.length || !Array.isArray(trusted.changedPaths)) {
+    problem("EV-COMPARISON-UNBOUND", "incomplete", `the consumer gave no ${[...missing.map((k) => ({ baseSha: "base", mergeBaseSha: "merge-base", headSha: "head" })[k]), ...(Array.isArray(trusted.changedPaths) ? [] : ["computed changed paths"])].join(", ")}, so the comparison the evidence describes cannot be matched to the packet`);
+    return;
+  }
+  if (!trustedBase || !trustedBase.evaluated || !evidence.subject) return; // the missing section is reported as incomplete elsewhere
+  const same = (label, actual, wanted, what) => {
+    if (actual !== wanted) problem("EV-BASE-MISMATCH", "inconsistent", `${label} is ${shortSha(actual)}, but the packet's ${what} is ${shortSha(wanted)}: the evidence was collected for another comparison and does not describe this packet`);
+  };
+  same("the evidence subject's base", evidence.subject.base_sha, trusted.baseSha, "base");
+  same("the trusted-base evaluation's base", trustedBase.evaluated.base_sha, trusted.baseSha, "base");
+  same("the evidence subject's merge-base", evidence.subject.merge_base_sha, trusted.mergeBaseSha, "merge-base");
+  same("the trusted-base evaluation's merge-base", trustedBase.evaluated.merge_base_sha, trusted.mergeBaseSha, "merge-base");
+  same("the evidence subject's head", evidence.subject.head_sha, trusted.headSha, "head");
+  same("the trusted-base evaluation's head", trustedBase.evaluated.head_sha, trusted.headSha, "head");
+
+  // the changed paths the evidence records must be the ones computed here (a truncated list is still checked: membership and count)
+  const computed = new Set(trusted.changedPaths);
+  const ch = trustedBase.changes;
+  if (!ch || !Array.isArray(ch.paths)) problem("EV-CHANGED-PATHS-MISMATCH", "inconsistent", "the evidence records no list of changed paths to compare with the packet's");
+  else {
+    const listed = new Set(ch.paths.map((p) => p.path));
+    const outside = [...listed].filter((p) => !computed.has(p));
+    const left = ch.truncated === true ? [] : [...computed].filter((p) => !listed.has(p));
+    if (ch.total !== computed.size || outside.length || left.length) {
+      problem("EV-CHANGED-PATHS-MISMATCH", "inconsistent", `the evidence records ${ch.total} changed path(s)${outside.length ? `, including ${outside.length} the packet does not have (${outside.slice(0, 2).join(", ")})` : ""}${left.length ? `, and leaves out ${left.length} the packet has (${left.slice(0, 2).join(", ")})` : ""}; the packet computed ${computed.size}`);
+    }
+  }
+
+  // the CI-definition flags, and so the trust basis, from the consumer's own paths, whatever base the evidence names
+  const flags = ciDefinitionFlagsOf(trusted.changedPaths);
+  for (const [flag, value] of Object.entries(flags)) {
+    const recorded = Boolean(trustedBase.flags && trustedBase.flags[flag]);
+    if (recorded !== value) problem("EV-FLAGS-MISMATCH", "inconsistent", `the evidence says ${flag} is ${recorded}, but the changed paths computed for this packet give ${value}`);
+  }
+  if (Object.values(flags).some(Boolean) && result.trustBasis === "ci_definition_unchanged_from_base") {
+    problem("EV-TRUST-BASIS", "inconsistent", "the evidence says CI's definition is unchanged, but the changed paths include a workflow, ops/, policy, schema or build input");
+  }
+}
+
 /**
  * What an evidence document says about CI, DERIVED from the data inside it and from trusted expectations, never read from the
  * document's own verdict (OPS-0006). A forged or earlier-shape document therefore cannot read as passed or complete.
  *
- * `trusted` is { expected, changedPaths, baseSha }: the expectations from the baseline's workflow (trustedExpectations), the
- * changed paths the consumer computed itself, and the revision the change starts from. Without it nothing can be re-evaluated, so
- * the result is never complete (a document is only as good as what could be checked).
+ * `trusted` is { expected, changedPaths, baseSha, mergeBaseSha, headSha }: the expectations from the baseline's workflow
+ * (trustedExpectations), the changed paths the consumer computed itself, and the base, merge-base and head of the comparison the
+ * packet is about. Without it nothing can be re-evaluated, so the result is never complete (a document is only as good as what could
+ * be checked); and evidence that describes another comparison is inconsistent (see bindComparison).
  *
  * Problems have a kind: "inconsistent" (the document contradicts its own data or the expectations: refuse it), "failed" (GitHub's
  * data shows a failure) or "incomplete" (not enough was checked or supplied). passed is false for the first two; complete needs
@@ -227,10 +283,7 @@ export function deriveCi(evidence, trusted = null) {
   // what the document claims about itself must equal what was derived (a current-shape document); earlier ones are flagged as legacy
   if (!legacy && JSON.stringify(verdict.missing_evidence) !== JSON.stringify(result.missing)) problem("EV-VERDICT-CLAIM", "inconsistent", `the verdict lists missing evidence ${JSON.stringify(verdict.missing_evidence)}, but ${JSON.stringify(result.missing)} was derived`);
   if (verdict.ci_trust_basis !== result.trustBasis) problem("EV-TRUST-BASIS", "inconsistent", `the verdict says ${verdict.ci_trust_basis}, but the trusted-base section gives ${result.trustBasis}`);
-  if (trusted && Array.isArray(trusted.changedPaths) && trustedBase && evidence.subject && evidence.subject.base_sha === trusted.baseSha) {
-    const touched = Object.values(ciDefinitionFlagsOf(trusted.changedPaths)).some(Boolean);
-    if (touched && result.trustBasis === "ci_definition_unchanged_from_base") problem("EV-TRUST-BASIS", "inconsistent", "the evidence says CI's definition is unchanged, but the changed paths include a workflow, ops/, policy, schema or build input");
-  }
+  if (trusted) bindComparison(evidence, trusted, trustedBase, result, problem);
 
   result.passed = runOk && !problems.some((p) => p.kind === "inconsistent" || p.kind === "failed");
   result.complete = result.passed && problems.length === 0 && result.missing.length === 0;
@@ -457,7 +510,7 @@ export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, 
   need(evidence.subject.head_sha === headSha, "PK-EVIDENCE", "the CI evidence is about a different commit than the head");
   // completeness and the CI facts are DERIVED here from the data inside the evidence and the baseline's expectations; the verdict
   // the document states about itself is only compared with them, never believed (OPS-0006)
-  const ci = deriveCi(evidence, { expected: trustedExpectations(tool, headSha, evidence.repository), changedPaths: paths, baseSha });
+  const ci = deriveCi(evidence, { expected: trustedExpectations(tool, headSha, evidence.repository), changedPaths: paths, baseSha, mergeBaseSha: mergeBase, headSha });
   need(ci.present, "PK-EVIDENCE", "the CI evidence holds no GitHub run data");
   need(ci.headSha === headSha, "PK-EVIDENCE", "the GitHub run in the evidence was for a different commit than the head");
   const inconsistent = ci.problems.filter((p) => p.kind === "inconsistent");
@@ -681,7 +734,7 @@ export function verifyPacket(packetDir, { toolRoot = DEFAULT_ROOT, expectBaselin
   else {
     // derived from the data inside the evidence, the changed paths computed above and the baseline's own workflow; the document's
     // verdict is only compared with the derivation
-    const ci = deriveCi(parsed.ci_evidence, { expected: trustedExpectations(tool, manifest.subject.head_sha, parsed.ci_evidence.repository), changedPaths: paths, baseSha: manifest.subject.base_sha });
+    const ci = deriveCi(parsed.ci_evidence, { expected: trustedExpectations(tool, manifest.subject.head_sha, parsed.ci_evidence.repository), changedPaths: paths, baseSha: manifest.subject.base_sha, mergeBaseSha: manifest.subject.merge_base_sha, headSha: manifest.subject.head_sha });
     ciAssessment = ci;
     if (parsed.ci_evidence.subject.head_sha !== manifest.subject.head_sha) err("PK-EVIDENCE", "the CI evidence is about another commit than the packet's head");
     if (!ci.present) err("PK-EVIDENCE", "the CI evidence holds no GitHub run data");

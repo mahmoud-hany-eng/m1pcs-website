@@ -12,7 +12,7 @@ import { MANDATORY_CHECK_IDS, buildEvidenceDocument, buildGithubCi, expectations
 import { RESULTS, evaluateDecision } from "../lib/decision-gate.mjs";
 import { PacketError, buildPacket, deriveCi, trustedExpectations, verifyPacket } from "../lib/review-packet.mjs";
 import { ROOT, loadPolicy } from "./helpers.mjs";
-import { TASK_ID, cleanupTmp, copyPacket, editManifest, forge, goodDecision, makeWorld, readPacketJson, tmp, writeDecision } from "./review-fixture.mjs";
+import { TASK_ID, cleanupTmp, collectEvidence, copyPacket, editManifest, forge, goodDecision, makeWorld, readPacketJson, tmp, writeDecision } from "./review-fixture.mjs";
 
 const worlds = [];
 const world = (opts) => {
@@ -55,7 +55,10 @@ const claimEverything = (e) => {
 const removeChecks = (e, ids) => { e.github_ci.consistency = e.github_ci.consistency.filter((c) => !ids.includes(c.id)); };
 
 const OK = world();
-const trustedFor = (w, over = {}) => ({ expected: trustedExpectations(loadTool(w), w.headSha, "owner/name"), changedPaths: ["docs/guides/example-guide.md"], baseSha: w.baselineSha, ...over });
+/** The paths that differ between a base and the head, computed from git (what the builder computes), sorted. */
+const changedOf = (w, base = w.baselineSha) => w.repo.git("diff", "--name-only", "--no-renames", base, w.headSha).trim().split("\n").filter(Boolean).sort();
+/** What a consumer hands deriveCi: the baseline's expectations and the comparison it computed itself (OPS-0006 attempt 2: base, merge-base, head, paths). */
+const trustedFor = (w, over = {}) => ({ expected: trustedExpectations(loadTool(w), w.headSha, "owner/name"), changedPaths: changedOf(w), baseSha: w.baselineSha, mergeBaseSha: w.baselineSha, headSha: w.headSha, ...over });
 function loadTool(w) {
   return { workflowText: w.repo.read(".github/workflows/ci.yml"), policy: JSON.parse(w.repo.read("docs/project-memory/policy/policy.json")) };
 }
@@ -250,4 +253,176 @@ test("a complete, honest packet still needs a human, and the reviewer's approval
   const src = world({ files: { "src/app/page.tsx": "export default function Page() { return 2; }\n" }, allowed: ["src/**", RUNS], categories: ["ui_public_site", "docs_only"] });
   const rs = evaluateDecision({ packetDir: src.packetDir, decisionFile: writeDecision(goodDecision(src)), toolRoot: src.repo.dir });
   assert.ok(rs.human_approval_reasons.some((x) => x.code === "DG-HUMAN-PROTECTED-PATHS"), "a protected change still needs a human");
+});
+
+/* ------------------------------------------------------------------ F-1 (attempt 2): the evidence must describe the packet's own comparison */
+// Review B found that the cross-check of the changed paths against the evidence's CI trust basis ran only when the evidence's base
+// happened to equal the packet's. Evidence collected for ANOTHER comparison skipped the check silently and could say "unchanged" for
+// a change that modifies the review control plane. The packet's base, the evidence subject's base, the trusted-base evaluation's
+// base, the merge-base, the head and the changed paths must all agree, or the evidence does not qualify. Nothing is substituted.
+
+// a change that touches the control plane: the honest trust basis is "modified", and only evidence for THIS comparison says so
+const CP = world({ files: { "ops/lib/example-control.mjs": "export const example = 1;\n" }, allowed: ["ops/**", "docs/guides/**", RUNS], categories: ["ops_control_plane", "docs_only"] });
+const FAKE = "d".repeat(40);
+const evidenceFileFor = (e) => {
+  const f = path.join(tmp(), "ci-evidence.json");
+  fs.writeFileSync(f, `${JSON.stringify(e, null, 2)}\n`);
+  return f;
+};
+const refusedEvidence = (w, e, fragment = null) => assert.throws(() => build(w, { evidenceFile: evidenceFileFor(e) }), (err) => err instanceof PacketError && err.code === "PK-EVIDENCE" && (fragment === null || err.message.includes(fragment)), `expected PK-EVIDENCE${fragment ? ` mentioning "${fragment}"` : ""}`);
+/** The evidence swapped into a finished packet with the manifest's hash recomputed (what a forger who knows the format can do). `claim` makes the manifest's CI summary agree, so that only the comparison binding is left to catch it. */
+const swapEvidence = (w, e, claim = null) => {
+  const dir = copyPacket(w.packetDir);
+  forge(dir, "trusted/ci-evidence.json", `${JSON.stringify(e, null, 2)}\n`);
+  if (claim) editManifest(dir, (m) => { Object.assign(m.ci, claim); });
+  return dir;
+};
+const verifierRefuses = (w, dir, fragment = null) => {
+  const v = verifyPacket(dir, { toolRoot: w.repo.dir });
+  assert.equal(v.ok, false);
+  assert.ok(v.errors.some((x) => x.code === "PK-EVIDENCE-INCONSISTENT" && (fragment === null || x.message.includes(fragment))), `${fragment}: ${v.errors.map((x) => `${x.code} ${x.message}`).join(" | ")}`);
+  const r = evaluateDecision({ packetDir: dir, decisionFile: writeDecision(goodDecision(w)), toolRoot: w.repo.dir });
+  assert.equal(r.result, RESULTS.INVALID, "the gate does not judge a packet that does not verify");
+};
+const problemCodes = (ci) => ci.problems.map((p) => p.code);
+
+test("F-1: valid evidence for the packet's own comparison is accepted, and every identity in it agrees with the packet", () => {
+  for (const w of [OK, CP]) {
+    const ci = deriveCi(w.evidence, trustedFor(w));
+    assert.deepEqual(ci.problems, [], problemCodes(ci).join(", "));
+    assert.deepEqual([ci.passed, ci.complete], [true, true]);
+    const e = w.evidence;
+    assert.deepEqual([e.subject.base_sha, e.trusted_base.evaluated.base_sha], [w.baselineSha, w.baselineSha]);
+    assert.deepEqual([e.subject.merge_base_sha, e.trusted_base.evaluated.merge_base_sha], [w.baselineSha, w.baselineSha]);
+    assert.deepEqual([e.subject.head_sha, e.trusted_base.evaluated.head_sha], [w.headSha, w.headSha]);
+    assert.deepEqual(verifyPacket(w.packetDir, { toolRoot: w.repo.dir }).errors, []);
+  }
+});
+
+test("F-1: a change to control-plane paths is identified as one: CI's definition is modified, the packet is complete, a human is still required", () => {
+  assert.ok(changedOf(CP).includes("ops/lib/example-control.mjs"));
+  assert.equal(CP.manifest.ci.ci_trust_basis, "ci_definition_modified_from_base");
+  assert.equal(CP.manifest.ci.evidence_complete, true);
+  assert.equal(OK.manifest.ci.ci_trust_basis, "ci_definition_unchanged_from_base", "a documents-only change really is unchanged");
+  const r = evaluateDecision({ packetDir: CP.packetDir, decisionFile: writeDecision(goodDecision(CP)), toolRoot: CP.repo.dir });
+  assert.equal(r.result, RESULTS.VALID);
+  assert.ok(r.human_approval_reasons.some((x) => x.code === "DG-HUMAN-CI-DEFINITION"));
+  assert.equal(r.reviewer_approval_is_binding, false);
+});
+
+test("F-1: genuine evidence collected for another comparison is refused however clean it looks, and no other base is substituted", () => {
+  const others = {
+    "the work commit (the comparison then holds only the report)": CP.workSha,
+    "the commit before the baseline": CP.repo.git("rev-parse", `${CP.baselineSha}~1`).trim(),
+  };
+  for (const [name, baseSha] of Object.entries(others)) {
+    const other = collectEvidence({ repo: CP.repo, headSha: CP.headSha, baseSha, taskId: CP.taskId });
+    assert.equal(other.subject.base_sha, baseSha, name);
+    // on its own terms it is a perfectly good document ...
+    const own = deriveCi(other, trustedFor(CP, { baseSha, mergeBaseSha: baseSha, changedPaths: changedOf(CP, baseSha) }));
+    assert.deepEqual(own.problems, [], `${name}: ${problemCodes(own)}`);
+    assert.equal(own.complete, true, name);
+    // ... and for this packet it qualifies as nothing
+    const ci = deriveCi(other, trustedFor(CP));
+    assert.deepEqual([ci.passed, ci.complete], [false, false], name);
+    assert.ok(ci.problems.some((p) => p.code === "EV-BASE-MISMATCH" && p.kind === "inconsistent" && p.message.includes(baseSha.slice(0, 12))), `${name}: the mismatch names the base the evidence is for`);
+    refusedEvidence(CP, other, "base");
+    verifierRefuses(CP, swapEvidence(CP, other, { ci_trust_basis: other.verdict.ci_trust_basis }), "base");
+  }
+});
+
+test("F-1: the evidence that names the work commit as its base says 'unchanged' for a change that modifies the control plane, and is still refused (the bypass Review B found)", () => {
+  const other = collectEvidence({ repo: CP.repo, headSha: CP.headSha, baseSha: CP.workSha, taskId: CP.taskId });
+  assert.equal(other.verdict.ci_trust_basis, "ci_definition_unchanged_from_base", "genuinely unchanged for its own comparison");
+  assert.ok(changedOf(CP).some((p) => p.startsWith("ops/")), "but the packet's change touches ops/");
+  refusedEvidence(CP, other);
+  verifierRefuses(CP, swapEvidence(CP, other, { ci_trust_basis: "ci_definition_unchanged_from_base" }));
+});
+
+test("F-1: every identity in the evidence is checked on its own: a changed base, merge-base or head is refused", () => {
+  const fields = [
+    ["the evidence subject's base", (e) => { e.subject.base_sha = FAKE; }],
+    ["the trusted-base evaluation's base", (e) => { e.trusted_base.evaluated.base_sha = FAKE; }],
+    ["the evidence subject's merge-base", (e) => { e.subject.merge_base_sha = FAKE; }],
+    ["the trusted-base evaluation's merge-base", (e) => { e.trusted_base.evaluated.merge_base_sha = FAKE; }],
+    ["the trusted-base evaluation's head", (e) => { e.trusted_base.evaluated.head_sha = FAKE; }],
+  ];
+  for (const [label, mutate] of fields) {
+    const e = clone(CP.evidence);
+    mutate(e);
+    const ci = deriveCi(e, trustedFor(CP));
+    assert.ok(ci.problems.some((p) => p.code === "EV-BASE-MISMATCH" && p.message.includes(label)), `${label}: ${problemCodes(ci)}`);
+    assert.equal(ci.complete, false, label);
+    refusedEvidence(CP, e, label);
+    verifierRefuses(CP, swapEvidence(CP, e), label);
+  }
+});
+
+test("F-1: a trust basis of 'unchanged' is refused when the changed paths touch the control plane, whatever the evidence's own flags and verdict say", () => {
+  const forged = clone(CP.evidence);
+  for (const f of Object.keys(forged.trusted_base.flags)) forged.trusted_base.flags[f] = false;
+  forged.trusted_base.package_scripts.ci_entrypoints_changed = false;
+  forged.verdict.ci_trust_basis = "ci_definition_unchanged_from_base";
+  const ci = deriveCi(forged, trustedFor(CP));
+  assert.ok(problemCodes(ci).includes("EV-FLAGS-MISMATCH"), problemCodes(ci).join(","));
+  assert.ok(problemCodes(ci).includes("EV-TRUST-BASIS"), problemCodes(ci).join(","));
+  assert.equal(ci.passed, false);
+  refusedEvidence(CP, forged);
+  verifierRefuses(CP, swapEvidence(CP, forged, { ci_trust_basis: "ci_definition_unchanged_from_base" }));
+  // each half on its own
+  const flagsOnly = clone(CP.evidence);
+  flagsOnly.trusted_base.flags.ops_code_changed = false;
+  assert.ok(problemCodes(deriveCi(flagsOnly, trustedFor(CP))).includes("EV-FLAGS-MISMATCH"));
+  const verdictOnly = clone(CP.evidence);
+  verdictOnly.verdict.ci_trust_basis = "ci_definition_unchanged_from_base";
+  assert.ok(problemCodes(deriveCi(verdictOnly, trustedFor(CP))).includes("EV-TRUST-BASIS"));
+  // a flag that is raised although the paths do not justify it is just as inconsistent
+  const raised = clone(OK.evidence);
+  raised.trusted_base.flags.workflow_files_changed = true;
+  assert.ok(problemCodes(deriveCi(raised, trustedFor(OK))).includes("EV-FLAGS-MISMATCH"));
+});
+
+test("F-1: the changed paths recorded in the evidence must be exactly the ones the packet computed", () => {
+  const hidden = clone(CP.evidence);
+  hidden.trusted_base.changes.paths = hidden.trusted_base.changes.paths.filter((p) => !p.path.startsWith("ops/"));
+  assert.ok(problemCodes(deriveCi(hidden, trustedFor(CP))).includes("EV-CHANGED-PATHS-MISMATCH"), "a path left out of the list");
+  const invented = clone(CP.evidence);
+  invented.trusted_base.changes.paths.push({ ...invented.trusted_base.changes.paths[0], path: "docs/guides/invented.md" });
+  assert.ok(problemCodes(deriveCi(invented, trustedFor(CP))).includes("EV-CHANGED-PATHS-MISMATCH"), "a path that is not in the change");
+  const counted = clone(CP.evidence);
+  counted.trusted_base.changes.total = 1;
+  assert.ok(problemCodes(deriveCi(counted, trustedFor(CP))).includes("EV-CHANGED-PATHS-MISMATCH"), "a wrong count");
+  // the full forgery: hide the control-plane path, mark the list truncated, lower every flag, say 'unchanged'
+  const full = clone(CP.evidence);
+  full.trusted_base.changes.paths = full.trusted_base.changes.paths.filter((p) => !p.path.startsWith("ops/"));
+  full.trusted_base.changes.truncated = true;
+  for (const f of Object.keys(full.trusted_base.flags)) full.trusted_base.flags[f] = false;
+  full.verdict.ci_trust_basis = "ci_definition_unchanged_from_base";
+  const ci = deriveCi(full, trustedFor(CP));
+  assert.equal(ci.passed, false);
+  assert.ok(problemCodes(ci).includes("EV-FLAGS-MISMATCH"));
+  refusedEvidence(CP, full);
+  verifierRefuses(CP, swapEvidence(CP, full, { ci_trust_basis: "ci_definition_unchanged_from_base" }));
+});
+
+test("F-1: a truncated list of changed paths is checked by membership and count, not skipped", () => {
+  const e = clone(OK.evidence);
+  e.trusted_base.changes.truncated = true;
+  e.trusted_base.changes.paths = e.trusted_base.changes.paths.slice(0, 1);
+  assert.deepEqual(deriveCi(e, trustedFor(OK)).problems, [], "a shorter list of real paths with the right count is accepted");
+  const foreign = clone(e);
+  foreign.trusted_base.changes.paths[0].path = "docs/guides/not-in-the-change.md";
+  assert.ok(problemCodes(deriveCi(foreign, trustedFor(OK))).includes("EV-CHANGED-PATHS-MISMATCH"));
+  const miscounted = clone(e);
+  miscounted.trusted_base.changes.total = 7;
+  assert.ok(problemCodes(deriveCi(miscounted, trustedFor(OK))).includes("EV-CHANGED-PATHS-MISMATCH"));
+});
+
+test("F-1: a consumer that does not supply the comparison cannot obtain complete evidence", () => {
+  const { mergeBaseSha, headSha, ...noMergeBase } = trustedFor(OK);
+  for (const [name, trusted] of [["no merge-base", { ...noMergeBase, headSha }], ["no head", { ...noMergeBase, mergeBaseSha }], ["no base", trustedFor(OK, { baseSha: null })], ["no computed paths", trustedFor(OK, { changedPaths: null })]]) {
+    const ci = deriveCi(OK.evidence, trusted);
+    assert.equal(ci.complete, false, name);
+    assert.ok(ci.problems.some((p) => p.code === "EV-COMPARISON-UNBOUND" && p.kind === "incomplete"), `${name}: ${problemCodes(ci)}`);
+  }
 });
