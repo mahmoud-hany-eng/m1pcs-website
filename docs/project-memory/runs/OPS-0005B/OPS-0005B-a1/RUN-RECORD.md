@@ -182,7 +182,7 @@ False, not null, when mandatory evidence is missing. Null already means that no 
       "duration_seconds": null,
       "output_excerpt": "# tests 66\n# pass 44\n# fail 22",
       "output_sha256": null,
-      "notes": "Expected failure, which is the proof: run in a scratch copy of the baseline tree (00b987c) with only the new tests added, 22 of the 25 new tests fail on the unfixed implementation, including every OPS-0005A attack. The 3 that pass are the 'works as before' tests (legitimate logs, GitHub step data stays primary) and the schema test."
+      "notes": "Expected failure, which is the proof: run in a scratch copy of the baseline tree (00b987c) with only the two test files replaced. 22 tests fail on the unfixed implementation: 21 of the 25 new tests (including every OPS-0005A attack) and the one adapted existing test. The 4 new tests that pass are the works-as-before tests (legitimate log variants; GitHub's step data stays primary, on the stored and on the real data) and the schema test."
     },
     {
       "check_id": "mutation-check",
