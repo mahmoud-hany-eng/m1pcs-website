@@ -13,10 +13,13 @@
     "ops:validate": "node ops/validate-memory.mjs",
     "ops:test": "node --test ops/tests/*.test.mjs",
     "db:test": "node --test supabase/tests/db.test.mjs",
-    "db:test:static": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test supabase/tests/static.test.mjs supabase/tests/platform-lib.test.mjs"
+    "db:test:static": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/static.test.mjs supabase/tests/platform-lib.test.mjs supabase/tests/accounts-lib.test.mjs",
+    "accounts:e2e": "node --disable-warning=ExperimentalWarning --test supabase/tests/accounts.e2e.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
     "framer-motion": "^13.4.1",
     "next": "^15.5.0",
     "react": "^19.1.0",
