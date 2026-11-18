@@ -7,7 +7,7 @@ REC-PLAT-014) with a concrete database design. It records no business decision: 
 stored as a changeable policy and marked as an unconfirmed default (see section 9).
 
 The practical guide (layout, how to run the tests, how to apply the migrations later) is
-[`supabase/README.md`](../../../supabase/README.md).
+`supabase/README.md`.
 
 ## 1. Scope
 
@@ -227,7 +227,7 @@ Exact counts and the mutation results are in the run record
 **Not tested, because it needs a real Supabase project:** GoTrue issuing real tokens and the `aal` claim, PostgREST
 exposing the schemas, Realtime, the dashboard settings, the Supabase CLI and `config.toml`, and the migrations run as
 Supabase's `postgres` role instead of a superuser. The checklist is
-[`supabase/tests/REAL_SUPABASE_CHECKS.md`](../../../supabase/tests/REAL_SUPABASE_CHECKS.md).
+`supabase/tests/REAL_SUPABASE_CHECKS.md`.
 
 ## 14. Limitations and decisions needed
 
