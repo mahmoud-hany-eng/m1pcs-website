@@ -143,6 +143,10 @@ export function createAuth({ secret, accessTtl = 3600, onUserCreated = () => {},
       if (password.length < 6) return { status: 422, body: { code: 422, error_code: "weak_password", msg: "Password should be at least 6 characters.", weak_password: { reasons: ["length"] } } };
       if (!emailAllowed(email)) return fail(429, "over_email_send_rate_limit", "email rate limit exceeded");
       const existing = byEmail.has(email) ? users.get(byEmail.get(email)) : null;
+      if (existing && control.revealExistingAddress) {
+        // A project with email confirmation switched OFF: the real service says so plainly (HTTP 422, user_already_exists).
+        return fail(422, "user_already_exists", "User already registered");
+      }
       if (existing) {
         // With email confirmation on, the real service answers exactly as it does for a new address.
         return ok({ id: randomUUID(), aud: "authenticated", role: "", email, phone: "", confirmation_sent_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, identities: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
@@ -206,6 +210,10 @@ export function createAuth({ secret, accessTtl = 3600, onUserCreated = () => {},
       const user = byEmail.has(email) ? users.get(byEmail.get(email)) : null;
       if (!user) {
         if (body?.create_user === false) return fail(422, "otp_disabled", "Signups not allowed for otp");
+        // Without create_user: false the real service signs the address up and emails it a link. This is exactly what
+        // the application must never allow from the sign-in page, so the emulator does it for the tests to catch.
+        const created = addUser({ email, password: randomBytes(18).toString("base64url") + "-Aa1", metadata: {} });
+        sendEmail({ user: created, type: "magiclink", redirectTo: query.get("redirect_to"), challenge: body?.code_challenge, method: body?.code_challenge_method });
         return ok({});
       }
       sendEmail({ user, type: "magiclink", redirectTo: query.get("redirect_to"), challenge: body?.code_challenge, method: body?.code_challenge_method });

@@ -210,11 +210,9 @@ export async function claimAction(_previous: FormState, formData: FormData): Pro
   if (!code) return { status: "error", message: CLAIM_FAILED_MESSAGE };
 
   const { data, error } = await supabase.rpc("claim_customer_profile", { p_code: code });
-  if (error) {
-    if (error.code === "23505") return { status: "error", message: "This account is already linked to a customer profile." };
-    logFailure("claim", error);
-    return { status: "error", message: CLAIM_FAILED_MESSAGE };
-  }
-  if (!data) return { status: "error", message: CLAIM_FAILED_MESSAGE };
+  if (error?.code === "23505") return { status: "error", message: "This account is already linked to a customer profile." };
+  if (error) logFailure("claim", error);
+  // One failure path and one sentence: an unexpected error looks the same as a wrong code.
+  if (error || !data) return { status: "error", message: CLAIM_FAILED_MESSAGE };
   return { status: "success", message: "Your earlier orders are now linked. Taking you to your account…", then: "linked" };
 }

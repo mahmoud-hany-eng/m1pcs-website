@@ -274,6 +274,21 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       await context.close();
     });
 
+    it("even a project that reveals registered addresses (email confirmation switched off) gets the same screen", async () => {
+      emu.auth.control.revealExistingAddress = true;
+      try {
+        const context = await newContext();
+        const page = await context.newPage();
+        await signUp(page, carol);
+        const existing = await text(page);
+        await signUp(page, uniqueEmail("brand.new.again"));
+        assert.equal(await text(page), existing, "the service's 'already registered' error is not shown");
+        await context.close();
+      } finally {
+        emu.auth.control.revealExistingAddress = false;
+      }
+    });
+
     it("the email-link form answers the same for an address with an account and one without", async () => {
       const ask = async (email) => {
         const context = await newContext();
@@ -285,7 +300,11 @@ describe("customer accounts: browser journeys against the local emulator", { ski
         await context.close();
         return answer;
       };
-      assert.equal(await ask(emu.users.alice.email), await ask("no.such.account@example.test"));
+      const unknown = "no.such.account@example.test";
+      const accountsBefore = emu.query("select count(*) from auth.users;");
+      assert.equal(await ask(emu.users.alice.email), await ask(unknown));
+      assert.equal(emu.query("select count(*) from auth.users;"), accountsBefore, "asking for a link never creates an account");
+      assert.ok(!emu.outbox.some((mail) => mail.to === unknown), "and sends no email to an address that has none");
     });
 
     it("a new account has no profile, and must choose between claiming earlier orders and starting new", async () => {
@@ -299,6 +318,15 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       const { page } = session;
       await page.fill("#profile-name", "Carol Demo");
       await page.fill("#profile-phone", "+974 5555 0042");
+      // Forged fields: the server must read the email from the verified account and never from the form.
+      await page.evaluate(() => {
+        const form = document.querySelector("form:has(#profile-name)");
+        for (const [name, value] of [["email", "forged.address@example.test"], ["p_email", "forged.address@example.test"], ["customer_id", "00000000-0000-4000-8000-0000000000c1"]]) {
+          const input = document.createElement("input");
+          input.type = "hidden"; input.name = name; input.value = value;
+          form.appendChild(input);
+        }
+      });
       await page.click("form:has(#profile-name) button[type=submit]");
       await waitForQuery(page, "/account", "welcome");
       const overview = await text(page);
@@ -654,6 +682,28 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       const page = await context.newPage();
       await signInOk(page, emu.users.alice, "/account/orders");
       assert.equal(new URL(page.url()).pathname, "/account/orders", "a safe next path is honoured");
+      await context.close();
+    });
+
+    it("a forged next field in the sign-in form cannot send the customer to another site", async () => {
+      const context = await newContext();
+      const page = await context.newPage();
+      await page.goto(`${on.base}/auth/sign-in`);
+      await page.evaluate(() => {
+        const form = document.querySelector("form:has(#signin-email)");
+        let field = form.querySelector("input[name=next]");
+        if (!field) {
+          field = document.createElement("input");
+          field.type = "hidden";
+          field.name = "next";
+          form.appendChild(field);
+        }
+        field.value = "https://evil.example.test/steal";
+      });
+      await fillAndSubmit(page, { "#signin-email": emu.users.alice.email, "#signin-password": emu.users.alice.password }, "form:has(#signin-email)");
+      await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 20_000 });
+      assert.equal(new URL(page.url()).origin, on.base, "stayed on this site");
+      assert.equal(new URL(page.url()).pathname, "/account");
       await context.close();
     });
 

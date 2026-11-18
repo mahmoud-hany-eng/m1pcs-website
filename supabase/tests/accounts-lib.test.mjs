@@ -116,6 +116,13 @@ describe("claim codes", { skip }, () => {
     assert.equal(claim.normalizeClaimCode("ABCDE12345FGHIJ67890"), "ABCDE12345FGHIJ67890");
   });
 
+  test("input is capped before it is processed: a valid code buried in padding is refused, not trimmed", () => {
+    const code = "ABCDE-12345-FGHIJ-67890";
+    assert.equal(claim.normalizeClaimCode(" ".repeat(64 - code.length) + code), "ABCDE12345FGHIJ67890", "exactly at the cap");
+    assert.equal(claim.normalizeClaimCode(" ".repeat(65 - code.length) + code), null, "one over the cap");
+    assert.equal(claim.normalizeClaimCode(" ".repeat(5000) + code), null);
+  });
+
   test("anything that is not exactly 20 letters and digits is refused", () => {
     for (const input of ["", "short", "ABCDE-12345-FGHIJ-6789", "ABCDE-12345-FGHIJ-678901", "ABCDE-12345-FGHIJ-6789!", "ÄBCDE-12345-FGHIJ-67890", "A".repeat(65), null, undefined, 12345678901234567890]) {
       assert.equal(claim.normalizeClaimCode(input), null, String(input).slice(0, 30));
@@ -150,6 +157,12 @@ describe("form validation", { skip }, () => {
     assert.ok(validation.parseSignUp(form({ email: "a@example.test", password: "x".repeat(73) })).errors.password);
     assert.ok(validation.parseSignUp(form({ email: "a@example.test", password: "é".repeat(37) })).errors.password, "72 bytes, not 72 characters");
     assert.equal(validation.parseSignUp(form({ email: "a@example.test", password: "x".repeat(72) })).ok, true);
+  });
+
+  test("the password minimum is exactly ten characters: nine is refused, ten is accepted", () => {
+    assert.equal(validation.PASSWORD_MIN_LENGTH, 10);
+    assert.ok(validation.parseSignUp(form({ email: "a@example.test", password: "abcdefghi" })).errors.password, "nine characters");
+    assert.equal(validation.parseSignUp(form({ email: "a@example.test", password: "abcdefghij" })).ok, true, "ten characters");
   });
 
   test("an email longer than 254 characters or with no domain is refused", () => {
@@ -385,8 +398,9 @@ describe("dashboard view models", { skip }, () => {
     const at = "2026-11-10T10:00:00Z";
     const [first, second] = STATUSES; // the database's own order: the first stage comes before the second
     const make = (id, status_code) => ({ id, order_id: "o1", status_code, title: id, message: null, published_at: at });
-    const events = [make("c-note", null), make("b-second", second.code), make("a-first", first.code)];
-    const expected = ["a-first", "b-second", "c-note"];
+    // The ids run the opposite way to the stages, so only a stage-aware sort can produce the expected order.
+    const events = [make("a-note", null), make("m-second", second.code), make("z-first", first.code)];
+    const expected = ["z-first", "m-second", "a-note"];
     assert.deepEqual(views.buildTimeline(events, STATUSES).map((entry) => entry.id), expected);
     // Reversing what arrives changes nothing: the order is decided by the data, not by arrival.
     assert.deepEqual(views.buildTimeline([...events].reverse(), STATUSES).map((entry) => entry.id), expected);

@@ -273,6 +273,13 @@ describe("every customer-account entry point is guarded", () => {
     for (const [, name, start] of functions) assert.match(start, /assertEnabled\(\)|await require(SignedIn|CustomerContext|LinkedCustomer)\(/, `${name} must start with a guard`);
   });
 
+  it("the page guard sends each session state to the right place, and treats an outage as neither a sign-out nor an expiry", () => {
+    const guard = read("src/lib/accounts/server/guard.ts");
+    assert.match(guard, /case "signed_out":\s*return redirect\(signInUrl\("required", nextPath\)\)/);
+    assert.match(guard, /case "expired":\s*return redirect\(signInUrl\("expired", nextPath\)\)/);
+    assert.match(guard, /default:\s*throw new AccountsUnavailableError\(session\.state\)/);
+  });
+
   it("the confirm route answers 404 while the flag is off, and only accepts the three email types the feature sends", () => {
     const route = read("src/app/auth/confirm/route.ts");
     assert.match(route, /customerAccountsGate\(process\.env\)\.enabled/);
