@@ -93,6 +93,7 @@ test("without trusted expectations nothing is re-evaluated, so a document is nev
 const FORGERIES = [
   ["the mandatory log checks are deleted while the verdict says complete and passed", (e) => removeChecks(e, ["log.permission_block_is_single_and_initial", "log.run_headers_not_repeated", "log.run_headers_are_expected_and_in_order"]), "is not recorded"],
   ["every mandatory check is deleted", (e) => removeChecks(e, MANDATORY_CHECK_IDS), "is not recorded"],
+  ["checks that are not mandatory but are derivable from the embedded data are deleted (a failed step is then not visible in the record)", (e) => { e.github_ci.jobs[0].steps.find((s) => s.name === "Build").conclusion = "failure"; removeChecks(e, ["steps.all_succeeded", "jobs.completed_successfully", "run.head_sha_is_expected"]); }, "steps.all_succeeded is not recorded"],
   ["the check runs, token permissions and test evidence are removed but the checks that rest on them still say passed", (e) => { e.github_ci.checks = null; e.github_ci.token_permissions = null; e.github_ci.test_evidence = null; }, "the data inside the evidence gives passed false"],
   ["a step failed in the embedded data but steps.all_succeeded is recorded as passed", (e) => { e.github_ci.jobs[0].steps.find((s) => s.name === "Build").conclusion = "failure"; }, "steps.all_succeeded is recorded as passed true"],
   ["the job did not succeed in the embedded data but is recorded as passed", (e) => { e.github_ci.jobs[0].conclusion = "failure"; }, "jobs.completed_successfully"],
