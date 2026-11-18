@@ -1,0 +1,10 @@
+# Local Supabase CLI state and anything that could hold a secret or real data. Nothing here is meant to be committed.
+.branches
+.temp
+.env
+.env.*
+!.env.example
+*.local
+seed.local.sql
+*.dump
+*.backup

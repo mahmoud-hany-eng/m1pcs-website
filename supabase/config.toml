@@ -1,0 +1,60 @@
+# Supabase CLI configuration for LOCAL development of the business platform (PLAT-0001).
+#
+# This file configures a local stack that the Supabase CLI starts on a developer machine. It contains no secret, no
+# project reference and no remote URL. Nothing in it creates, links to or changes a live Supabase project: pushing
+# configuration or migrations to a hosted project is a separate, explicitly approved step.
+#
+# It was written from the CLI's documented format. The Supabase CLI is not installed in the environment that
+# produced it, so the file has not been run through `supabase start`; see supabase/tests/REAL_SUPABASE_CHECKS.md.
+
+project_id = "m1pcs-platform-local"
+
+[api]
+enabled = true
+port = 54321
+# ONLY `public` is exposed through the API. The `private` schema (finance, supplier costs, staff data, audit) and the
+# `admin` schema (staff functions) must never be listed here: a customer-facing API must not be able to name them.
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# The migrations use nothing newer than PostgreSQL 15 (security_invoker views are the floor). The local test suite
+# ran them on PostgreSQL 16.
+major_version = 15
+
+[db.migrations]
+enabled = true
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+# A local mail catcher so sign-in emails can be read without sending real mail.
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+# Customers sign in with a real identity; anonymous sessions would defeat the claim-code and ownership rules.
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+# Staff must pass a second factor (policy admin.mfa); the aal2 level comes from TOTP.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
