@@ -65,6 +65,37 @@ and the migration version applied.
 - [ ] The development and production projects are separate and have different keys.
 - [ ] The cost of the chosen plan, and anything that would move a paid feature into use, is approved by the owner first.
 
+## 7. Customer accounts and dashboard (Phase 2)
+
+The browser tests in `accounts.e2e.test.mjs` run the real website against `supabase/emulator/`, which imitates a subset
+of GoTrue and PostgREST. Every item below is therefore **unproven until it is run against a real development project**.
+Use a project with synthetic data only, set `CUSTOMER_ACCOUNTS_ENABLED=true` in a Preview environment only, and keep
+`CUSTOMER_ACCOUNTS_SITE_URL` equal to that preview's address.
+
+- [ ] Sign-up with email and password sends a confirmation email, and the account cannot sign in until it is confirmed.
+- [ ] Sign-up for an address that already has an account gives the same screen and the same words as a new address,
+      and no second email reveals anything (email confirmation must be ON for the service to answer this way).
+- [ ] The confirmation link works in the `token_hash` format (switch the email templates to it) on a different device,
+      and works once. The default PKCE link works only in the browser that signed up.
+- [ ] The email-link ("magic link") sign-in for an unknown address creates no account and answers the same as for a
+      known one (`shouldCreateUser: false`).
+- [ ] Wrong password and unknown address give the same message; the service's rate limits answer with the "wait a few
+      minutes" notice; note the actual limits and decide whether to tighten them.
+- [ ] The session cookie set by `@supabase/ssr` against the real service is HttpOnly, SameSite=Lax, Secure on HTTPS,
+      under 30 days, and fits in the browser's cookie size limit (it may be split in chunks).
+- [ ] `getClaims()` in the middleware works with the project's real JWT signing keys (symmetric or asymmetric) and
+      refreshes an expired access token; a revoked session is refused on the next page load.
+- [ ] Row level security as PostgREST applies it: a customer's token reads only their own orders, items, payments,
+      tracking and loyalty rows, and cannot read any `private` table or the cost columns, through the Data API.
+- [ ] A retracted tracking update (migration 13) disappears from the customer's timeline.
+- [ ] A staff-issued claim code links the right customer once; wrong, used and expired codes look identical; the fifth
+      failure in an hour locks the account out for the hour.
+- [ ] The service-role key is not set in the website's environment at all (this feature never needs it).
+- [ ] The Vercel project builds with Node 22 or newer (`@supabase/supabase-js` 2.x requires it).
+- [ ] Re-test the profile-creation and claim flows in a real browser: in the local browser tests a Server Action
+      redirect sometimes failed to move the page, and the code ends those two flows with a full page load
+      (see CUSTOMER_ACCOUNTS.md section 10).
+
 ## Not covered anywhere yet
 
 Storage, Edge Functions, email templates, and any payment provider. None is used by this phase.

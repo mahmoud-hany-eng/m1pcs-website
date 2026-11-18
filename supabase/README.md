@@ -1,8 +1,13 @@
-# M1 business platform: Supabase foundation (PLAT-0001, Phase 1)
+# M1 business platform: Supabase foundation (PLAT-0001, Phase 1) and customer accounts (PLAT-0002, Phase 2)
 
 This directory holds the database foundation for customer profiles, quotations, orders, payments, order tracking, a
 loyalty ledger and staff roles. It is **written and tested locally only**. No Supabase project exists for it, no
 credential was created, nothing was deployed, and the public website does not read any of it yet.
+
+**Phase 2 (PLAT-0002)** adds customer sign-in and a customer dashboard on top of it, in `src/`, behind a feature flag
+that is off by default (see [`docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md`](../docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md)).
+It has been exercised only against a **local emulator** (`emulator/`) that is not Supabase; the checklist for the first
+real project is `tests/REAL_SUPABASE_CHECKS.md`.
 
 The design, the reasons for it and the open questions are in
 [`docs/project-memory/architecture/SUPABASE_FOUNDATION.md`](../docs/project-memory/architecture/SUPABASE_FOUNDATION.md).
@@ -12,11 +17,14 @@ This file is the practical guide: layout, how to run the tests, and how the foun
 
 | Path | What it is |
 | --- | --- |
-| `migrations/` | Eleven ordered SQL migrations. Apply in file order. Each one is complete on its own and safe to read. |
+| `migrations/` | Thirteen ordered SQL migrations (eleven from Phase 1; 12 and 13 are the Phase 2 corrections). Apply in file order. Each one is complete on its own and safe to read. |
 | `config.toml` | Supabase CLI configuration for a **local** stack. Exposes only the `public` schema. No secret, no project reference. |
 | `tests/db.test.mjs` | Database tests against a real PostgreSQL server that the harness starts and removes. |
 | `tests/static.test.mjs` | File-level checks: no credential or real personal data, RLS on every table, pinned `search_path`, narrow API exposure. |
 | `tests/platform-lib.test.mjs` | Unit tests for the TypeScript money helpers and the environment contract. |
+| `tests/accounts-lib.test.mjs` | Unit tests for the customer-account modules (redirects, cookies, validation, claim codes, view models). |
+| `tests/accounts.e2e.test.mjs` | Browser journey tests (Playwright): the real built website against the local emulator. Skipped if Playwright is not installed. |
+| `emulator/` | **Not Supabase.** A mock auth and data API in front of a real local PostgreSQL with the real migrations and RLS. Synthetic data only. |
 | `tests/harness.mjs`, `tests/fixtures.mjs` | Throwaway-server helper and a small cast of synthetic identities. |
 | `tests/support/supabase_shim.sql` | **Test-only.** Imitates the Supabase roles and `auth.uid()` so the migrations run on plain PostgreSQL. Never a migration. |
 | `tests/REAL_SUPABASE_CHECKS.md` | What a local run cannot prove, as a checklist for the first real project. |
@@ -34,6 +42,11 @@ This file is the practical guide: layout, how to run the tests, and how the foun
 ```
 npm run db:test:static   # no database needed; also needs Node 22.18+ for the TypeScript unit tests
 npm run db:test          # needs the PostgreSQL server programs (initdb, pg_ctl, psql) and Node 22.18+
+```
+
+```
+npm run accounts:e2e    # the browser journeys; needs PostgreSQL as above, Playwright (global install is found), and builds the site if needed
+npm run accounts:preview  # starts the emulator and prints how to try the dashboard in a browser, with demonstration data
 ```
 
 `db:test` finds PostgreSQL under `/usr/lib/postgresql/<version>/bin`. Set `PG_BIN` to another directory if needed, and

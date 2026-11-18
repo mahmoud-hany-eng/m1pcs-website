@@ -19,6 +19,9 @@ server.
 Supabase project, any credential, any deployment, any change to the public website. The website does not import any of
 this code (a test enforces it).
 
+*Update (PLAT-0002):* customer sign-in screens and a customer dashboard now exist, behind a flag that is off by default,
+and only the account areas import this code (the test now enforces that instead). See [CUSTOMER_ACCOUNTS.md](CUSTOMER_ACCOUNTS.md).
+
 ## 2. The quotation flow is preserved
 
 Today a visitor fills the quote form (`src/components/forms/QuoteForm.tsx`), the page builds a message
