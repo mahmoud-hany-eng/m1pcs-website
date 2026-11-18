@@ -104,6 +104,14 @@ export function startDatabase() {
       (:'alice', :'custA', 'admin'), (:'bob', :'custB', 'admin');
   `);
 
+  // ---- a SYNTHETIC deposit schedule, for the tests only ------------------------------------------------------------
+  // The migrations ship orders.deposit as "unconfigured": no commercial schedule is adopted until the owner sets one, and
+  // an order cannot be created without it. The tests need orders, so they set a labelled, unconfirmed placeholder.
+  // It is not an M1 decision, and nothing outside this fixture depends on these numbers.
+  commit(`${AS.olivia}select admin.set_policy('orders.deposit',
+    '{"percent_bps": 5000, "minimum_minor": 0, "required_before_status": "deposit_received"}'::jsonb,
+    'unconfirmed_default', 'TEST FIXTURE: synthetic schedule, not an M1 decision');`);
+
   // ---- orders for A and B, with private data that must never reach a customer -------------------------------
   const orderA = commit(`${newOrder({ into: "oa" })}select :'oa';`).trim();
   const orderB = commit(`${newOrder({ customer: ID.custB, items: itemsB, into: "ob" })}select :'ob';`).trim();

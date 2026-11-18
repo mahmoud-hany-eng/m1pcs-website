@@ -840,8 +840,9 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
         select admin.transition_order(:'f1', 'building'); select admin.transition_order(:'f1', 'quality_check'); select admin.transition_order(:'f1', 'ready_for_delivery');`, "", /must be paid in full before ready_for_delivery/);
     });
 
-    it("a missing deposit policy stops orders from advancing instead of letting them through", () => {
-      db.denied(`delete from private.business_policies where key = 'orders.deposit';${newOrder({ into: "n1" })}${AS.olivia}select admin.transition_order(:'n1', 'awaiting_deposit');`, AS.superuser, /deposit policy is missing/);
+    it("a missing deposit policy stops orders from being created and from advancing instead of letting them through", () => {
+      db.denied(`${newOrder({ into: "n1" })}${AS.superuser}delete from private.business_policies where key = 'orders.deposit';${AS.olivia}select admin.transition_order(:'n1', 'awaiting_deposit');`, "", /deposit policy is missing/);
+      db.denied(`delete from private.business_policies where key = 'orders.deposit';${newOrder({ into: "n1" })}`, AS.superuser, /deposit policy is missing/);
     });
 
     it("rejects invalid values, unknown keys, unknown statuses and a missing reason; keeps the old value", () => {
@@ -855,13 +856,170 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("each change bumps the version and keeps the previous value", () => {
       const out = db.ok(`${AS.olivia}${setDeposit(3000)}${setDeposit(4000)}${AS.superuser}
         select (select version from private.business_policies where key = 'orders.deposit') || ',' || count(*) || ',' || max(changed_by::text) from private.business_policy_versions where key = 'orders.deposit';`);
-      assert.equal(out.split("\n").pop(), `3,3,${ID.olivia}`);
+      // v1 is the Phase 1 placeholder, v2 the migration that withdrew it, v3 the test fixture, v4 and v5 this test.
+      assert.equal(out.split("\n").pop(), `5,5,${ID.olivia}`);
     });
 
     it("the policy list tells the owner which values are still unconfirmed placeholders", () => {
       assert.equal(db.ok("select count(*) from admin.list_policies() where confirmation = 'unconfirmed_default';", AS.olivia), "6");
       assert.equal(db.ok("select string_agg(key, ',' order by key) from admin.list_policies() where open_question is not null;", AS.olivia),
         "loyalty.earn_rate,loyalty.earning_base,loyalty.award_trigger,loyalty.negative_balance,loyalty.point_value,orders.full_payment".split(",").sort().join(","));
+    });
+  });
+
+  describe("the deposit policy is unconfigured by default, and can be a percentage, a fixed amount or tiers", () => {
+    const setPolicy = (value, reason = "test") => `select admin.set_policy('orders.deposit', '${json(value)}'::jsonb, 'unconfirmed_default', '${reason}');`;
+    const tiered = {
+      mode: "tiered",
+      minimum_minor: 25000,
+      required_before_status: "deposit_received",
+      tiers: [{ up_to_minor: 100000, fixed_minor: 20000 }, { up_to_minor: 500000, percent_bps: 3000 }, { percent_bps: 2500 }],
+    };
+    const depositFor = (total, variable) => `${newOrder({ items: oneItem(total), into: variable })}select deposit_required_minor from public.orders where id = :'${variable}';`;
+
+    it("the migration withdrew the flat 50 percent placeholder: version 1 is kept, version 2 is unconfigured", () => {
+      const out = db.ok("select version || ' ' || coalesce(value ->> 'mode', 'none') || ' ' || coalesce(value ->> 'percent_bps', '-') || ' ' || coalesce((reason ~ 'PLAT-0002')::text, 'no-reason') from private.business_policy_versions where key = 'orders.deposit' and version <= 2 order by version;", AS.superuser);
+      assert.deepEqual(out.split("\n"), ["1 none 5000 no-reason", "2 unconfigured - true"]);
+    });
+
+    it("while unconfigured, no order can be created and no existing order can advance", () => {
+      const unconfigure = `${AS.olivia}${setPolicy({ mode: "unconfigured" })}`;
+      db.denied(`${unconfigure}${newOrder({ into: "n1" })}`, "", /has not been configured by the owner/);
+      db.denied(`${newOrder({ into: "n1" })}${unconfigure}select admin.transition_order(:'n1', 'awaiting_deposit');`, "", /has not been configured by the owner/);
+    });
+
+    it("an unconfigured policy carries no other setting, and an unknown mode is refused", () => {
+      db.denied(`${AS.olivia}${setPolicy({ mode: "unconfigured", percent_bps: 5000 })}`, "", /carries no other setting/);
+      db.denied(`${AS.olivia}${setPolicy({ mode: "sometimes", required_before_status: "deposit_received" })}`, "", /mode must be/);
+      db.denied(`${AS.olivia}${setPolicy({ mode: 5 })}`, "", /mode must be/);
+    });
+
+    it("a tiered schedule picks the tier by order total, applies the minimum, and never exceeds the total", () => {
+      const out = db.ok(`${AS.olivia}${setPolicy(tiered)}${[10000, 100000, 100001, 500000, 500001].map((t, i) => depositFor(t, `t${i}`)).join("")}`);
+      // 10 000: tier 1 fixed 20 000, minimum 25 000, capped at the total. 100 000: still tier 1, minimum 25 000 wins.
+      // 100 001: tier 2, 30 % = 30 000.3 rounds up to 30 001. 500 000: tier 2, 150 000. 500 001: tier 3, 25 % rounds up to 125 001.
+      assert.deepEqual(out.split("\n").slice(-5), ["10000", "25000", "30001", "150000", "125001"]);
+    });
+
+    it("a fixed schedule is a flat amount capped at the total", () => {
+      const out = db.ok(`${AS.olivia}${setPolicy({ mode: "fixed", fixed_minor: 30000, required_before_status: "deposit_received" })}${depositFor(10000, "f0")}${depositFor(400000, "f1")}`);
+      assert.deepEqual(out.split("\n").slice(-2), ["10000", "30000"]);
+    });
+
+    it("a tiered snapshot is taken when the order is priced and the deposit gate then uses it", () => {
+      const out = db.ok(`${AS.olivia}${setPolicy(tiered)}${newOrder({ items: oneItem(200000), into: "g1" })}${AS.olivia}
+        select deposit_required_minor from public.orders where id = :'g1';
+        ${setPolicy({ mode: "fixed", fixed_minor: 1, required_before_status: "deposit_received" })}
+        select deposit_required_minor from public.orders where id = :'g1';`).split("\n");
+      // 200 000 falls in tier 2: 30 % = 60 000. A later change of schedule does not rewrite the order.
+      assert.deepEqual([out[out.length - 3], out[out.length - 1]], ["60000", "60000"]);
+      db.denied(`${AS.olivia}${setPolicy(tiered)}${newOrder({ items: oneItem(200000), into: "g1" })}${AS.olivia}
+        select admin.record_payment(:'g1', 'deposit', 59999, 'cash');
+        select admin.transition_order(:'g1', 'awaiting_deposit'); select admin.transition_order(:'g1', 'deposit_received');`, "", /deposit has not been fully paid \(59999 of 60000/);
+    });
+
+    it("rejects malformed tiered schedules", () => {
+      const bad = (override, message) => db.denied(`${AS.olivia}${setPolicy({ ...tiered, ...override })}`, "", new RegExp(`invalid policy value: ${message}`));
+      bad({ tiers: [] }, "a tiered deposit policy needs between 1 and 12 tiers");
+      bad({ tiers: Array.from({ length: 13 }, (_, i) => (i < 12 ? { up_to_minor: (i + 1) * 1000, fixed_minor: 1 } : { fixed_minor: 1 })) }, "a tiered deposit policy needs between 1 and 12 tiers");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: 1 }, { up_to_minor: 500, fixed_minor: 2 }, { fixed_minor: 3 }] }, "up_to_minor must increase");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: 1 }, { up_to_minor: 100, fixed_minor: 2 }, { fixed_minor: 3 }] }, "up_to_minor must increase");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: 1 }, { up_to_minor: 900, fixed_minor: 2 }] }, "the last tier must have no up_to_minor");
+      bad({ tiers: [{ up_to_minor: 0, fixed_minor: 1 }, { fixed_minor: 3 }] }, "every tier except the last needs a positive up_to_minor");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: 1, percent_bps: 10 }, { fixed_minor: 3 }] }, "every tier needs exactly one of percent_bps and fixed_minor");
+      bad({ tiers: [{ up_to_minor: 500 }, { fixed_minor: 3 }] }, "every tier needs exactly one of percent_bps and fixed_minor");
+      bad({ tiers: [{ up_to_minor: 500, percent_bps: 10001 }, { fixed_minor: 3 }] }, "percent_bps must be an integer from 0 to 10000");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: -1 }, { fixed_minor: 3 }] }, "fixed_minor must be a non-negative integer");
+      bad({ tiers: [{ up_to_minor: 500, fixed_minor: 1, secret: 1 }, { fixed_minor: 3 }] }, "a tier allows only");
+      bad({ tiers: "all" }, "tiers must be a list");
+      bad({ minimum_minor: -5 }, "minimum_minor must be a non-negative integer");
+      bad({ required_before_status: undefined }, "required_before_status must be a status code");
+      bad({ extra: 1 }, "a tiered deposit policy allows only");
+      db.denied(`${AS.olivia}${setPolicy({ mode: "fixed", required_before_status: "deposit_received" })}`, "", /fixed_minor must be a non-negative integer/);
+      db.denied(`${AS.olivia}${setPolicy({ mode: "fixed", fixed_minor: 1, percent_bps: 5, required_before_status: "deposit_received" })}`, "", /allows only fixed_minor/);
+      db.denied(`${AS.olivia}${setPolicy({ mode: "tiered", required_before_status: "nonexistent_status", tiers: [{ fixed_minor: 1 }] })}`, "", /unknown order status/);
+    });
+
+    it("the Phase 1 percent shape without a mode still works and means percent", () => {
+      const out = db.ok(`${AS.olivia}select admin.set_policy('orders.deposit', '{"percent_bps": 2500, "minimum_minor": 0, "required_before_status": "deposit_received"}', 'unconfirmed_default', 'test');${depositFor(80000, "p0")}`);
+      assert.equal(out.split("\n").pop(), "20000");
+    });
+
+    it("a single-tier schedule that is open-ended is valid", () => {
+      assert.equal(db.ok(`${AS.olivia}${setPolicy({ mode: "tiered", required_before_status: "deposit_received", tiers: [{ percent_bps: 1000 }] })}${depositFor(50000, "s0")}`).split("\n").pop(), "5000");
+    });
+  });
+
+  // =================================================================================================================
+  describe("a wrongly published tracking update can be withdrawn without being deleted", () => {
+    const eventA = `${AS.superuser}select id as evid from public.order_tracking_events where order_id = :'orderA' order by published_at limit 1 \\gset\n`;
+    const countAs = (who) => `${who}select count(*) from public.order_tracking_events where order_id = :'orderA';`;
+
+    it("the customer stops seeing a retracted update; staff and the database still hold it", () => {
+      const out = db.ok(`${eventA}${countAs(AS.alice)}${AS.olivia}select admin.retract_tracking_event(:'evid', 'published on the wrong order');${countAs(AS.alice)}${countAs(AS.olivia)}
+        ${AS.superuser}select (select count(*) from public.order_tracking_events where order_id = :'orderA') || ':' || (select count(*) from private.tracking_event_retractions);`);
+      assert.deepEqual(out.split("\n").filter((l) => l !== ""), ["1", "0", "1", "1:1"]);
+    });
+
+    it("the reason, the author and the time are kept, and the action is audited", () => {
+      const out = db.ok(`${eventA}${AS.sam}select admin.retract_tracking_event(:'evid', 'wrong customer');${AS.superuser}
+        select reason || ':' || retracted_by || ':' || (retracted_at is not null)::text || ':' || (select count(*) from private.audit_log where action = 'tracking.retracted') from private.tracking_event_retractions;`);
+      assert.equal(out.split("\n").pop(), `wrong customer:${ID.sam}:true:1`);
+    });
+
+    it("a customer, a visitor and an unlinked user cannot retract anything", () => {
+      db.denied(`${eventA}${AS.alice}select admin.retract_tracking_event(:'evid', 'I do not like it');`, "", /permission denied: tracking\.publish/);
+      db.denied(`${eventA}${AS.eve}select admin.retract_tracking_event(:'evid', 'nope');`, "", /permission denied/);
+      db.denied(`${eventA}${AS.anon}select admin.retract_tracking_event(:'evid', 'nope');`, "", /permission denied/);
+      db.denied(`${eventA}${AS.dana}select admin.retract_tracking_event(:'evid', 'deactivated staff');`, "", /permission denied/);
+    });
+
+    it("a reason is required, an unknown update is refused, and an update cannot be retracted twice", () => {
+      db.denied(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', '');`, "", /a reason is required/);
+      db.denied(`${AS.olivia}select admin.retract_tracking_event('00000000-0000-4000-8000-00000000ffff', 'unknown');`, "", /tracking update not found/);
+      db.denied(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', 'first');select admin.retract_tracking_event(:'evid', 'second');`, "", /already been retracted/);
+    });
+
+    it("nothing is deleted or edited: the update and the retraction stay append-only", () => {
+      db.denied(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', 'first');${AS.superuser}delete from public.order_tracking_events where id = :'evid';`, "", /append-only|cannot be (updated|deleted)/i);
+      db.denied(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', 'first');${AS.superuser}delete from private.tracking_event_retractions;`, "", /append-only|cannot be (updated|deleted)/i);
+      db.denied(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', 'first');${AS.superuser}update private.tracking_event_retractions set reason = 'edited';`, "", /append-only|cannot be (updated|deleted)/i);
+    });
+
+    it("the retraction record is private, and a retraction on one order does not touch another customer's updates", () => {
+      db.denied(`${AS.alice}select * from private.tracking_event_retractions;`, "", /permission denied/);
+      db.denied(`${AS.sam}select * from private.tracking_event_retractions;`, "", /permission denied/);
+      const out = db.ok(`${eventA}${AS.olivia}select admin.retract_tracking_event(:'evid', 'wrong order');${AS.bob}select count(*) from public.order_tracking_events where order_id = :'orderB';`);
+      assert.equal(out.split("\n").pop(), "1");
+    });
+  });
+
+  // =================================================================================================================
+  describe("what the ledger protection does NOT prevent: a privileged database operator", () => {
+    // The append-only and write-guard triggers stop every API role, every staff function and every ordinary SQL
+    // statement, superuser included. They are not a defence against an operator who can change the schema: such a person
+    // can disable a trigger, drop it, or switch the session to replica mode, and the data is then editable. These tests
+    // state that limit on purpose, so no document is read as promising more. The controls against that person are
+    // organisational (who holds database ownership, audit logs, backups), listed in the architecture document.
+    it("the database owner can disable the append-only trigger on the payments ledger", () => {
+      db.denied(`${AS.superuser}update public.payments set amount_minor = 1 where order_id = :'orderA';`, "", /append-only/i);
+      const out = db.ok(`${AS.superuser}alter table public.payments disable trigger payments_append_only;
+        update public.payments set amount_minor = 1 where order_id = :'orderA'; select amount_minor from public.payments where order_id = :'orderA';`);
+      assert.equal(out.split("\n").pop(), "1");
+    });
+
+    it("the database owner can bypass the triggers for a session with replica mode", () => {
+      const out = db.ok(`${AS.superuser}set local session_replication_role = replica;
+        update public.payments set amount_minor = 1 where order_id = :'orderA'; select amount_minor from public.payments where order_id = :'orderA';`);
+      assert.equal(out.split("\n").pop(), "1");
+    });
+
+    it("but no API role, however privileged its token, can do either", () => {
+      for (const who of [AS.service, AS.olivia, AS.alice]) {
+        db.denied(`${who}alter table public.payments disable trigger payments_append_only;`, "", /must be owner|permission denied/);
+        db.denied(`${who}set local session_replication_role = replica;`, "", /permission denied/);
+        db.denied(`${who}update public.payments set amount_minor = 1 where order_id = :'orderA';`, "", /permission denied/);
+      }
     });
   });
 

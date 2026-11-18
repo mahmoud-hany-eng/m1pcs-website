@@ -75,7 +75,10 @@ Not authorised or done in this phase. When it is approved:
 
 ## Placeholders, not decisions
 
-The order-status vocabulary, the deposit and payment policy, the staff roles and the loyalty details beyond the earn
+**The deposit policy is not a placeholder: it is unconfigured.** No deposit schedule is adopted, and while it is
+unconfigured an order cannot be created. See `docs/project-memory/architecture/DEPOSIT_POLICY_AUDIT.md`.
+
+The order-status vocabulary, the payment policy, the staff roles and the loyalty details beyond the earn
 rate and the point value are **provisional placeholders**, marked in the data and tracked as open questions
 (OQ-0005, OQ-0006, OQ-0007, OQ-0010, OQ-0011, OQ-0012). They exist so the mechanism can be built and tested. The owner
 sets the real values through the policy functions, and nothing here should be read as a business decision.

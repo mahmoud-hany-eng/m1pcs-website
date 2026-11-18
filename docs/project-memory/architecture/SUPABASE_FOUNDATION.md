@@ -1,6 +1,6 @@
 # Supabase foundation for the M1 business platform (PLAT-0001, Phase 1)
 
-**Status: implemented locally and tested locally. Not deployed. Not connected to any Supabase project.** This document
+**Status: implemented locally and tested locally. Not deployed. Not connected to any Supabase project.** Corrected and extended by PLAT-0002: migrations 12 and 13, and the documents `DEPOSIT_POLICY_AUDIT.md` and `ADMIN_ACCESS_AND_LEDGER_PROCEDURES.md`. This document
 describes what was built in the `supabase/` directory, why, what was tested and how, what is still a placeholder, and
 what must happen next. It extends the recommendations in [ARCHITECTURE.md](ARCHITECTURE.md) (REC-PLAT-001 to
 REC-PLAT-014) with a concrete database design. It records no business decision: where a rule belongs to the owner it is
@@ -102,10 +102,14 @@ any other move, requires the `orders.transition` permission, writes the history 
 status and the history in one transaction. A held order can resume only at the status it was held from, or be
 cancelled. Terminal statuses allow nothing.
 
-**The deposit rule is a policy, not a constant.** The snapshot `orders.deposit_required_minor` is computed once when
-an order is priced: `ceil(total × basis points ÷ 10 000)`, never below the policy minimum and never above the total.
-A later policy change affects new orders only. The status before which the deposit must be fully paid is part of the
-policy. If the policy row is missing, the transition **fails closed** rather than skipping the gate.
+**The deposit rule is a policy, not a constant, and it ships unconfigured.** The snapshot
+`orders.deposit_required_minor` is computed once when an order is priced, from the owner's schedule: a percentage
+(`ceil(total × basis points ÷ 10 000)`), a fixed amount, or tiers by order total, never below the policy minimum and
+never above the total. A later policy change affects new orders only. The status before which the deposit must be fully
+paid is part of the policy. **Migration 12 (PLAT-0002) withdrew the Phase 1 flat 50 % placeholder:** nothing in the
+repository supports it (see `DEPOSIT_POLICY_AUDIT.md`), so the seeded policy is `unconfigured`, and while it is, an order
+cannot be created and an existing order cannot advance. A missing policy row behaves the same way: the system **fails
+closed** rather than skipping the gate or inventing a schedule.
 
 **A quotation is not a payment.** Converting a quotation to an order does not create a payment and does not mark a
 deposit paid. The order starts at `pending_confirmation` with `amount_paid_minor = 0`. A test asserts it.
@@ -146,7 +150,7 @@ and, where it depends on a decision, names the open question.
 | --- | --- | --- | --- |
 | `loyalty.earn_rate` | 1 point per QAR 10 | confirmed (REQ-LOY-002) | |
 | `loyalty.point_value` | QAR 0.10 per point | confirmed (REQ-LOY-003) | |
-| `orders.deposit` | 50 %, no minimum, due before `deposit_received` | **placeholder** | no deposit rule is recorded |
+| `orders.deposit` | **`unconfigured`** (the Phase 1 flat 50 % was withdrawn in migration 12; it stays in the version history) | **no schedule adopted** | no deposit rule is recorded; the owner decides (see `DEPOSIT_POLICY_AUDIT.md`) |
 | `orders.full_payment` | no status requires it | **placeholder** | OQ-0006 |
 | `loyalty.earning_base` | order total, rounded down | **placeholder** | OQ-0007 |
 | `loyalty.award_trigger` | on `delivered`, fully paid | **placeholder** | OQ-0006 |
@@ -209,7 +213,7 @@ policies, other people's data, staff tables, the audit log.
 | A forged JWT claims to be an admin | Authorization reads tables, never claims |
 | A privileged function is hijacked through the search path | Every `security definer` function pins `search_path = ''` (a static test and the in-database audit both check) |
 | A new table or grant quietly opens a hole | `private.security_audit()` runs inside the last migration and **fails the migration** on RLS missing, an anonymous privilege, an API privilege on a private table, a writable ledger, an unpinned definer function, an anonymous-executable function, a cost-like column name in `public`, or a private table in a Realtime publication |
-| A ledger is edited after the fact | Append-only triggers fire for every role, superuser included, and also block TRUNCATE |
+| A ledger is edited after the fact | Append-only triggers stop every API role, every staff function and every ordinary SQL statement, a superuser's included, and also block TRUNCATE. They do **not** stop a privileged operator who can disable a trigger or use replica mode; that limit is tested and stated in `ADMIN_ACCESS_AND_LEDGER_PROCEDURES.md`, and the controls against it are organisational |
 | A double award or double reversal | Unique partial indexes |
 | A guessed claim code | 80 bits of randomness, hashed at rest, expiry, single use, rate limit |
 | A staff account without a second factor | `aal2` required by policy; missing policy means required |
@@ -239,8 +243,10 @@ Supabase's `postgres` role instead of a superuser. The checklist is
    and loyalty are not writable by it, but a guest-quotation writer will need it for `quotations`, so that grant stays
    until the writer exists (OQ-0017). Phase 3 should replace it with a narrower function.
 3. **A payment reversal does not roll an order back.** It lowers the amount paid and the deposit gate then applies to
-   the next move; a status already reached is not undone.
-4. **Tracking updates cannot be retracted.** They are append-only; a correction is a new update.
+   the next move; a status already reached is not undone. The safe procedure (hold the order, re-record, resume) is in
+   `ADMIN_ACCESS_AND_LEDGER_PROCEDURES.md`.
+4. **Tracking updates cannot be edited or deleted, but can be retracted** (migration 13, PLAT-0002): a private record
+   hides the update from the customer and keeps it for staff and for audit.
 5. **The status vocabulary is in the database, but the TypeScript side treats it as plain text** by design, so a change
    of stages needs no deployment.
 6. **Not in CI.** `db:test` is not part of the GitHub workflow, because changing the workflow is a protected change that
