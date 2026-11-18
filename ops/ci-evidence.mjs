@@ -6,6 +6,9 @@
 //     node ops/ci-evidence.mjs --repository owner/name --repo-dir . --base <rev> --head <rev> [--task OPS-0003] [--branch <name>]
 //   Add what GitHub reports about the run (files fetched from the REST API by a trusted collector):
 //     ... --run run.json --jobs jobs.json [--checks check-runs.json] [--log job.log]
+//   --checks and --log may be left out to look at a partial picture, but a complete assessment needs both: without them the
+//   checks that depend on them are recorded as not run, ci_passed is false, evidence_complete is false and the missing
+//   evidence is listed (OPS-0005B).
 //   Without --base the expectations must come from trusted files you name:
 //     node ops/ci-evidence.mjs --repository owner/name --head <40-hex sha> --run run.json --jobs jobs.json \
 //          --workflow-file <trusted ci.yml> --policy-file <trusted policy.json>
@@ -137,6 +140,7 @@ export function main(argv, out = process.stdout, errOut = process.stderr, { now 
     if (args.out) fs.writeFileSync(args.out, json);
     else out.write(json);
     errOut.write(`human review required: ${doc.verdict.human_review_required ? "YES" : "no"}; ci passed: ${doc.verdict.ci_passed}; ci trust basis: ${doc.verdict.ci_trust_basis}; evidence complete: ${doc.verdict.evidence_complete}\n`);
+    if (doc.verdict.missing_evidence.length) errOut.write(`missing mandatory evidence: ${doc.verdict.missing_evidence.join(", ")}\n`);
     for (const reason of doc.verdict.reasons) errOut.write(`  - ${reason}\n`);
     return doc.verdict.human_review_required ? 3 : 0;
   } catch (err) {

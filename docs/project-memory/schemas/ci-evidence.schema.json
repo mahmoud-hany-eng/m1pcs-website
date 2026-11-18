@@ -1307,8 +1307,129 @@
       ]
     },
     "verdict": {
+      "description": "Deterministic conclusions from the sections above. Advisory. Documents written by the earlier version of the tool lack missing_evidence and are still accepted; consumers must treat their evidence_complete as weaker.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/verdict"
+        },
+        {
+          "$ref": "#/$defs/verdict_before_missing_evidence"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "evidence_kind",
+    "generated_at",
+    "collector",
+    "trust",
+    "repository",
+    "subject",
+    "trusted_base",
+    "github_ci",
+    "verdict"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "UTC ISO-8601 timestamp with second precision and a trailing Z."
+    },
+    "verdict": {
       "type": "object",
-      "description": "Deterministic conclusions from the sections above. Advisory.",
+      "description": "Deterministic conclusions from the sections above. Advisory. This is the current shape: it always lists the mandatory inputs that were not supplied.",
+      "properties": {
+        "ci_passed": {
+          "description": "Null only when no GitHub run data was supplied. False when GitHub's data shows a failure or an inconsistency, and also when a mandatory check could not run because its input (check runs, job log) was missing: not established as passed is not passed.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "Every blocking check ran and held, and the run succeeded."
+            }
+          ]
+        },
+        "ci_trust_basis": {
+          "type": "string",
+          "enum": [
+            "ci_definition_unchanged_from_base",
+            "ci_definition_modified_from_base",
+            "base_unchecked",
+            "ci_not_collected"
+          ],
+          "description": "Whether CI's own definition (workflow, ops code, policy, schemas, package scripts, build inputs) is the base's. If not, the CI result is not evidence."
+        },
+        "control_plane_changed": {
+          "description": "Null without a base.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "A control-plane file changed."
+            }
+          ]
+        },
+        "human_review_required": {
+          "type": "boolean",
+          "description": "A human must review before this is accepted."
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "Every mandatory input was supplied (trusted-base check, GitHub run and job data, check runs, job log), every mandatory check ran, and no blocking check failed."
+        },
+        "missing_evidence": {
+          "type": "array",
+          "description": "The mandatory inputs that were not supplied, in a fixed order; empty only when everything was supplied.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "trusted_base",
+              "github_run_data",
+              "check_runs",
+              "job_log"
+            ],
+            "description": "An input a complete assessment needs."
+          },
+          "uniqueItems": true,
+          "maxItems": 4
+        },
+        "reasons": {
+          "type": "array",
+          "description": "Why a human is required or the evidence is incomplete.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "maxLength": 400
+          }
+        }
+      },
+      "required": [
+        "ci_passed",
+        "ci_trust_basis",
+        "control_plane_changed",
+        "human_review_required",
+        "evidence_complete",
+        "missing_evidence",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "verdict_before_missing_evidence": {
+      "type": "object",
+      "description": "A verdict written by an earlier version of the tool, before missing_evidence existed. It stays valid so that stored evidence is not invalidated. In such a document evidence_complete only says that a trusted-base section and GitHub data were present and consistent; it does not say that check runs and a job log were present.",
       "properties": {
         "ci_passed": {
           "description": "Null when no CI data was supplied.",
@@ -1373,31 +1494,6 @@
         "reasons"
       ],
       "additionalProperties": false
-    }
-  },
-  "required": [
-    "schema_version",
-    "evidence_kind",
-    "generated_at",
-    "collector",
-    "trust",
-    "repository",
-    "subject",
-    "trusted_base",
-    "github_ci",
-    "verdict"
-  ],
-  "additionalProperties": false,
-  "$defs": {
-    "sha": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{40}$",
-      "description": "Full 40-character lowercase git commit SHA."
-    },
-    "timestamp": {
-      "type": "string",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-      "description": "UTC ISO-8601 timestamp with second precision and a trailing Z."
     }
   }
 }
