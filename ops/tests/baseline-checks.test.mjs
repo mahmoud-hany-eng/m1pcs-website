@@ -259,20 +259,35 @@ test("F-2 case 7: a baseline that is unrelated to the base, or descends from the
   OK.repo.branch("side-line", (r) => { r.write(TASK_REL, taskText); r.write("docs/guides/side.md", "# side\n"); }, { from: parent });
   const sideTip = sha(OK, "side-line");
   assert.throws(() => buildFor(OK, OK.baselineSha, { baseline: sideTip }), (e) => e instanceof PacketError && e.code === "PK-BASELINE-NOT-INDEPENDENT" && /does not descend from it|not an ancestor/.test(e.message));
+  const unrelated = buildFor(OK, OK.baselineSha, { baseline: sideTip, baselineException: "HD-0010" }).manifest;
+  assert.deepEqual([unrelated.trusted_baseline.relation_to_base, unrelated.trusted_baseline.history_verified, unrelated.trusted_baseline.independent], ["not_a_descendant_of_base", false, false], "the history behind an unrelated baseline is not read, and the manifest says so");
+  // a sibling: it IS the base plus a commit that touches only the task definition (a clean preparation), but it lies on another line of history than the head's, so it does not predate the work under review
+  OK.repo.branch("sibling-prep", (r) => r.write(TASK_REL, taskText), { from: parent });
+  const sibling = sha(OK, "sibling-prep");
+  assert.notEqual(sibling, OK.baselineSha);
+  assert.throws(() => buildFor(OK, parent, { baseline: sibling }), (e) => e instanceof PacketError && e.code === "PK-BASELINE-NOT-INDEPENDENT" && /not an ancestor of the head/.test(e.message));
+  const sib = buildFor(OK, parent, { baseline: sibling, baselineException: "HD-0010" }).manifest.trusted_baseline;
+  assert.deepEqual([sib.relation_to_base, sib.history_verified, sib.relation_to_head, sib.independent], ["task_preparation_only", true, "unrelated", false], "a clean preparation history is not enough: the baseline must also be an ancestor of the head");
   // a descendant of the head
   OK.repo.branch("after-head", (r) => r.write("docs/guides/after-head.md", "# after\n"), { from: "report" });
   assert.throws(() => buildFor(OK, OK.baselineSha, { baseline: sha(OK, "after-head") }), (e) => e instanceof PacketError && e.code === "PK-BASELINE-NOT-INDEPENDENT" && /descends from the reviewed head/.test(e.message));
 });
 
 test("F-2: a merge commit between the base and the baseline cannot be attributed to the task definition, so the baseline is not independent", () => {
+  // the side line touches nothing but the task definition: the merge commit is the ONLY thing that makes this baseline unfit
   const { w, base } = historyWorld({ history: (r) => {
-    r.git("switch", "-q", "-c", "side-work", "main");
-    r.write("docs/guides/side-work.md", "# side work\n");
-    commitPaths(r, "side work", ["docs/guides/side-work.md"]);
+    r.git("switch", "-q", "-c", "side-prep", "main");
+    commitPaths(r, "task definition on a side line", [TASK_REL]);
     r.git("switch", "-q", "main");
-    r.git("merge", "--no-ff", "-q", "-m", "merge the side work", "side-work");
+    r.git("merge", "--no-ff", "-q", "-m", "merge the side line", "side-prep");
+    r.write(TASK_REL, `${r.read(TASK_REL)}\nAfter the merge.\n`);
   } });
-  refusedFor(w, base, "merge");
+  const parents = (c) => w.repo.git("rev-list", "--parents", "-n", "1", c).trim().split(" ").length - 1;
+  assert.deepEqual(w.repo.git("log", "--format=%H", `${base}..${w.baselineSha}`).trim().split("\n").map(parents).sort(), [1, 1, 2], "a side commit, the merge, and the world's own commit");
+  assert.equal(w.repo.git("diff", "--name-only", `${base}..${w.baselineSha}`).trim(), TASK_REL, "every path in the history is the task definition");
+  refusedFor(w, base, "merge commit");
+  const { manifest } = buildFor(w, base, { baselineException: "HD-0010" });
+  assert.deepEqual(provenance(manifest), { relation_to_base: "other_changes_in_history", commits_after_base: 3, non_preparation_paths: [], history_verified: true, independent: false });
 });
 
 test("F-2: no exception is granted automatically: it needs a well formed, recorded decision, and an independent baseline needs none", () => {
@@ -292,6 +307,8 @@ test("F-2: the verifier rejects a manifest whose provenance claims contradict ea
     ["task_preparation_only with a path outside the task definition listed", prep, (m) => { m.trusted_baseline.non_preparation_paths = ["ops/lib/x.mjs"]; }],
     ["independent without a verified history", prep, (m) => { m.trusted_baseline.history_verified = false; }],
     ["no commits after the base but a preparation relation", prep, (m) => { m.trusted_baseline.commits_after_base = 0; }],
+    ["other changes found in a history that was not read", prep, (m) => { m.trusted_baseline.relation_to_base = "other_changes_in_history"; m.trusted_baseline.history_verified = false; m.trusted_baseline.independent = false; }],
+    ["a baseline that is not a descendant of the base, with a verified history", prep, (m) => { m.trusted_baseline.relation_to_base = "not_a_descendant_of_base"; m.trusted_baseline.independent = false; }],
   ];
   for (const [name, source, mutate] of cases) {
     const dir = copyPacket(source);
@@ -316,4 +333,12 @@ test("F-2: a consistent manifest that names a baseline with other changes in its
   assert.ok(codes(r).includes("DG-BASELINE-NOT-INDEPENDENT"));
   assert.equal(r.computed.baseline.independent, false);
   assert.equal(r.computed.baseline.exception, null);
+});
+
+test("F-2: a baseline too far from the base to be read in full is not independent, and is never called verified", () => {
+  const { w, base } = historyWorld({ history: (r) => { for (let i = 0; i < 201; i += 1) r.git("commit", "-q", "--allow-empty", "-m", `preparation ${i}`); } });
+  assert.equal(w.repo.git("rev-list", "--count", `${base}..${w.baselineSha}`).trim(), "202", "201 empty commits and the world's own baseline commit");
+  assert.throws(() => buildFor(w, base), (e) => e instanceof PacketError && e.code === "PK-BASELINE-NOT-INDEPENDENT" && /cannot be verified/.test(e.message));
+  const { manifest } = buildFor(w, base, { baselineException: "HD-0010" });
+  assert.deepEqual(provenance(manifest), { relation_to_base: "not_a_descendant_of_base", commits_after_base: 202, non_preparation_paths: [], history_verified: false, independent: false });
 });

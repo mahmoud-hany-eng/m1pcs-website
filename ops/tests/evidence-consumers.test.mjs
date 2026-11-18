@@ -346,15 +346,17 @@ test("F-1: every identity in the evidence is checked on its own: a changed base,
     ["the evidence subject's merge-base", (e) => { e.subject.merge_base_sha = FAKE; }],
     ["the trusted-base evaluation's merge-base", (e) => { e.trusted_base.evaluated.merge_base_sha = FAKE; }],
     ["the trusted-base evaluation's head", (e) => { e.trusted_base.evaluated.head_sha = FAKE; }],
+    // the builder and the verifier reject a different subject head earlier, with their own message; deriveCi still names it when called directly
+    ["the evidence subject's head", (e) => { e.subject.head_sha = FAKE; }, false],
   ];
-  for (const [label, mutate] of fields) {
+  for (const [label, mutate, namedByConsumers = true] of fields) {
     const e = clone(CP.evidence);
     mutate(e);
     const ci = deriveCi(e, trustedFor(CP));
     assert.ok(ci.problems.some((p) => p.code === "EV-BASE-MISMATCH" && p.message.includes(label)), `${label}: ${problemCodes(ci)}`);
     assert.equal(ci.complete, false, label);
-    refusedEvidence(CP, e, label);
-    verifierRefuses(CP, swapEvidence(CP, e), label);
+    refusedEvidence(CP, e, namedByConsumers ? label : null);
+    verifierRefuses(CP, swapEvidence(CP, e), namedByConsumers ? label : null);
   }
 });
 
