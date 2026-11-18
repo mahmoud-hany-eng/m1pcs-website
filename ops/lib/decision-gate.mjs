@@ -222,9 +222,10 @@ export function evaluateDecision({ packetDir, decisionFile, toolRoot = DEFAULT_R
   // 6b. the baseline: only one that predates the work and holds the approved task is independent verification
   const bl = manifest.trusted_baseline;
   if (!bl.independent) {
-    if (bl.exception === null) add("corrections", "DG-BASELINE-NOT-INDEPENDENT", `the baseline is not independent (relation to the head: ${bl.relation_to_head}; reviewed paths already in it: ${bl.reviewed_paths_in_baseline}) and no exception is recorded, so this is not independent verification`);
+    const why = `relation to the head: ${bl.relation_to_head}; history behind the base: ${bl.relation_to_base}${bl.non_preparation_paths.length ? ` (${bl.non_preparation_paths.slice(0, 3).join(", ")}${bl.non_preparation_paths.length > 3 ? ", ..." : ""})` : ""}; reviewed paths already in it: ${bl.reviewed_paths_in_baseline}`;
+    if (bl.exception === null) add("corrections", "DG-BASELINE-NOT-INDEPENDENT", `the baseline is not independent (${why}) and no exception is recorded, so this is not independent verification`);
     else {
-      add("warning", "DG-BASELINE-EXCEPTION", `the baseline is not independent (relation to the head: ${bl.relation_to_head}; reviewed paths already in it: ${bl.reviewed_paths_in_baseline}); it is accepted only under the recorded exception ${bl.exception.approval_reference}`);
+      add("warning", "DG-BASELINE-EXCEPTION", `the baseline is not independent (${why}); it is accepted only under the recorded exception ${bl.exception.approval_reference}`);
       human("DG-HUMAN-BASELINE-EXCEPTION", `this review's baseline is a recorded exception (${bl.exception.approval_reference}), not independent verification; a person must weigh that`);
     }
   }
@@ -290,7 +291,7 @@ export function evaluateDecision({ packetDir, decisionFile, toolRoot = DEFAULT_R
     changed_files: changedFiles.files.length,
     attempt: { number: attemptNumber, max: maxAttempts },
     ci: { passed: ci.passed, run_id: ci.runId, conclusion: ci.conclusion, trust_basis: ci.trustBasis, evidence_complete: ci.complete, evidence_legacy: ci.legacy },
-    baseline: { independent: bl.independent, relation_to_head: bl.relation_to_head, reviewed_paths_in_baseline: bl.reviewed_paths_in_baseline, exception: bl.exception === null ? null : bl.exception.approval_reference },
+    baseline: { independent: bl.independent, relation_to_head: bl.relation_to_head, relation_to_base: bl.relation_to_base, commits_after_base: bl.commits_after_base, reviewed_paths_in_baseline: bl.reviewed_paths_in_baseline, exception: bl.exception === null ? null : bl.exception.approval_reference },
   };
   return finish();
 }

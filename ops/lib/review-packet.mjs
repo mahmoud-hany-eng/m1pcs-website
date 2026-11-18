@@ -355,25 +355,82 @@ function sensitiveProblems(files, policy) {
 
 const decisionRecorded = (decisionsText, id) => new RegExp(`^### ${id}( |$)`, "m").test(decisionsText ?? "");
 
+const MAX_PREPARATION_COMMITS = 200;
+const MAX_LISTED_PATHS = 20;
+
+const isAncestorOf = (repoDir, a, b) => {
+  try {
+    git(repoDir, ["merge-base", "--is-ancestor", a, b]);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
- * How the trusted baseline relates to the work under review (OPS-0006). A baseline is independent verification only if it is an
- * ancestor of the head and none of the reviewed code is already in it. The approved task definition must be in it (the builder
- * refuses otherwise); here we also record whether the base holds the same definition and whether the evidence's trusted-base check
- * could judge the task's scope from it.
+ * How the baseline's HISTORY relates to the approved base (OPS-0006 attempt 2, finding F-2). Review B found that independence was
+ * decided from the final contents of the reviewed files, so an implementation or control-plane change that was later rewritten or
+ * reverted left no trace. The commits between the base and the baseline are therefore read one by one. The baseline is independent
+ * only if it IS the approved base, or every commit between them changes nothing but the task definition the review uses (the
+ * approved preparation of the task). Any other path in any of those commits, a merge commit, or a baseline that does not descend
+ * from the base, is not independent, whatever the final trees look like.
+ *
+ * Offline limits: "the approved base" is the base the builder was given (the owner pins it), and the task definition's content is
+ * not judged, only that nothing else was touched.
+ */
+function baselineProvenance({ repoDir, baselineSha, baseSha, taskPath }) {
+  const out = { relation_to_base: "not_a_descendant_of_base", commits_after_base: 0, non_preparation_paths: [], history_verified: false, reasons: [] };
+  if (baselineSha === baseSha) return { ...out, relation_to_base: "is_base", history_verified: true };
+  if (!isAncestorOf(repoDir, baseSha, baselineSha)) {
+    out.reasons.push("the baseline is not the base and does not descend from it, so it is not the approved starting point of the work");
+    return out;
+  }
+  let revs;
+  try {
+    revs = git(repoDir, ["rev-list", "--reverse", "--topo-order", `${baseSha}..${baselineSha}`]).toString("utf8").split("\n").filter(Boolean);
+  } catch {
+    out.reasons.push("the commits between the base and the baseline could not be read, so the baseline's history cannot be verified");
+    return out;
+  }
+  out.commits_after_base = revs.length;
+  if (revs.length > MAX_PREPARATION_COMMITS) {
+    out.reasons.push(`${revs.length} commits lie between the base and the baseline (the limit is ${MAX_PREPARATION_COMMITS}), so the history cannot be verified`);
+    return out;
+  }
+  const other = new Set();
+  let merges = 0;
+  for (const commit of revs) {
+    const parents = git(repoDir, ["rev-list", "--parents", "-n", "1", commit]).toString("utf8").trim().split(" ").length - 1;
+    if (parents !== 1) {
+      merges += 1; // a merge (or a root) cannot be attributed to the task definition
+      continue;
+    }
+    for (const name of git(repoDir, ["diff-tree", "-r", "--no-commit-id", "--name-only", "--no-renames", "-z", commit]).toString("utf8").split("\0").filter(Boolean)) {
+      if (name !== taskPath) other.add(name);
+    }
+  }
+  out.history_verified = true;
+  out.non_preparation_paths = [...other].sort().slice(0, MAX_LISTED_PATHS);
+  out.relation_to_base = other.size > 0 || merges > 0 ? "other_changes_in_history" : "task_preparation_only";
+  if (other.size > 0) out.reasons.push(`${revs.length} commit(s) between the base and the baseline change ${other.size} path(s) other than the task definition (${[...other].sort().slice(0, 3).join(", ")}${other.size > 3 ? ", ..." : ""}), so the baseline may contain work that is under review`);
+  if (merges > 0) out.reasons.push(`${merges} merge commit(s) lie between the base and the baseline and cannot be attributed to the task definition`);
+  return out;
+}
+
+/**
+ * How the trusted baseline relates to the work under review (OPS-0006). A baseline is independent verification only if it predates
+ * the work: it is an ancestor of the head, it is the approved base or differs from it only by commits that touch the task
+ * definition (baselineProvenance reads that history), and none of the reviewed code is already in it. The approved task definition
+ * must be in it (the builder refuses otherwise); here we also record whether the base holds the same definition and whether the
+ * evidence's trusted-base check could judge the task's scope from it.
  */
 function baselineAssessment({ repoDir, baselineSha, baseSha, headSha, changed, taskPath, taskBlob, evidence }) {
-  const isAncestor = (a, b) => {
-    try {
-      git(repoDir, ["merge-base", "--is-ancestor", a, b]);
-      return true;
-    } catch {
-      return false;
-    }
-  };
+  const isAncestor = (a, b) => isAncestorOf(repoDir, a, b);
   let relation = "unrelated";
   if (baselineSha === headSha) relation = "is_head";
   else if (isAncestor(baselineSha, headSha)) relation = "ancestor_of_head";
   else if (isAncestor(headSha, baselineSha)) relation = "descends_from_head";
+  const prov = baselineProvenance({ repoDir, baselineSha, baseSha, taskPath });
   let inBaseline = 0;
   for (const c of changed) {
     if (c.path === taskPath) continue;
@@ -390,12 +447,18 @@ function baselineAssessment({ repoDir, baselineSha, baseSha, headSha, changed, t
   else if (relation === "descends_from_head") reasons.push("the baseline descends from the reviewed head, so it contains the code under review");
   else if (relation === "unrelated") reasons.push("the baseline is not an ancestor of the head, so it does not predate the work");
   if (inBaseline > 0) reasons.push(`${inBaseline} reviewed path(s) already have the reviewed content in the baseline`);
+  reasons.push(...prov.reasons);
+  const preparedOrBase = prov.relation_to_base === "is_base" || prov.relation_to_base === "task_preparation_only";
   return {
     relation_to_head: relation,
     reviewed_paths_in_baseline: inBaseline,
+    relation_to_base: prov.relation_to_base,
+    commits_after_base: prov.commits_after_base,
+    non_preparation_paths: prov.non_preparation_paths,
+    history_verified: prov.history_verified,
     base_has_task_file: baseBlob !== null && Buffer.compare(baseBlob, taskBlob) === 0,
     scope_established_by_evidence: Boolean(tb && tb.task_scope && tb.task_scope.source === "base_revision"),
-    independent: relation === "ancestor_of_head" && inBaseline === 0,
+    independent: relation === "ancestor_of_head" && preparedOrBase && prov.history_verified && inBaseline === 0,
     reasons,
   };
 }
@@ -524,7 +587,7 @@ export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, 
     need(/^HD-[0-9]{4}$/.test(baselineException), "PK-BASELINE-EXCEPTION", "a baseline exception must name a human decision such as HD-0017");
     need(!bl.independent, "PK-BASELINE-EXCEPTION", "the baseline is independent, so no exception is needed or allowed");
     need(decisionRecorded(tool.humanDecisionsText, baselineException), "PK-BASELINE-EXCEPTION", `${baselineException} is not in the baseline's decision log`);
-    exception = { approval_reference: baselineException, reasons: bl.reasons.slice(0, 6) };
+    exception = { approval_reference: baselineException, reasons: bl.reasons.slice(0, 6).map((r) => r.slice(0, 300)) };
   }
   need(bl.independent || exception !== null, "PK-BASELINE-NOT-INDEPENDENT", `the baseline is not independent (${bl.reasons.join("; ")}), so a review from it is not independent verification. Use a baseline that predates the work and holds the approved task definition, or record an explicit exception with a decision`);
 
@@ -556,6 +619,7 @@ export function buildPacket({ repoDir, baseline, base, head, taskId, attemptId, 
     trusted_baseline: {
       commit: baselineSha, policy_version: tool.policy.policy_version, prompt_version: prompt.version, task_file_matches_head: taskMatchesHead,
       relation_to_head: bl.relation_to_head, reviewed_paths_in_baseline: bl.reviewed_paths_in_baseline, base_has_task_file: bl.base_has_task_file,
+      relation_to_base: bl.relation_to_base, commits_after_base: bl.commits_after_base, non_preparation_paths: bl.non_preparation_paths, history_verified: bl.history_verified,
       scope_established_by_evidence: bl.scope_established_by_evidence, independent: bl.independent, exception,
     },
     ci: { run_id: ci.runId, conclusion: ci.conclusion, ci_passed: ci.passed, ci_trust_basis: ci.trustBasis, evidence_complete: ci.complete, evidence_legacy: ci.legacy },
@@ -758,7 +822,13 @@ export function verifyPacket(packetDir, { toolRoot = DEFAULT_ROOT, expectBaselin
 
   // the baseline's claims must agree with each other (the builder computed them from git; a verifier without the repository cannot)
   const tbm = manifest.trusted_baseline;
-  if (tbm.independent !== (tbm.relation_to_head === "ancestor_of_head" && tbm.reviewed_paths_in_baseline === 0)) err("PK-BASELINE-INCONSISTENT", "the manifest calls the baseline independent or not independent against its own relation and path count");
+  const rel = tbm.relation_to_base;
+  const prepared = rel === "is_base" || rel === "task_preparation_only";
+  if ((rel === "is_base") !== (tbm.commit === manifest.subject.base_sha)) err("PK-BASELINE-INCONSISTENT", "the manifest's relation to the base contradicts its own commit ids: the baseline is the base exactly when the two commits are equal");
+  if ((rel === "is_base" && tbm.commits_after_base !== 0) || (rel === "task_preparation_only" && tbm.commits_after_base < 1)) err("PK-BASELINE-INCONSISTENT", "the manifest's count of commits between the base and the baseline contradicts its relation to the base");
+  if (prepared && (tbm.non_preparation_paths.length > 0 || !tbm.history_verified)) err("PK-BASELINE-INCONSISTENT", "the manifest calls the baseline the base or a task-definition preparation, but lists other paths in its history or says the history was not verified");
+  if ((rel === "other_changes_in_history" && !tbm.history_verified) || (rel === "not_a_descendant_of_base" && tbm.history_verified)) err("PK-BASELINE-INCONSISTENT", "the manifest's claim about whether the baseline's history was read contradicts its relation to the base");
+  if (tbm.independent !== (tbm.relation_to_head === "ancestor_of_head" && prepared && tbm.history_verified && tbm.reviewed_paths_in_baseline === 0)) err("PK-BASELINE-INCONSISTENT", "the manifest calls the baseline independent or not independent against its own relations, history and path count");
   if (tbm.exception !== null) {
     if (tbm.independent) err("PK-BASELINE-INCONSISTENT", "the manifest records a baseline exception for an independent baseline");
     if (!decisionRecorded(tool.humanDecisionsText, tbm.exception.approval_reference)) err("PK-BASELINE-EXCEPTION", `${tbm.exception.approval_reference} is not in this checkout's decision log`);

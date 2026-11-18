@@ -137,6 +137,35 @@
           "minimum": 0,
           "description": "How many of the reviewed changed paths (other than the task definition) already have the reviewed content in the baseline. Anything above zero means the baseline contains part of the code under review."
         },
+        "relation_to_base": {
+          "type": "string",
+          "enum": [
+            "is_base",
+            "task_preparation_only",
+            "other_changes_in_history",
+            "not_a_descendant_of_base"
+          ],
+          "description": "How the baseline's HISTORY relates to the approved base the work started from, read commit by commit and not from final file contents. is_base: the baseline is the base. task_preparation_only: every commit between them touches nothing but the task definition the review uses. other_changes_in_history: some commit between them touches another path (or is a merge), so the baseline may contain work under review even if later commits rewrote or reverted it. not_a_descendant_of_base: the baseline is not the base and does not descend from it, or its history could not be read. Only the first two can be independent."
+        },
+        "commits_after_base": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many commits lie between the base and the baseline (0 when the baseline is the base)."
+        },
+        "non_preparation_paths": {
+          "type": "array",
+          "description": "Paths other than the task definition that commits between the base and the baseline touch (at most 20 are listed). Empty for is_base and task_preparation_only.",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "A path."
+          },
+          "maxItems": 20
+        },
+        "history_verified": {
+          "type": "boolean",
+          "description": "Whether the builder could read every commit between the base and the baseline. False means the history was not inspected (the baseline does not descend from the base, or it lies too far from it) and the baseline cannot be independent."
+        },
         "base_has_task_file": {
           "type": "boolean",
           "description": "Whether the revision the change starts from holds the same task definition as the baseline, so that the trusted-base check could judge the task's scope from it."
@@ -147,7 +176,7 @@
         },
         "independent": {
           "type": "boolean",
-          "description": "True only when the baseline is an ancestor of the head and none of the reviewed code is in it. A packet whose baseline is not independent is not independent verification, whatever its other checks say."
+          "description": "True only when the baseline is an ancestor of the head, its verified history is the approved base or the base plus commits that touch only the task definition (relation_to_base), and none of the reviewed code is in it. A packet whose baseline is not independent is not independent verification, whatever its other checks say."
         },
         "exception": {
           "description": "Set when a baseline that is not independent was accepted on purpose.",
@@ -194,6 +223,10 @@
         "task_file_matches_head",
         "relation_to_head",
         "reviewed_paths_in_baseline",
+        "relation_to_base",
+        "commits_after_base",
+        "non_preparation_paths",
+        "history_verified",
         "base_has_task_file",
         "scope_established_by_evidence",
         "independent",

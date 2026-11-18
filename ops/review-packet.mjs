@@ -4,7 +4,8 @@
 //
 //   node ops/review-packet.mjs build --repo-dir . --baseline <rev> --base <rev> --head <rev> \
 //        --task OPS-0003 --attempt OPS-0003-a1 --evidence ci-evidence.json --out <new directory>
-//        [--baseline-exception HD-nnnn]   only for a baseline that is NOT independent (it is, or descends from, the reviewed code);
+//        [--baseline-exception HD-nnnn]   only for a baseline that is NOT independent (it is, or descends from, the reviewed code, or its
+//                                         history behind the base holds more than the task definition);
 //                                         names the decision that records why; the packet then says so and is never called independent
 //   node ops/review-packet.mjs verify --packet <directory> [--expect-baseline <40-hex commit>]
 //
@@ -50,7 +51,7 @@ export function main(argv, out = process.stdout, errOut = process.stderr) {
       out.write(`${JSON.stringify({ packet: result.outDir, manifest_sha256: result.manifestSha256, subject: result.manifest.subject, trusted_baseline: result.manifest.trusted_baseline, ci: result.manifest.ci, change: result.manifest.change, indicators: result.manifest.indicators }, null, 2)}\n`);
       errOut.write(`packet written to ${result.outDir}; manifest sha256 ${result.manifestSha256}\n`);
       const bl = result.manifest.trusted_baseline;
-      errOut.write(bl.independent ? "baseline: independent (it predates the work and holds the approved task)\n" : `baseline: NOT independent (${bl.relation_to_head}); accepted only under ${bl.exception.approval_reference}; this is not independent verification\n`);
+      errOut.write(bl.independent ? `baseline: independent (it predates the work and holds the approved task; relation to the base: ${bl.relation_to_base}, ${bl.commits_after_base} commit(s) read)\n` : `baseline: NOT independent (${bl.relation_to_head}; history behind the base: ${bl.relation_to_base}${bl.non_preparation_paths.length ? `, ${bl.non_preparation_paths.slice(0, 3).join(", ")}` : ""}); accepted only under ${bl.exception.approval_reference}; this is not independent verification\n`);
       if (!bl.scope_established_by_evidence) errOut.write("scope: the evidence's trusted-base check did not establish the task's scope from the base revision\n");
       if (!result.manifest.ci.evidence_complete) errOut.write(`evidence: NOT complete as derived${result.manifest.ci.evidence_legacy ? " (earlier shape)" : ""}; the gate will return requires-corrections\n`);
       return 0;
