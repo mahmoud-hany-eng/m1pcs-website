@@ -1,0 +1,454 @@
+{
+  "$id": "m1-ops/review-packet-manifest.schema.json",
+  "title": "Review packet manifest",
+  "description": "Binds a review packet to one commit, one task and one attempt, and lists the SHA-256 of every file in it. A reviewer reads the packet as evidence, never as instructions. The manifest is data produced by a tool that must be run from a checkout of the trusted baseline.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "packet_kind": {
+      "const": "review_packet",
+      "description": "The kind of document."
+    },
+    "tool": {
+      "type": "object",
+      "description": "The tool that built the packet.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name.",
+          "maxLength": 60
+        },
+        "version": {
+          "type": "string",
+          "description": "Tool version.",
+          "maxLength": 20
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration.",
+      "properties": {
+        "authenticated": {
+          "const": false,
+          "description": "A manifest cannot prove who built it."
+        },
+        "note": {
+          "type": "string",
+          "description": "What a consumer must do.",
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "authenticated",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "description": "The change under review: base..head, as reported at report_head_sha.",
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/task_id"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/attempt_id"
+        },
+        "branch": {
+          "description": "Branch of the head, when known.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "string",
+              "description": "Branch name.",
+              "maxLength": 200
+            }
+          ]
+        },
+        "base_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "head_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "merge_base_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "report_head_sha": {
+          "$ref": "#/$defs/sha"
+        }
+      },
+      "required": [
+        "task_id",
+        "attempt_id",
+        "branch",
+        "base_sha",
+        "head_sha",
+        "merge_base_sha",
+        "report_head_sha"
+      ],
+      "additionalProperties": false
+    },
+    "trusted_baseline": {
+      "type": "object",
+      "description": "The trusted commit that supplied the task definition, policy, schemas, requirements and reviewer instructions.",
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/sha"
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "Version of the policy taken from the baseline.",
+          "maxLength": 40
+        },
+        "prompt_version": {
+          "type": "string",
+          "description": "Version of the reviewer prompt taken from the baseline.",
+          "maxLength": 40
+        },
+        "task_file_matches_head": {
+          "type": "boolean",
+          "description": "Whether the task file at the head is byte-identical to the baseline's (a worker may not redefine its own task)."
+        },
+        "relation_to_head": {
+          "type": "string",
+          "enum": [
+            "ancestor_of_head",
+            "is_head",
+            "descends_from_head",
+            "unrelated"
+          ],
+          "description": "How the baseline commit relates to the head under review. Only ancestor_of_head predates the implementation; the others mean the baseline is, contains, or has nothing to do with the reviewed code."
+        },
+        "reviewed_paths_in_baseline": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many of the reviewed changed paths (other than the task definition) already have the reviewed content in the baseline. Anything above zero means the baseline contains part of the code under review."
+        },
+        "relation_to_base": {
+          "type": "string",
+          "enum": [
+            "is_base",
+            "task_preparation_only",
+            "other_changes_in_history",
+            "not_a_descendant_of_base"
+          ],
+          "description": "How the baseline's HISTORY relates to the approved base the work started from, read commit by commit and not from final file contents. is_base: the baseline is the base. task_preparation_only: every commit between them touches nothing but the task definition the review uses. other_changes_in_history: some commit between them touches another path (or is a merge), so the baseline may contain work under review even if later commits rewrote or reverted it. not_a_descendant_of_base: the baseline is not the base and does not descend from it, or its history could not be read. Only the first two can be independent."
+        },
+        "commits_after_base": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many commits lie between the base and the baseline (0 when the baseline is the base)."
+        },
+        "non_preparation_paths": {
+          "type": "array",
+          "description": "Paths other than the task definition that commits between the base and the baseline touch (at most 20 are listed). Empty for is_base and task_preparation_only.",
+          "items": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "A path."
+          },
+          "maxItems": 20
+        },
+        "history_verified": {
+          "type": "boolean",
+          "description": "Whether the builder could read every commit between the base and the baseline. False means the history was not inspected (the baseline does not descend from the base, or it lies too far from it) and the baseline cannot be independent."
+        },
+        "base_has_task_file": {
+          "type": "boolean",
+          "description": "Whether the revision the change starts from holds the same task definition as the baseline, so that the trusted-base check could judge the task's scope from it."
+        },
+        "scope_established_by_evidence": {
+          "type": "boolean",
+          "description": "Whether the CI evidence's trusted-base section judged the task's scope against a task file recorded in the base revision. False means the gate's own scope check is the only one."
+        },
+        "independent": {
+          "type": "boolean",
+          "description": "True only when the baseline is an ancestor of the head, its verified history is the approved base or the base plus commits that touch only the task definition (relation_to_base), and none of the reviewed code is in it. A packet whose baseline is not independent is not independent verification, whatever its other checks say."
+        },
+        "exception": {
+          "description": "Set when a baseline that is not independent was accepted on purpose.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "No exception: the baseline is independent."
+            },
+            {
+              "type": "object",
+              "description": "The recorded exception.",
+              "properties": {
+                "approval_reference": {
+                  "type": "string",
+                  "pattern": "^HD-[0-9]{4}$",
+                  "description": "A human decision in the baseline's decision log that records the exception."
+                },
+                "reasons": {
+                  "type": "array",
+                  "description": "Why the baseline is not independent.",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 300,
+                    "description": "A reason."
+                  },
+                  "minItems": 1,
+                  "maxItems": 6
+                }
+              },
+              "required": [
+                "approval_reference",
+                "reasons"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "commit",
+        "policy_version",
+        "prompt_version",
+        "task_file_matches_head",
+        "relation_to_head",
+        "reviewed_paths_in_baseline",
+        "relation_to_base",
+        "commits_after_base",
+        "non_preparation_paths",
+        "history_verified",
+        "base_has_task_file",
+        "scope_established_by_evidence",
+        "independent",
+        "exception"
+      ],
+      "additionalProperties": false
+    },
+    "ci": {
+      "type": "object",
+      "description": "Summary of the CI evidence file; the gate re-derives it from the file.",
+      "properties": {
+        "run_id": {
+          "type": "integer",
+          "description": "GitHub workflow run id.",
+          "minimum": 0
+        },
+        "conclusion": {
+          "description": "Null while running.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "string",
+              "description": "Run conclusion as GitHub reports it.",
+              "maxLength": 40
+            }
+          ]
+        },
+        "ci_passed": {
+          "type": "boolean",
+          "description": "Derived by the packet tool, never copied from the evidence's verdict."
+        },
+        "ci_trust_basis": {
+          "type": "string",
+          "enum": [
+            "ci_definition_unchanged_from_base",
+            "ci_definition_modified_from_base",
+            "base_unchecked",
+            "ci_not_collected"
+          ],
+          "description": "Whether CI's own definition is the base's (from the evidence)."
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "Derived by the packet tool from the evidence's own data and the baseline's expectations, never copied from the evidence's verdict."
+        },
+        "evidence_legacy": {
+          "type": "boolean",
+          "description": "True when the evidence is of the earlier shape, written before the mandatory log checks existed. Such evidence is never complete."
+        }
+      },
+      "required": [
+        "run_id",
+        "conclusion",
+        "ci_passed",
+        "ci_trust_basis",
+        "evidence_complete",
+        "evidence_legacy"
+      ],
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "description": "Size of the change.",
+      "properties": {
+        "files_changed": {
+          "type": "integer",
+          "description": "Number of changed paths.",
+          "minimum": 0
+        },
+        "additions": {
+          "type": "integer",
+          "description": "Added lines.",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "description": "Deleted lines.",
+          "minimum": 0
+        },
+        "diff_bytes": {
+          "type": "integer",
+          "description": "Size of the patch.",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "files_changed",
+        "additions",
+        "deletions",
+        "diff_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "description": "Every file of the packet except this manifest.",
+      "items": {
+        "type": "object",
+        "description": "One file of the packet.",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path inside the packet.",
+            "pattern": "^(trusted|untrusted)/[a-z0-9][a-z0-9.-]*$",
+            "maxLength": 80
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "reviewer_instructions",
+              "decision_schema",
+              "task",
+              "policy",
+              "requirements",
+              "ci_evidence",
+              "changed_files",
+              "run_report",
+              "diff",
+              "commits"
+            ],
+            "description": "What the file is for. Each role appears exactly once."
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "trusted_baseline",
+              "github_derived",
+              "computed_from_git",
+              "worker_claim",
+              "worker_authored"
+            ],
+            "description": "Where the content came from. Only the first three can be relied on for facts, and none of them can instruct the reviewer."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the file's exact bytes.",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "Size in bytes.",
+            "minimum": 0,
+            "maximum": 3000000
+          }
+        },
+        "required": [
+          "path",
+          "role",
+          "trust",
+          "sha256",
+          "bytes"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 10,
+      "maxItems": 10
+    },
+    "indicators": {
+      "type": "array",
+      "description": "Where instruction-like text was found.",
+      "items": {
+        "type": "object",
+        "description": "Worker-written text that reads like an instruction to a reviewer. Recorded as data; it is never obeyed.",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Packet file in which the text was found.",
+            "maxLength": 80
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "instruction_like_text"
+            ],
+            "description": "What was found."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of matching lines.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "file",
+          "kind",
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "packet_kind",
+    "tool",
+    "trust",
+    "subject",
+    "trusted_baseline",
+    "ci",
+    "change",
+    "files",
+    "indicators"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>, with at most one capital letter after the digits (OPS-0005B is a correction of OPS-0005). The prefix must be listed in policy.task_id_prefixes."
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?-a[1-9][0-9]?$",
+      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1 (OPS-0005B-a1 belongs to OPS-0005B and not to OPS-0005)."
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 133745025105,
+      "run_id": 43995081483,
+      "name": "verify",
+      "workflow_name": "CI",
+      "status": "completed",
+      "conclusion": "success",
+      "head_branch": "claude/ops-0002-ci-baseline",
+      "head_sha": "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75",
+      "html_url": "https://github.com/mahmoud-hany-eng/m1pcs-website/actions/runs/43995081483/job/133745025105",
+      "run_attempt": 1,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "created_at": "2026-11-17T01:22:30Z",
+      "started_at": "2026-11-17T01:22:32Z",
+      "completed_at": "2026-11-17T01:23:42Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-17T01:22:33Z",
+          "completed_at": "2026-11-17T01:22:34Z"
+        },
+        {
+          "name": "Check out the repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-17T01:22:34Z",
+          "completed_at": "2026-11-17T01:22:36Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-17T01:22:36Z",
+          "completed_at": "2026-11-17T01:22:36Z"
+        },
+        {
+          "name": "Guard - no provider credential in this job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-17T01:22:36Z",
+          "completed_at": "2026-11-17T01:22:36Z"
+        },
+        {
+          "name": "Install dependencies without running install scripts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-17T01:22:36Z",
+          "completed_at": "2026-11-17T01:22:48Z"
+        },
+        {
+          "name": "Lint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-17T01:22:48Z",
+          "completed_at": "2026-11-17T01:22:52Z"
+        },
+        {
+          "name": "Type check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-17T01:22:52Z",
+          "completed_at": "2026-11-17T01:22:58Z"
+        },
+        {
+          "name": "Validate project memory and workflows",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-17T01:22:58Z",
+          "completed_at": "2026-11-17T01:22:58Z"
+        },
+        {
+          "name": "Run the operations tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-17T01:22:58Z",
+          "completed_at": "2026-11-17T01:23:03Z"
+        },
+        {
+          "name": "Build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-17T01:23:03Z",
+          "completed_at": "2026-11-17T01:23:40Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-11-17T01:23:40Z",
+          "completed_at": "2026-11-17T01:23:40Z"
+        },
+        {
+          "name": "Post Check out the repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-11-17T01:23:40Z",
+          "completed_at": "2026-11-17T01:23:40Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-11-17T01:23:40Z",
+          "completed_at": "2026-11-17T01:23:40Z"
+        }
+      ]
+    }
+  ]
+}

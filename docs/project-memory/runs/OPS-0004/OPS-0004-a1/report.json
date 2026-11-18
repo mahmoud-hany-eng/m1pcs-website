@@ -1,0 +1,521 @@
+{
+  "schema_version": "1",
+  "report_kind": "worker_run_report",
+  "task_id": "OPS-0004",
+  "attempt_id": "OPS-0004-a1",
+  "attempt_number": 1,
+  "trust": {
+    "level": "unverified_worker_claim",
+    "verified_by_orchestrator": false
+  },
+  "session": {
+    "id": "session_01JfqSpyHPxpWCRiwr546Nt4",
+    "url": "https://claude.ai/code/session_01JfqSpyHPxpWCRiwr546Nt4"
+  },
+  "branch": "claude/ops-0004-review-foundation",
+  "base_branch": "claude-dev",
+  "base_sha": "50a46ca88a682095b07422152136a747d12bddd3",
+  "head_sha": "4aeb1c02385d0150f91cd9c7cdfea6a85322b400",
+  "started_at": "2026-11-17T12:43:15Z",
+  "finished_at": "2026-11-17T13:19:53Z",
+  "outcome": "completed",
+  "summary": "Implemented, locally only (HD-0017), the minimum offline infrastructure for the first developer-to-reviewer experiment. A review packet builder and verifier (ops/review-packet.mjs, ops/lib/review-packet.mjs, ops/lib/review-text.mjs) binds a fixed set of files by SHA-256 to one commit, task and attempt; the reviewer instructions, task, policy, decision schema and requirements come from a trusted baseline commit and are checked byte for byte against the checkout the tool runs from; CI is recomputed from GitHub's fields; the worker's report and the diff text are labelled claims and instruction-like text is counted as data. A deterministic decision gate (ops/decision-gate.mjs, ops/lib/decision-gate.mjs) reuses the existing decision validator and returns REVIEW_VALID_HUMAN_APPROVAL_REQUIRED, REQUIRES_CORRECTIONS, REVIEW_REJECTED or REVIEW_INVALID; it always reports that a human is required and fixes merge, deploy, authorize and launch to false. One new schema and one new runtime value (manual_session) were added; policy 0.5.0, no rule relaxed. 48 new tests (suite 465 of 465), 6 of them on the real data of GitHub run 44082419253; a 63-weakening mutation check (62 caught, 1 equivalent). A runbook and the exact launch message for the first manual reviewer session were written; no reviewer was run. Project memory records the live OPS-0003 run (HD-0016), this task (HD-0017), OQ-0037 and ADR-0013, and corrects the statements that OPS-0003 had never run on GitHub. Nothing was pushed, merged, deployed or activated.",
+  "commits": [
+    {
+      "sha": "b2bedbc218211a5245068390889322a43640abd1",
+      "subject": "OPS-0004: review packet builder, deterministic decision gate, first manual-review runbook"
+    },
+    {
+      "sha": "4aeb1c02385d0150f91cd9c7cdfea6a85322b400",
+      "subject": "OPS-0004: runbook creates the packet folder and returns to the baseline checkout correctly"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "docs/project-memory/README.md",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/architecture/ARCHITECTURE.md",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/architecture/CI_EVIDENCE.md",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/architecture/REVIEW_PACKET.md",
+      "change_type": "added",
+      "additions": 92,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/architecture/TRUSTED_CI.md",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "docs/project-memory/architecture/adr/0013-the-review-packet-and-decision-gate-are-offline-deterministic-and-never-approve.md",
+      "change_type": "added",
+      "additions": 36,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+      "change_type": "modified",
+      "additions": 13,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+      "change_type": "modified",
+      "additions": 12,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/policy/policy.json",
+      "change_type": "modified",
+      "additions": 12,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/reviewer/FIRST_REVIEW_RUNBOOK.md",
+      "change_type": "added",
+      "additions": 173,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+      "change_type": "modified",
+      "additions": 16,
+      "deletions": 13
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+      "change_type": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+      "change_type": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/roadmap/ROADMAP.md",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 4
+    },
+    {
+      "path": "docs/project-memory/schemas/policy.schema.json",
+      "change_type": "modified",
+      "additions": 4,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/schemas/review-decision.schema.json",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 2
+    },
+    {
+      "path": "docs/project-memory/schemas/review-packet-manifest.schema.json",
+      "change_type": "added",
+      "additions": 346,
+      "deletions": 0
+    },
+    {
+      "path": "docs/project-memory/tasks/OPS-0004-review-foundation.md",
+      "change_type": "added",
+      "additions": 149,
+      "deletions": 0
+    },
+    {
+      "path": "ops/decision-gate.mjs",
+      "change_type": "added",
+      "additions": 56,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/decision-gate.mjs",
+      "change_type": "added",
+      "additions": 278,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/review-packet.mjs",
+      "change_type": "added",
+      "additions": 529,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/review-text.mjs",
+      "change_type": "added",
+      "additions": 78,
+      "deletions": 0
+    },
+    {
+      "path": "ops/lib/trusted-base.mjs",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "ops/review-packet.mjs",
+      "change_type": "added",
+      "additions": 75,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/decision-gate.test.mjs",
+      "change_type": "added",
+      "additions": 425,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/README.md",
+      "change_type": "added",
+      "additions": 13,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/real-run-44082419253.check-runs.json",
+      "change_type": "added",
+      "additions": 213,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/real-run-44082419253.evidence.json",
+      "change_type": "added",
+      "additions": 716,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/real-run-44082419253.job.log.excerpt.txt",
+      "change_type": "added",
+      "additions": 23,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/real-run-44082419253.jobs.json",
+      "change_type": "added",
+      "additions": 137,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/fixtures/ci/real-run-44082419253.run.json",
+      "change_type": "added",
+      "additions": 228,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/real-evidence.test.mjs",
+      "change_type": "added",
+      "additions": 84,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/review-fixture.mjs",
+      "change_type": "added",
+      "additions": 220,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/review-packet.test.mjs",
+      "change_type": "added",
+      "additions": 374,
+      "deletions": 0
+    },
+    {
+      "path": "ops/tests/trusted-base.test.mjs",
+      "change_type": "modified",
+      "additions": 12,
+      "deletions": 4
+    },
+    {
+      "path": "ops/validate-memory.mjs",
+      "change_type": "modified",
+      "additions": 3,
+      "deletions": 2
+    }
+  ],
+  "verification": [
+    {
+      "check_id": "lint",
+      "command": "npm run lint",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 3.9,
+      "output_excerpt": "> m1-gaming-pcs@0.1.0 lint\n> eslint .",
+      "output_sha256": "e9215c66afe27346477fece39068f6dc7a1fa4a63b4f7d7efd545ddcffd6e85d",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at 4aeb1c0 (without this report), with an empty environment and no credential. A local simulation, not a GitHub Actions run."
+    },
+    {
+      "check_id": "typecheck",
+      "command": "npx tsc --noEmit",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 5.4,
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at 4aeb1c0 (without this report), with an empty environment and no credential. A local simulation, not a GitHub Actions run. No output means no errors."
+    },
+    {
+      "check_id": "build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 32.7,
+      "output_excerpt": "   Generating static pages (56/56)\n+ First Load JS shared by all  103 kB",
+      "output_sha256": "0f9bec7dfc7796fadb1f094e62bea757b0cfdf4f4c683bb0b924265fc9898cd8",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at 4aeb1c0 (without this report), with an empty environment and no credential. A local simulation, not a GitHub Actions run. 56 static pages. The same build also passed in the isolated worktree."
+    },
+    {
+      "check_id": "ops-validate",
+      "command": "npm run ops:validate",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.2,
+      "output_excerpt": "M1 project-memory validation\nOK: checked 131 file(s); 0 warning(s).",
+      "output_sha256": "53a2f24d82d85b803f5db22ce507cc8afe55cb58808e31bd853ba247b01509d3",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at 4aeb1c0 (without this report), with an empty environment and no credential. A local simulation, not a GitHub Actions run."
+    },
+    {
+      "check_id": "ops-test",
+      "command": "npm run ops:test",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 19.9,
+      "output_excerpt": "# tests 465\n# pass 465\n# fail 0\n# cancelled 0\n# skipped 0",
+      "output_sha256": "e0c091238692df849cbfd308adc4ef88629c1f1983d6fe44488fa7cf0f762b92",
+      "notes": "Run by a simulation of .github/workflows/ci.yml's steps in a clean export of the committed tree at 4aeb1c0 (without this report), with an empty environment and no credential. A local simulation, not a GitHub Actions run. 465 tests: the 417 of OPS-0003 plus 48 new (21 packet, 21 gate, 6 real evidence)."
+    },
+    {
+      "check_id": "review-packet-tests",
+      "command": "node --test ops/tests/review-packet.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 12,
+      "output_excerpt": "# tests 21\n# pass 21\n# fail 0",
+      "output_sha256": "b9af4b7c23e1a7b0a8179bb2330733f8f4ef316758942a43b21004c00f0b1fdc",
+      "notes": "Throwaway git repositories built from the real governed files; CI evidence built from the data of an earlier real run (43995081483), re-addressed to the test commit."
+    },
+    {
+      "check_id": "decision-gate-tests",
+      "command": "node --test ops/tests/decision-gate.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 11,
+      "output_excerpt": "# tests 21\n# pass 21\n# fail 0",
+      "output_sha256": "d4e7d8cfbda2243732757a0442ad364448293cb06e75024f862726c7d230123e",
+      "notes": "Reviewer decisions in these tests are built in memory by the test helper (mock reviewers); no model was called."
+    },
+    {
+      "check_id": "real-evidence-tests",
+      "command": "node --test ops/tests/real-evidence.test.mjs",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": 0.5,
+      "output_excerpt": "# tests 6\n# pass 6\n# fail 0",
+      "output_sha256": "d07cb60d91a6f5f5aa9999a52102f7a53346444a3c169194a2ef1a0c44239d26",
+      "notes": "REAL data: the unmodified GitHub responses for run 44082419253 (run, jobs, check runs) and a real job-log excerpt, stored in ops/tests/fixtures/ci/ with a real-versus-synthetic table."
+    },
+    {
+      "check_id": "mutation-check",
+      "command": "scratch mutation harness (not committed): 63 one-at-a-time weakenings in a copy of ops/",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "63 mutations: 62 killed by at least one test, 1 survived (an equivalent mutant: the diff-size guard is repeated by a later per-file limit guard).",
+      "output_sha256": "0df713dfe24c8eb5f15da6ad94b24d44df165a0b31ef145cc881e7eb98d8b4eb",
+      "notes": "A second survivor (reviewer prompt read from the worker's branch) was killed after the test was corrected to plant its text inside the prompt markers; re-run result: killed. Output hash is that of the first full run."
+    },
+    {
+      "check_id": "ci-simulation",
+      "command": "scratch simulation of the nine steps of .github/workflows/ci.yml in a clean export, empty environment",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "all run steps exit 0; the credential guard trips on a dummy ANTHROPIC_API_KEY and on a dummy ANTHROPIC_AUTH_TOKEN; no environment name looks like a credential",
+      "output_sha256": "a614c09350b49f0dfe0cefbcbd80bdd9ce96a3d24ab7b106b7d7138e98e99775",
+      "notes": "A local simulation, not a GitHub Actions run."
+    },
+    {
+      "check_id": "real-ops-0003-packet",
+      "command": "node ops/review-packet.mjs build ... --head 50a46ca88a682095b07422152136a747d12bddd3 --evidence ops/tests/fixtures/ci/real-run-44082419253.evidence.json; then verify",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "valid: true; manifest_sha256 ef1e492ce91fb419093a563bccedfa0b6788cf658dd9aa640f293c202a81d6e4; 29 files, +4674 -17, diff 303852 bytes; CI run 44082419253 success; two builds (a clean clone following the runbook, and an archive tool root) are byte-identical",
+      "output_sha256": null,
+      "notes": "Built with baseline 4aeb1c02385d0150f91cd9c7cdfea6a85322b400 (the last work commit) as tool root and trusted baseline. A packet only: no reviewer was run."
+    },
+    {
+      "check_id": "real-packet-gate-mock",
+      "command": "node ops/decision-gate.mjs --packet <real packet> --decision <mock decision> (5 mock decisions written by a script)",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "approve -> exit 0 REVIEW_VALID_HUMAN_APPROVAL_REQUIRED with 7 human reasons; class lowered to A, same session as developer, CI contradiction, wrong commit -> exit 5 REVIEW_INVALID. automation fields all false in every result",
+      "output_sha256": null,
+      "notes": "MOCK decisions written by a script to exercise the gate on the real packet. They are not a review."
+    },
+    {
+      "check_id": "production-paths-unchanged",
+      "command": "git diff --name-only 50a46ca 4aeb1c0 -- src public creative .github CLAUDE.md package.json package-lock.json next.config.ts tsconfig.json vercel.json",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "0 files",
+      "output_sha256": null,
+      "notes": "36 changed paths, all under ops/ or docs/project-memory/ (this report is a 37th)."
+    },
+    {
+      "check_id": "reel-and-creative-untouched",
+      "command": "git status/rev-parse/diff/worktree list in the main tree; git merge-base --is-ancestor for each Reel commit; git ls-remote --heads origin",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_seconds": null,
+      "output_excerpt": "main tree on claude-dev at 187e045, 8 commits ahead of origin/claude-dev; only uncommitted change is the original mode flip on creative/motion-ad/scripts/deliver-v8.sh. None of the 8 Reel commits is reachable from the OPS-0004 branch. Remote heads: main b180378, claude-dev b7348bb, ops-0002 0aba5e8, ops-0003 50a46ca; no ops-0004 branch on the remote.",
+      "output_sha256": null,
+      "notes": "Observed after the work commit."
+    }
+  ],
+  "risk": {
+    "declared_class": "B",
+    "categories": [
+      "ops_control_plane",
+      "policy_or_schema",
+      "tests_only",
+      "docs_only"
+    ],
+    "rationale": "The work adds code under ops/, a schema, a policy change and a decision-schema enum value (all control-plane paths that the policy classes as B) plus governed project memory. No .github file, no website file and no class C path was touched, and nothing was activated."
+  },
+  "protected_paths_touched": [
+    "docs/project-memory/README.md",
+    "docs/project-memory/architecture/ARCHITECTURE.md",
+    "docs/project-memory/architecture/CI_EVIDENCE.md",
+    "docs/project-memory/architecture/REVIEW_PACKET.md",
+    "docs/project-memory/architecture/TRUSTED_CI.md",
+    "docs/project-memory/architecture/adr/0013-the-review-packet-and-decision-gate-are-offline-deterministic-and-never-approve.md",
+    "docs/project-memory/decisions/HUMAN_DECISIONS.md",
+    "docs/project-memory/decisions/OPEN_QUESTIONS.md",
+    "docs/project-memory/policy/policy.json",
+    "docs/project-memory/reviewer/FIRST_REVIEW_RUNBOOK.md",
+    "docs/project-memory/reviewer/REVIEWER_PROMPT.md",
+    "docs/project-memory/roadmap/OPS-0003-PROPOSAL.md",
+    "docs/project-memory/roadmap/OPS-0004-PROPOSAL.md",
+    "docs/project-memory/roadmap/ROADMAP.md",
+    "docs/project-memory/schemas/policy.schema.json",
+    "docs/project-memory/schemas/review-decision.schema.json",
+    "docs/project-memory/schemas/review-packet-manifest.schema.json",
+    "docs/project-memory/tasks/OPS-0004-review-foundation.md",
+    "ops/decision-gate.mjs",
+    "ops/lib/decision-gate.mjs",
+    "ops/lib/review-packet.mjs",
+    "ops/lib/review-text.mjs",
+    "ops/lib/trusted-base.mjs",
+    "ops/review-packet.mjs",
+    "ops/tests/decision-gate.test.mjs",
+    "ops/tests/fixtures/ci/README.md",
+    "ops/tests/fixtures/ci/real-run-44082419253.check-runs.json",
+    "ops/tests/fixtures/ci/real-run-44082419253.evidence.json",
+    "ops/tests/fixtures/ci/real-run-44082419253.job.log.excerpt.txt",
+    "ops/tests/fixtures/ci/real-run-44082419253.jobs.json",
+    "ops/tests/fixtures/ci/real-run-44082419253.run.json",
+    "ops/tests/real-evidence.test.mjs",
+    "ops/tests/review-fixture.mjs",
+    "ops/tests/review-packet.test.mjs",
+    "ops/tests/trusted-base.test.mjs",
+    "ops/validate-memory.mjs"
+  ],
+  "deviations": [
+    {
+      "description": "Built OPS-0004 on the unmerged OPS-0003 branch rather than on claude-dev.",
+      "reason": "The instruction records this as a deliberate dependency exception for implementation and testing only (HD-0017); it is not approval to integrate or deploy."
+    },
+    {
+      "description": "Did not build the offline completion detector, the next-task generator or any orchestrator from OPS-0004-PROPOSAL.md.",
+      "reason": "The instruction authorised a reduced scope: review packet, decision gate and manual-review procedure only."
+    },
+    {
+      "description": "Changed one OPS-0003 test (ops/tests/trusted-base.test.mjs, the temporary-files test) to use a private temporary directory.",
+      "reason": "It listed the shared temporary directory and failed when another test process ran at the same time (seen once during this task); the assertion is the same."
+    },
+    {
+      "description": "Added the manual_session value to the reviewer runtime enum in review-decision.schema.json and policy.schema.json, and to the policy's allowed list; bumped policy_version to 0.5.0.",
+      "reason": "The first reviewer test is a session started by a person; no existing value describes it. The selected runtime stays null and no rule was relaxed."
+    },
+    {
+      "description": "The baseline for the first review experiment is the reviewed OPS-0004 commit, not the change's own base.",
+      "reason": "The OPS-0003 task file does not exist at the OPS-0002 tip, so a baseline at the base cannot define the task. Recorded in HD-0017 and the runbook."
+    },
+    {
+      "description": "Rewrote the reviewer prompt to version 2.1.0-draft and edited status statements in TRUSTED_CI.md, CI_EVIDENCE.md, OPS-0003-PROPOSAL.md and OPS-0004-PROPOSAL.md.",
+      "reason": "The prompt must describe the packet; the instruction asked to correct statements that OPS-0003 never ran on GitHub. OPS-0003's own run report is left unchanged as a historical claim."
+    }
+  ],
+  "unresolved_issues": [
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "No reviewer has been run. The packet, the gate and the runbook were tested with mock decisions only, so nothing yet shows that a real separate Claude session produces a decision that binds to a packet and is useful."
+    },
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "The gate compares recorded session identifiers only; a reviewer can report any identifier. Session separation is not enforced by anything, and the repository still lacks enforced separation between the human owner and the identity Claude acts under (OQ-0036)."
+    },
+    {
+      "severity": "major",
+      "category": "ops_control_plane",
+      "description": "The packet builder and the gate are only as trustworthy as the baseline checkout they run from, and the trusted-base check remains advisory (OQ-0035). The first experiment's baseline is the owner-reviewed OPS-0004 commit, which depends on the owner's review of this task."
+    },
+    {
+      "severity": "minor",
+      "category": "ops_control_plane",
+      "description": "The gate does not understand prose: a persuasive but wrong review passes; instruction-like text detection is a short pattern list; the judge-owned path list is fixed. A human decides everything."
+    },
+    {
+      "severity": "minor",
+      "category": "infrastructure_settings",
+      "description": "Getting the baseline commit onto the machine that runs the reviewer needs either a one-time push of this branch or a git bundle, an owner decision (OQ-0037). Nothing was pushed."
+    },
+    {
+      "severity": "info",
+      "category": "other",
+      "description": "The eight Reel commits and the creative file-mode change are untouched. Their path set is disjoint from this branch's."
+    }
+  ],
+  "assumptions": [
+    "started_at is the creation time of the task branch (from the reflog).",
+    "The packet for the real OPS-0003 change is rebuilt from the baseline and the stored real evidence file rather than committed, because committing it would change the baseline it records; its manifest hash is recorded in this report.",
+    "The real GitHub responses are stored unmodified and contain the owner's public account name and the commit-message attribution trailer; no email address of a person and no credential is in any committed file (checked by the validator's content scan).",
+    "Claude Code flags in the runbook were confirmed with `claude --help` for version 2.1.326 in this environment; a different version may differ."
+  ],
+  "questions_for_human": [
+    "OQ-0037: how should the baseline commit reach the machine that runs the first reviewer session: a one-time push of claude/ops-0004-review-foundation (named in the approval), or a git bundle?",
+    "Do you accept the reviewed OPS-0004 commit as the trusted baseline for the first experiment (HD-0017)?",
+    "OQ-0035 and OQ-0036 remain open: which anchor for the trusted-base check, and whether a separate GitHub identity for Claude can be used."
+  ],
+  "attestations": {
+    "no_secrets_committed": true,
+    "no_production_changes": true,
+    "no_unauthorized_pushes": true,
+    "stayed_within_files_allowed": true
+  },
+  "next_step_recommendation": {
+    "action": "review",
+    "rationale": "OPS-0004 is complete on the local branch. A human should review the packet builder, the gate, the runbook and the reviewer prompt, decide OQ-0037, and then authorise OPS-0005: one manual, subscription-only reviewer session on the real OPS-0003 packet, judged by the owner. Nothing here has run on GitHub.",
+    "suggested_next_task_title": "OPS-0005: first manual reviewer session on the OPS-0003 packet (subscription only, no automation)"
+  }
+}

@@ -1,0 +1,1499 @@
+{
+  "$id": "m1-ops/ci-evidence.schema.json",
+  "title": "CI evidence (advisory, unauthenticated)",
+  "description": "Machine-readable evidence about one commit: what the established base revision's rules say about the change, and what GitHub reports about the CI run. It is data for a reviewer or an orchestrator, produced by a tool that must be run from a trusted place; it is not a signed attestation.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "evidence_kind": {
+      "const": "ci_evidence",
+      "description": "The kind of document."
+    },
+    "generated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "collector": {
+      "type": "object",
+      "description": "Who produced the document. All of it is a claim.",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "The tool that produced this document.",
+          "maxLength": 100
+        },
+        "tool_source": {
+          "type": "string",
+          "enum": [
+            "base_revision",
+            "working_tree",
+            "unknown"
+          ],
+          "description": "Where the tool's code came from. A claim."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "orchestrator",
+            "reviewer_input_builder",
+            "human",
+            "unknown"
+          ],
+          "description": "Who ran it. A claim."
+        }
+      },
+      "required": [
+        "tool",
+        "tool_source",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration. The consumer must obtain the data from GitHub itself and run the tool itself.",
+      "properties": {
+        "level": {
+          "const": "unauthenticated_tool_output",
+          "description": "A file cannot prove where it came from."
+        },
+        "authenticated_by_github": {
+          "const": false,
+          "description": "Nothing in this file is signed or attested by GitHub."
+        },
+        "note": {
+          "type": "string",
+          "description": "What a consumer must do.",
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "level",
+        "authenticated_by_github",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "repository": {
+      "type": "string",
+      "description": "owner/name.",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "subject": {
+      "type": "object",
+      "description": "What is being judged.",
+      "properties": {
+        "head_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "base_sha": {
+          "description": "The established base, when given.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "$ref": "#/$defs/sha"
+            }
+          ]
+        },
+        "merge_base_sha": {
+          "description": "Common ancestor, when computed.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "$ref": "#/$defs/sha"
+            }
+          ]
+        },
+        "branch": {
+          "description": "Branch of the head.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "string",
+              "description": "Branch name.",
+              "maxLength": 400
+            }
+          ]
+        }
+      },
+      "required": [
+        "head_sha",
+        "base_sha",
+        "merge_base_sha",
+        "branch"
+      ],
+      "additionalProperties": false
+    },
+    "trusted_base": {
+      "description": "Present when a base revision was given.",
+      "anyOf": [
+        {
+          "type": "null",
+          "description": "Not available."
+        },
+        {
+          "type": "object",
+          "description": "Result of judging the change with the base revision's rules.",
+          "properties": {
+            "tool": {
+              "type": "object",
+              "description": "The tool that judged the change.",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Tool name."
+                },
+                "version": {
+                  "type": "string",
+                  "description": "Tool version."
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "trusted_logic": {
+              "type": "object",
+              "description": "Where the rules came from: always the base revision.",
+              "properties": {
+                "source_commit": {
+                  "$ref": "#/$defs/sha"
+                },
+                "file_count": {
+                  "type": "integer",
+                  "description": "Files of validation logic read from the base.",
+                  "minimum": 0
+                },
+                "manifest_sha256": {
+                  "type": "string",
+                  "description": "SHA-256 over the names and contents of those files.",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "source_commit",
+                "file_count",
+                "manifest_sha256"
+              ],
+              "additionalProperties": false
+            },
+            "evaluated": {
+              "type": "object",
+              "description": "The revisions that were compared.",
+              "properties": {
+                "base_sha": {
+                  "$ref": "#/$defs/sha"
+                },
+                "head_sha": {
+                  "$ref": "#/$defs/sha"
+                },
+                "merge_base_sha": {
+                  "$ref": "#/$defs/sha"
+                }
+              },
+              "required": [
+                "base_sha",
+                "head_sha",
+                "merge_base_sha"
+              ],
+              "additionalProperties": false
+            },
+            "execution_context": {
+              "type": "object",
+              "description": "How the tool was invoked.",
+              "properties": {
+                "anchor": {
+                  "type": "string",
+                  "enum": [
+                    "unanchored",
+                    "protected_workflow"
+                  ],
+                  "description": "Where the caller says this ran. A claim, never proof."
+                },
+                "anchor_is_claim": {
+                  "const": true,
+                  "description": "The anchor is declared by whoever invoked the tool and is not verified."
+                }
+              },
+              "required": [
+                "anchor",
+                "anchor_is_claim"
+              ],
+              "additionalProperties": false
+            },
+            "changes": {
+              "type": "object",
+              "description": "The change under judgement.",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "description": "Number of changed paths.",
+                  "minimum": 0
+                },
+                "truncated": {
+                  "type": "boolean",
+                  "description": "Whether the list below is shorter than the total."
+                },
+                "paths": {
+                  "type": "array",
+                  "description": "The changed paths.",
+                  "items": {
+                    "type": "object",
+                    "description": "One changed path, classified by the base policy.",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Changed path.",
+                        "maxLength": 400
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "Git status letter.",
+                        "pattern": "^[A-Z]$"
+                      },
+                      "mode_new": {
+                        "type": "string",
+                        "description": "New file mode.",
+                        "pattern": "^[0-7]{6}$"
+                      },
+                      "class": {
+                        "type": "string",
+                        "enum": [
+                          "A",
+                          "B",
+                          "C"
+                        ],
+                        "description": "Risk class under the base policy."
+                      },
+                      "restriction": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "protected",
+                          "control_plane",
+                          "immutable"
+                        ],
+                        "description": "Restriction under the base policy."
+                      },
+                      "categories": {
+                        "type": "array",
+                        "description": "Risk categories under the base policy.",
+                        "items": {
+                          "type": "string",
+                          "description": "An entry.",
+                          "maxLength": 400
+                        }
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "status",
+                      "mode_new",
+                      "class",
+                      "restriction",
+                      "categories"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "total",
+                "truncated",
+                "paths"
+              ],
+              "additionalProperties": false
+            },
+            "flags": {
+              "type": "object",
+              "description": "Facts about which control files changed.",
+              "properties": {
+                "workflow_files_changed": {
+                  "type": "boolean",
+                  "description": "Anything under .github changed."
+                },
+                "policy_changed": {
+                  "type": "boolean",
+                  "description": "The policy changed."
+                },
+                "schemas_changed": {
+                  "type": "boolean",
+                  "description": "A contract schema changed."
+                },
+                "ops_code_changed": {
+                  "type": "boolean",
+                  "description": "Anything under ops/ changed (validator, checker, tests)."
+                },
+                "claude_md_changed": {
+                  "type": "boolean",
+                  "description": "CLAUDE.md changed."
+                },
+                "reviewer_prompt_changed": {
+                  "type": "boolean",
+                  "description": "The reviewer prompt changed."
+                },
+                "build_inputs_changed": {
+                  "type": "boolean",
+                  "description": "A file that changes what lint, type check or build do changed."
+                },
+                "link_or_submodule_added": {
+                  "type": "boolean",
+                  "description": "A symbolic link or submodule was added."
+                }
+              },
+              "required": [
+                "workflow_files_changed",
+                "policy_changed",
+                "schemas_changed",
+                "ops_code_changed",
+                "claude_md_changed",
+                "reviewer_prompt_changed",
+                "build_inputs_changed",
+                "link_or_submodule_added"
+              ],
+              "additionalProperties": false
+            },
+            "control_plane_paths": {
+              "type": "array",
+              "description": "Changed paths that are control-plane under the base policy.",
+              "items": {
+                "type": "string",
+                "description": "An entry.",
+                "maxLength": 400
+              }
+            },
+            "protected_paths": {
+              "type": "array",
+              "description": "Changed paths that are protected, control-plane or immutable.",
+              "items": {
+                "type": "string",
+                "description": "An entry.",
+                "maxLength": 400
+              }
+            },
+            "immutable_paths": {
+              "type": "array",
+              "description": "Changed paths that are immutable.",
+              "items": {
+                "type": "string",
+                "description": "An entry.",
+                "maxLength": 400
+              }
+            },
+            "package_scripts": {
+              "type": "object",
+              "description": "Changes to package scripts.",
+              "properties": {
+                "changed": {
+                  "type": "boolean",
+                  "description": "Any package script changed."
+                },
+                "changed_keys": {
+                  "type": "array",
+                  "description": "Names of changed scripts.",
+                  "items": {
+                    "type": "string",
+                    "description": "An entry.",
+                    "maxLength": 400
+                  }
+                },
+                "ci_entrypoints_changed": {
+                  "type": "boolean",
+                  "description": "A script that CI or its npm hooks run changed."
+                }
+              },
+              "required": [
+                "changed",
+                "changed_keys",
+                "ci_entrypoints_changed"
+              ],
+              "additionalProperties": false
+            },
+            "rules": {
+              "type": "object",
+              "description": "The base revision's validator applied to the head: first with the base's policy and schemas, then with the head's own policy.",
+              "properties": {
+                "head_data_under_base_policy": {
+                  "type": "object",
+                  "description": "One run of the base revision's validator.",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Whether the validator reported no errors."
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Number of errors.",
+                      "minimum": 0
+                    },
+                    "warnings": {
+                      "type": "integer",
+                      "description": "Number of warnings.",
+                      "minimum": 0
+                    },
+                    "files_checked": {
+                      "type": "integer",
+                      "description": "Files the validator checked.",
+                      "minimum": 0
+                    },
+                    "sample": {
+                      "type": "array",
+                      "description": "The first findings.",
+                      "items": {
+                        "type": "object",
+                        "description": "A finding.",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Finding code.",
+                            "maxLength": 60
+                          },
+                          "file": {
+                            "type": "string",
+                            "description": "File the finding is about.",
+                            "maxLength": 200
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Readable message.",
+                            "maxLength": 300
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "file",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "Whether more errors exist than are listed."
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "errors",
+                    "warnings",
+                    "files_checked",
+                    "sample",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                },
+                "head_policy_under_base_validator": {
+                  "type": "object",
+                  "description": "One run of the base revision's validator.",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Whether the validator reported no errors."
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Number of errors.",
+                      "minimum": 0
+                    },
+                    "warnings": {
+                      "type": "integer",
+                      "description": "Number of warnings.",
+                      "minimum": 0
+                    },
+                    "files_checked": {
+                      "type": "integer",
+                      "description": "Files the validator checked.",
+                      "minimum": 0
+                    },
+                    "sample": {
+                      "type": "array",
+                      "description": "The first findings.",
+                      "items": {
+                        "type": "object",
+                        "description": "A finding.",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Finding code.",
+                            "maxLength": 60
+                          },
+                          "file": {
+                            "type": "string",
+                            "description": "File the finding is about.",
+                            "maxLength": 200
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Readable message.",
+                            "maxLength": 300
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "file",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "Whether more errors exist than are listed."
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "errors",
+                    "warnings",
+                    "files_checked",
+                    "sample",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "head_data_under_base_policy",
+                "head_policy_under_base_validator"
+              ],
+              "additionalProperties": false
+            },
+            "task_scope": {
+              "description": "Present only when a task id was given.",
+              "anyOf": [
+                {
+                  "type": "null",
+                  "description": "Not available."
+                },
+                {
+                  "type": "object",
+                  "description": "Task scope as recorded in the base revision.",
+                  "properties": {
+                    "task_id": {
+                      "type": "string",
+                      "description": "Task id."
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "base_revision",
+                        "not_found_in_base"
+                      ],
+                      "description": "Where the task scope came from."
+                    },
+                    "violations": {
+                      "type": "array",
+                      "description": "Paths outside the scope.",
+                      "items": {
+                        "type": "object",
+                        "description": "One violation.",
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "description": "Path outside the scope.",
+                            "maxLength": 400
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "description": "Why.",
+                            "items": {
+                              "type": "string",
+                              "description": "An entry.",
+                              "maxLength": 400
+                            }
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "reasons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "task_id",
+                    "source",
+                    "violations"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "verdict": {
+              "type": "object",
+              "description": "The tool's conclusion.",
+              "properties": {
+                "base_rules_pass": {
+                  "type": "boolean",
+                  "description": "Both validator runs passed."
+                },
+                "control_plane_changed": {
+                  "type": "boolean",
+                  "description": "A control-plane file changed."
+                },
+                "human_review_required": {
+                  "type": "boolean",
+                  "description": "A human must review before this is accepted."
+                },
+                "enforcement": {
+                  "const": "advisory_only",
+                  "description": "Always advisory: nothing in this document enforces anything."
+                },
+                "reasons": {
+                  "type": "array",
+                  "description": "Why a human is required.",
+                  "items": {
+                    "type": "string",
+                    "description": "An entry.",
+                    "maxLength": 400
+                  }
+                }
+              },
+              "required": [
+                "base_rules_pass",
+                "control_plane_changed",
+                "human_review_required",
+                "enforcement",
+                "reasons"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "tool",
+            "trusted_logic",
+            "evaluated",
+            "execution_context",
+            "changes",
+            "flags",
+            "control_plane_paths",
+            "protected_paths",
+            "immutable_paths",
+            "package_scripts",
+            "rules",
+            "task_scope",
+            "verdict"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "github_ci": {
+      "description": "Present when GitHub run data was supplied.",
+      "anyOf": [
+        {
+          "type": "null",
+          "description": "Not available."
+        },
+        {
+          "type": "object",
+          "description": "What GitHub reports about the run, read without trusting the run.",
+          "properties": {
+            "workflow_run": {
+              "type": "object",
+              "description": "The workflow run as GitHub reports it.",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "Workflow run id.",
+                  "minimum": 0
+                },
+                "run_number": {
+                  "type": "integer",
+                  "description": "Run number.",
+                  "minimum": 0
+                },
+                "run_attempt": {
+                  "type": "integer",
+                  "description": "Attempt number.",
+                  "minimum": 0
+                },
+                "event": {
+                  "type": "string",
+                  "description": "Triggering event.",
+                  "maxLength": 60
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Run status.",
+                  "maxLength": 40
+                },
+                "conclusion": {
+                  "description": "Conclusion, null while running.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "type": "string",
+                      "description": "Run conclusion.",
+                      "maxLength": 40
+                    }
+                  ]
+                },
+                "head_branch": {
+                  "description": "Branch the run was for.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "type": "string",
+                      "description": "Branch.",
+                      "maxLength": 400
+                    }
+                  ]
+                },
+                "head_sha": {
+                  "$ref": "#/$defs/sha"
+                },
+                "workflow_path": {
+                  "type": "string",
+                  "description": "Workflow file path (any @ref suffix removed).",
+                  "maxLength": 400
+                },
+                "workflow_name": {
+                  "type": "string",
+                  "description": "Workflow name.",
+                  "maxLength": 400
+                },
+                "html_url": {
+                  "type": "string",
+                  "description": "Run URL.",
+                  "maxLength": 400
+                },
+                "created_at": {
+                  "description": "Creation time.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "$ref": "#/$defs/timestamp"
+                    }
+                  ]
+                },
+                "run_started_at": {
+                  "description": "Start time.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "$ref": "#/$defs/timestamp"
+                    }
+                  ]
+                },
+                "updated_at": {
+                  "description": "Last update time.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "$ref": "#/$defs/timestamp"
+                    }
+                  ]
+                },
+                "actor_login": {
+                  "description": "Who triggered the run.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "type": "string",
+                      "description": "Login of the actor.",
+                      "maxLength": 100
+                    }
+                  ]
+                },
+                "head_repository": {
+                  "description": "For a fork, the fork.",
+                  "anyOf": [
+                    {
+                      "type": "null",
+                      "description": "Not available."
+                    },
+                    {
+                      "type": "string",
+                      "description": "owner/name of the repository the head commit lives in.",
+                      "maxLength": 200
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "run_number",
+                "run_attempt",
+                "event",
+                "status",
+                "conclusion",
+                "head_branch",
+                "head_sha",
+                "workflow_path",
+                "workflow_name",
+                "html_url",
+                "created_at",
+                "run_started_at",
+                "updated_at",
+                "actor_login",
+                "head_repository"
+              ],
+              "additionalProperties": false
+            },
+            "jobs": {
+              "type": "array",
+              "description": "The jobs of the run.",
+              "items": {
+                "type": "object",
+                "description": "One job of the run.",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "description": "Job id.",
+                    "minimum": 0
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Job name.",
+                    "maxLength": 400
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "Job status.",
+                    "maxLength": 40
+                  },
+                  "conclusion": {
+                    "description": "Conclusion, null while running.",
+                    "anyOf": [
+                      {
+                        "type": "null",
+                        "description": "Not available."
+                      },
+                      {
+                        "type": "string",
+                        "description": "Job conclusion.",
+                        "maxLength": 40
+                      }
+                    ]
+                  },
+                  "head_sha": {
+                    "$ref": "#/$defs/sha"
+                  },
+                  "runner_labels": {
+                    "type": "array",
+                    "description": "Runner labels.",
+                    "items": {
+                      "type": "string",
+                      "description": "An entry.",
+                      "maxLength": 400
+                    }
+                  },
+                  "html_url": {
+                    "type": "string",
+                    "description": "Job URL.",
+                    "maxLength": 400
+                  },
+                  "started_at": {
+                    "description": "Start time.",
+                    "anyOf": [
+                      {
+                        "type": "null",
+                        "description": "Not available."
+                      },
+                      {
+                        "$ref": "#/$defs/timestamp"
+                      }
+                    ]
+                  },
+                  "completed_at": {
+                    "description": "Completion time.",
+                    "anyOf": [
+                      {
+                        "type": "null",
+                        "description": "Not available."
+                      },
+                      {
+                        "$ref": "#/$defs/timestamp"
+                      }
+                    ]
+                  },
+                  "steps": {
+                    "type": "array",
+                    "description": "The steps in order.",
+                    "items": {
+                      "type": "object",
+                      "description": "One step of a job.",
+                      "properties": {
+                        "number": {
+                          "type": "integer",
+                          "description": "Step number.",
+                          "minimum": 0
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Step name.",
+                          "maxLength": 400
+                        },
+                        "status": {
+                          "type": "string",
+                          "description": "Step status.",
+                          "maxLength": 40
+                        },
+                        "conclusion": {
+                          "description": "Conclusion, null while running.",
+                          "anyOf": [
+                            {
+                              "type": "null",
+                              "description": "Not available."
+                            },
+                            {
+                              "type": "string",
+                              "description": "Step conclusion.",
+                              "maxLength": 40
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "name",
+                        "status",
+                        "conclusion"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status",
+                  "conclusion",
+                  "head_sha",
+                  "runner_labels",
+                  "html_url",
+                  "started_at",
+                  "completed_at",
+                  "steps"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "checks": {
+              "description": "Present only when check runs were supplied.",
+              "anyOf": [
+                {
+                  "type": "null",
+                  "description": "Not available."
+                },
+                {
+                  "type": "array",
+                  "description": "Check runs for the evaluated commit.",
+                  "items": {
+                    "type": "object",
+                    "description": "One check run.",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "description": "Check run id.",
+                        "minimum": 0
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Check name.",
+                        "maxLength": 400
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "Check status.",
+                        "maxLength": 40
+                      },
+                      "conclusion": {
+                        "description": "Conclusion.",
+                        "anyOf": [
+                          {
+                            "type": "null",
+                            "description": "Not available."
+                          },
+                          {
+                            "type": "string",
+                            "description": "Check conclusion.",
+                            "maxLength": 40
+                          }
+                        ]
+                      },
+                      "head_sha": {
+                        "$ref": "#/$defs/sha"
+                      },
+                      "app_slug": {
+                        "description": "The reporting app.",
+                        "anyOf": [
+                          {
+                            "type": "null",
+                            "description": "Not available."
+                          },
+                          {
+                            "type": "string",
+                            "description": "Slug of the app that reported the check.",
+                            "maxLength": 100
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "status",
+                      "conclusion",
+                      "head_sha",
+                      "app_slug"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "token_permissions": {
+              "description": "Present only when a job log was supplied.",
+              "anyOf": [
+                {
+                  "type": "null",
+                  "description": "Not available."
+                },
+                {
+                  "type": "object",
+                  "description": "Token permissions printed in the job log.",
+                  "properties": {
+                    "source": {
+                      "const": "job_log",
+                      "description": "Read from the job log."
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "description": "Permissions the job's token had.",
+                      "items": {
+                        "type": "object",
+                        "description": "One permission.",
+                        "properties": {
+                          "scope": {
+                            "type": "string",
+                            "description": "Permission scope.",
+                            "maxLength": 60
+                          },
+                          "access": {
+                            "type": "string",
+                            "description": "Access level.",
+                            "maxLength": 20
+                          }
+                        },
+                        "required": [
+                          "scope",
+                          "access"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "permissions"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "test_evidence": {
+              "description": "Present only when a job log was supplied.",
+              "anyOf": [
+                {
+                  "type": "null",
+                  "description": "Not available."
+                },
+                {
+                  "type": "object",
+                  "description": "Test and validation evidence parsed from the log.",
+                  "properties": {
+                    "source": {
+                      "const": "job_log_parse",
+                      "description": "Parsed from the job log."
+                    },
+                    "authority": {
+                      "const": "claim_by_output_of_the_code_under_test",
+                      "description": "The log is printed by code from the branch under test; only the step conclusion is GitHub's own statement."
+                    },
+                    "tests": {
+                      "description": "From the TAP summary.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Tests run.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "pass": {
+                      "description": "From the TAP summary.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Tests passed.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "fail": {
+                      "description": "From the TAP summary.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Tests failed.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "cancelled": {
+                      "description": "From the TAP summary.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Tests cancelled.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "skipped": {
+                      "description": "From the TAP summary.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Tests skipped.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "validate_files_checked": {
+                      "description": "From the validation step.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Files the project-memory validation reported.",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "build_static_pages": {
+                      "description": "From the build step.",
+                      "anyOf": [
+                        {
+                          "type": "null",
+                          "description": "Not available."
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Static pages the build reported.",
+                          "minimum": 0
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "authority",
+                    "tests",
+                    "pass",
+                    "fail",
+                    "cancelled",
+                    "skipped",
+                    "validate_files_checked",
+                    "build_static_pages"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "consistency": {
+              "type": "array",
+              "description": "Checks that the pieces describe the same commit, workflow and steps.",
+              "items": {
+                "type": "object",
+                "description": "One consistency check.",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Check id.",
+                    "maxLength": 80
+                  },
+                  "passed": {
+                    "type": "boolean",
+                    "description": "Whether it held."
+                  },
+                  "blocking": {
+                    "type": "boolean",
+                    "description": "Whether a failure makes ci_passed false."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "description": "What was compared.",
+                    "maxLength": 400
+                  }
+                },
+                "required": [
+                  "id",
+                  "passed",
+                  "blocking",
+                  "detail"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "workflow_run",
+            "jobs",
+            "checks",
+            "token_permissions",
+            "test_evidence",
+            "consistency"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "verdict": {
+      "description": "Deterministic conclusions from the sections above. Advisory. Documents written by the earlier version of the tool lack missing_evidence and are still accepted; consumers must treat their evidence_complete as weaker.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/verdict"
+        },
+        {
+          "$ref": "#/$defs/verdict_before_missing_evidence"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "evidence_kind",
+    "generated_at",
+    "collector",
+    "trust",
+    "repository",
+    "subject",
+    "trusted_base",
+    "github_ci",
+    "verdict"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "UTC ISO-8601 timestamp with second precision and a trailing Z."
+    },
+    "verdict": {
+      "type": "object",
+      "description": "Deterministic conclusions from the sections above. Advisory. This is the current shape: it always lists the mandatory inputs that were not supplied.",
+      "properties": {
+        "ci_passed": {
+          "description": "Null only when no GitHub run data was supplied. False when GitHub's data shows a failure or an inconsistency, and also when a mandatory check could not run because its input (check runs, job log) was missing: not established as passed is not passed.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "Every blocking check ran and held, and the run succeeded."
+            }
+          ]
+        },
+        "ci_trust_basis": {
+          "type": "string",
+          "enum": [
+            "ci_definition_unchanged_from_base",
+            "ci_definition_modified_from_base",
+            "base_unchecked",
+            "ci_not_collected"
+          ],
+          "description": "Whether CI's own definition (workflow, ops code, policy, schemas, package scripts, build inputs) is the base's. If not, the CI result is not evidence."
+        },
+        "control_plane_changed": {
+          "description": "Null without a base.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "A control-plane file changed."
+            }
+          ]
+        },
+        "human_review_required": {
+          "type": "boolean",
+          "description": "A human must review before this is accepted."
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "Every mandatory input was supplied (trusted-base check, GitHub run and job data, check runs, job log), every mandatory check ran, and no blocking check failed."
+        },
+        "missing_evidence": {
+          "type": "array",
+          "description": "The mandatory inputs that were not supplied, in a fixed order; empty only when everything was supplied.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "trusted_base",
+              "github_run_data",
+              "check_runs",
+              "job_log"
+            ],
+            "description": "An input a complete assessment needs."
+          },
+          "uniqueItems": true,
+          "maxItems": 4
+        },
+        "reasons": {
+          "type": "array",
+          "description": "Why a human is required or the evidence is incomplete.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "maxLength": 400
+          }
+        }
+      },
+      "required": [
+        "ci_passed",
+        "ci_trust_basis",
+        "control_plane_changed",
+        "human_review_required",
+        "evidence_complete",
+        "missing_evidence",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "verdict_before_missing_evidence": {
+      "type": "object",
+      "description": "A verdict written by an earlier version of the tool, before missing_evidence existed. It stays valid so that stored evidence is not invalidated. In such a document evidence_complete only says that a trusted-base section and GitHub data were present and consistent; it does not say that check runs and a job log were present.",
+      "properties": {
+        "ci_passed": {
+          "description": "Null when no CI data was supplied.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "Every blocking check held and the run succeeded."
+            }
+          ]
+        },
+        "ci_trust_basis": {
+          "type": "string",
+          "enum": [
+            "ci_definition_unchanged_from_base",
+            "ci_definition_modified_from_base",
+            "base_unchecked",
+            "ci_not_collected"
+          ],
+          "description": "Whether CI's own definition (workflow, ops code, policy, schemas, package scripts, build inputs) is the base's. If not, the CI result is not evidence."
+        },
+        "control_plane_changed": {
+          "description": "Null without a base.",
+          "anyOf": [
+            {
+              "type": "null",
+              "description": "Not available."
+            },
+            {
+              "type": "boolean",
+              "description": "A control-plane file changed."
+            }
+          ]
+        },
+        "human_review_required": {
+          "type": "boolean",
+          "description": "A human must review before this is accepted."
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "Both the trusted-base check and the GitHub data are present and consistent."
+        },
+        "reasons": {
+          "type": "array",
+          "description": "Why a human is required or the evidence is incomplete.",
+          "items": {
+            "type": "string",
+            "description": "An entry.",
+            "maxLength": 400
+          }
+        }
+      },
+      "required": [
+        "ci_passed",
+        "ci_trust_basis",
+        "control_plane_changed",
+        "human_review_required",
+        "evidence_complete",
+        "reasons"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

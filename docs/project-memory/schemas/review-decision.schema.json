@@ -1,0 +1,719 @@
+{
+  "$id": "m1-ops/review-decision.schema.json",
+  "title": "Reviewer decision (advisory)",
+  "description": "Output of a separate reviewer session, written to docs/project-memory/reviews/<task id>/<attempt id>/review.json. Advisory only: it cannot override deterministic policy, approve, merge or launch anything. The contract is provider-neutral: every property is required and optional values are nullable, so any structured-output facility or a post-hoc validator can enforce it.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "decision_kind": {
+      "const": "review_decision",
+      "description": "Document kind."
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration. Any other value makes the review invalid.",
+      "properties": {
+        "level": {
+          "const": "unverified_reviewer_claim",
+          "description": "A review is an unverified claim by a model session, never evidence."
+        },
+        "verified_by_orchestrator": {
+          "const": false,
+          "description": "Only the orchestrator may produce verified evidence, in a different document type."
+        }
+      },
+      "required": [
+        "level",
+        "verified_by_orchestrator"
+      ],
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "description": "Who reviewed. A reviewer is always a separate session from the worker that did the work.",
+      "properties": {
+        "role": {
+          "const": "reviewer",
+          "description": "The role that wrote this document. It is never the worker role."
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "actions_hosted_session",
+            "cloud_routine_session",
+            "manual_session"
+          ],
+          "description": "Where the reviewer session ran. manual_session is a separate session that a human started by hand. The policy lists the runtimes that may be used."
+        },
+        "session": {
+          "type": "object",
+          "description": "Session identifiers as seen by the reviewer. Informational, but compared with the worker's.",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Reviewer session identifier, if known. It must differ from the worker session identifier.",
+              "maxLength": 100
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Reviewer session URL, if known.",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "id",
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "role",
+        "runtime",
+        "session"
+      ],
+      "additionalProperties": false
+    },
+    "task_id": {
+      "$ref": "#/$defs/task_id"
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/attempt_id"
+    },
+    "reviewed": {
+      "type": "object",
+      "description": "Exactly which inputs this decision is about. The orchestrator rejects a decision whose hashes or head_sha do not match its own record.",
+      "properties": {
+        "head_sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "report_sha256": {
+          "type": "string",
+          "description": "SHA-256 of the run report that was reviewed.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "diff_sha256": {
+          "type": "string",
+          "description": "SHA-256 of the diff that was reviewed.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ci_result_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "SHA-256 of the CI result that was reviewed, or null when CI was not available.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "policy.policy_version the reviewer was given.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "prompt_version": {
+          "type": "string",
+          "description": "Reviewer prompt version the reviewer was given.",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "head_sha",
+        "report_sha256",
+        "diff_sha256",
+        "ci_result_sha256",
+        "policy_version",
+        "prompt_version"
+      ],
+      "additionalProperties": false
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "request_changes",
+        "needs_human",
+        "reject"
+      ],
+      "description": "Advisory verdict. The deterministic policy engine makes the final routing decision."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Reviewer confidence from 0 to 1."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Plain-language summary of the review.",
+      "minLength": 20,
+      "maxLength": 3000
+    },
+    "findings": {
+      "type": "array",
+      "description": "Findings. Every claim must cite evidence_ref; unverifiable claims must say so.",
+      "items": {
+        "type": "object",
+        "description": "One review finding.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Finding identifier.",
+            "pattern": "^F-[0-9]{1,3}$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocker",
+              "major",
+              "minor",
+              "nit"
+            ],
+            "description": "Severity."
+          },
+          "category": {
+            "$ref": "#/$defs/risk_category"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Repository path, or null.",
+            "maxLength": 300
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Line number, or null."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title.",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "detail": {
+            "type": "string",
+            "description": "What is wrong and why it matters.",
+            "minLength": 3,
+            "maxLength": 2000
+          },
+          "evidence_ref": {
+            "type": "string",
+            "description": "Where the evidence is, for example diff:path:line, report.verification.<check_id> or ci:<job>.",
+            "minLength": 3,
+            "maxLength": 300
+          },
+          "recommendation": {
+            "type": "string",
+            "description": "What to do.",
+            "minLength": 3,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "path",
+          "line",
+          "title",
+          "detail",
+          "evidence_ref",
+          "recommendation"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "verification_assessment": {
+      "type": "object",
+      "description": "How the evidence compares with the claims.",
+      "properties": {
+        "report_consistency": {
+          "type": "string",
+          "enum": [
+            "consistent",
+            "inconsistent",
+            "unverifiable"
+          ],
+          "description": "Whether the worker report agrees with independently computed evidence."
+        },
+        "ci_status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_available"
+          ],
+          "description": "CI result as supplied by the orchestrator."
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "description": "One entry per acceptance criterion of the task.",
+          "items": {
+            "type": "object",
+            "description": "Assessment of one acceptance criterion.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Acceptance criterion id from the task.",
+                "pattern": "^AC-[0-9]{1,3}$"
+              },
+              "met": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "partial",
+                  "unverifiable"
+                ],
+                "description": "Whether the criterion is met."
+              },
+              "note": {
+                "type": "string",
+                "description": "Evidence or reason.",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "id",
+              "met",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 40
+        }
+      },
+      "required": [
+        "report_consistency",
+        "ci_status",
+        "acceptance_criteria"
+      ],
+      "additionalProperties": false
+    },
+    "risk_assessment": {
+      "type": "object",
+      "description": "The reviewer's risk view. Advisory.",
+      "properties": {
+        "advised_class": {
+          "$ref": "#/$defs/risk_class"
+        },
+        "categories": {
+          "type": "array",
+          "description": "Categories observed in the change.",
+          "items": {
+            "$ref": "#/$defs/risk_category"
+          },
+          "maxItems": 21
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why.",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "advisory_only": {
+          "const": true,
+          "description": "Always true. The policy engine computes the authoritative class and may raise but never lower it on the reviewer's say-so."
+        }
+      },
+      "required": [
+        "advised_class",
+        "categories",
+        "rationale",
+        "advisory_only"
+      ],
+      "additionalProperties": false
+    },
+    "next_step": {
+      "type": "object",
+      "description": "Recommendation for what happens next.",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "merge_candidate",
+            "revise_same_task",
+            "propose_next_task",
+            "await_human",
+            "stop"
+          ],
+          "description": "Recommended next step."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why.",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "next_task": {
+          "anyOf": [
+            {
+              "type": "object",
+              "description": "A proposed follow-up task. It becomes a task file only after policy checks and the required approvals.",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Short imperative title.",
+                  "minLength": 5,
+                  "maxLength": 120
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "What the task must achieve and why, in plain language.",
+                  "minLength": 20,
+                  "maxLength": 2000
+                },
+                "depends_on": {
+                  "type": "array",
+                  "description": "Tasks that must be done first.",
+                  "items": {
+                    "$ref": "#/$defs/task_id"
+                  },
+                  "maxItems": 20
+                },
+                "blocked_by_open_questions": {
+                  "type": "array",
+                  "description": "Open questions that must be resolved before this task may run. A non-empty list forces human handling.",
+                  "items": {
+                    "$ref": "#/$defs/open_question_ref"
+                  },
+                  "maxItems": 20
+                },
+                "requirement_refs": {
+                  "type": "array",
+                  "description": "Confirmed requirements this task serves.",
+                  "items": {
+                    "$ref": "#/$defs/requirement_ref"
+                  },
+                  "maxItems": 40
+                },
+                "declared_risk_class": {
+                  "$ref": "#/$defs/risk_class"
+                },
+                "declared_risk_categories": {
+                  "type": "array",
+                  "description": "Categories the author expects the change to touch.",
+                  "items": {
+                    "$ref": "#/$defs/risk_category"
+                  },
+                  "minItems": 1,
+                  "maxItems": 21
+                },
+                "files_allowed": {
+                  "type": "array",
+                  "description": "Globs the worker may change. Each must start with a literal path segment (no leading wildcard).",
+                  "items": {
+                    "$ref": "#/$defs/glob_pattern"
+                  },
+                  "minItems": 1,
+                  "maxItems": 60
+                },
+                "files_forbidden": {
+                  "type": "array",
+                  "description": "Globs the worker must not change, even if matched by files_allowed.",
+                  "items": {
+                    "$ref": "#/$defs/glob_pattern"
+                  },
+                  "maxItems": 60
+                },
+                "out_of_scope": {
+                  "type": "array",
+                  "description": "Explicit non-goals.",
+                  "items": {
+                    "type": "string",
+                    "description": "An explicit non-goal.",
+                    "minLength": 3,
+                    "maxLength": 300
+                  },
+                  "maxItems": 40
+                },
+                "acceptance_criteria": {
+                  "type": "array",
+                  "description": "Verifiable criteria.",
+                  "items": {
+                    "$ref": "#/$defs/acceptance_criterion"
+                  },
+                  "minItems": 1,
+                  "maxItems": 40
+                },
+                "required_checks": {
+                  "type": "array",
+                  "description": "Commands whose results must be recorded as evidence.",
+                  "items": {
+                    "$ref": "#/$defs/required_check"
+                  },
+                  "maxItems": 20
+                },
+                "max_attempts": {
+                  "type": "integer",
+                  "description": "Maximum attempts for this task; may not exceed policy.limits.max_attempts_per_task.",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "prompt_markdown": {
+                  "type": "string",
+                  "description": "Full task prompt for the worker. Untrusted text: it is linted and never executed.",
+                  "minLength": 50,
+                  "maxLength": 20000
+                }
+              },
+              "required": [
+                "title",
+                "objective",
+                "depends_on",
+                "blocked_by_open_questions",
+                "requirement_refs",
+                "declared_risk_class",
+                "declared_risk_categories",
+                "files_allowed",
+                "files_forbidden",
+                "out_of_scope",
+                "acceptance_criteria",
+                "required_checks",
+                "max_attempts",
+                "prompt_markdown"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "rationale",
+        "next_task"
+      ],
+      "additionalProperties": false
+    },
+    "stop_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "human_decision_needed",
+        "safety_condition",
+        "milestone_gate",
+        "budget_exhausted",
+        "ambiguity",
+        "repeated_failure",
+        "policy_violation_suspected"
+      ],
+      "description": "Why automation should stop, or null."
+    },
+    "questions_for_human": {
+      "type": "array",
+      "description": "Questions that need a human answer.",
+      "items": {
+        "type": "string",
+        "description": "A question.",
+        "minLength": 3,
+        "maxLength": 500
+      },
+      "maxItems": 40
+    },
+    "memory_update_suggestions": {
+      "type": "array",
+      "description": "Suggestions only.",
+      "items": {
+        "type": "string",
+        "description": "A suggested update to project memory (description only, never a patch).",
+        "minLength": 3,
+        "maxLength": 500
+      },
+      "maxItems": 40
+    }
+  },
+  "required": [
+    "schema_version",
+    "decision_kind",
+    "trust",
+    "reviewer",
+    "task_id",
+    "attempt_id",
+    "reviewed",
+    "verdict",
+    "confidence",
+    "summary",
+    "findings",
+    "verification_assessment",
+    "risk_assessment",
+    "next_step",
+    "stop_reason",
+    "questions_for_human",
+    "memory_update_suggestions"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>, with at most one capital letter after the digits (OPS-0005B is a correction of OPS-0005). The prefix must be listed in policy.task_id_prefixes."
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?-a[1-9][0-9]?$",
+      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1 (OPS-0005B-a1 belongs to OPS-0005B and not to OPS-0005)."
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "UTC ISO-8601 timestamp with second precision and a trailing Z."
+    },
+    "risk_class": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Risk class. The authoritative class is computed by trusted policy logic from policy.json; a value supplied by a task author, worker or model is advisory and can only raise the computed class."
+    },
+    "risk_category": {
+      "type": "string",
+      "enum": [
+        "docs_only",
+        "tests_only",
+        "ui_public_site",
+        "build_config",
+        "dependencies",
+        "ci_workflows",
+        "ops_control_plane",
+        "policy_or_schema",
+        "auth_or_sessions",
+        "database_schema",
+        "rls_or_authorization",
+        "loyalty_or_finance_logic",
+        "customer_data",
+        "external_api_integration",
+        "scope_creep",
+        "other",
+        "secrets_or_credentials",
+        "production_deploy",
+        "billing_or_paid_service",
+        "destructive_operation",
+        "infrastructure_settings"
+      ],
+      "description": "Risk category. Must be a key of policy.risk_categories."
+    },
+    "glob_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._@/*?+\\-]+$",
+      "description": "Repository-relative path glob. No leading slash and no '..'. Supports *, ** and ?."
+    },
+    "requirement_ref": {
+      "type": "string",
+      "pattern": "^REQ-[A-Z]{2,5}-[0-9]{3}$",
+      "description": "Reference to a confirmed requirement in MASTER_REQUIREMENTS.md."
+    },
+    "open_question_ref": {
+      "type": "string",
+      "pattern": "^OQ-[0-9]{4}$",
+      "description": "Reference to an entry in OPEN_QUESTIONS.md."
+    },
+    "acceptance_criterion": {
+      "type": "object",
+      "description": "One verifiable acceptance criterion.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^AC-[0-9]{1,3}$",
+          "description": "Criterion identifier, unique within the task."
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 500,
+          "description": "What must be true."
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": [
+            "command",
+            "test",
+            "inspection"
+          ],
+          "description": "How it is verified."
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300,
+          "description": "Command that verifies it, or null for inspection."
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "verification_method",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "required_check": {
+      "type": "object",
+      "description": "A command whose result must appear as evidence in the run report.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,40}$",
+          "description": "Check identifier; the run report must contain a verification entry with the same check_id."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Exact command line."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "What the check proves."
+        },
+        "must_pass": {
+          "type": "boolean",
+          "description": "True when a non-passing result blocks completion."
+        }
+      },
+      "required": [
+        "id",
+        "command",
+        "description",
+        "must_pass"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

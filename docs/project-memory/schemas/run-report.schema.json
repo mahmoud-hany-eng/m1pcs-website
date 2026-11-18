@@ -1,0 +1,540 @@
+{
+  "$id": "m1-ops/run-report.schema.json",
+  "title": "Worker run report (unverified claim)",
+  "description": "Written by the worker to docs/project-memory/runs/<task id>/<attempt id>/report.json in a final commit that touches only that file. It is a claim about the work, never evidence.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Schema version of this contract."
+    },
+    "report_kind": {
+      "const": "worker_run_report",
+      "description": "Document kind."
+    },
+    "task_id": {
+      "$ref": "#/$defs/task_id"
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/attempt_id"
+    },
+    "attempt_number": {
+      "type": "integer",
+      "description": "Attempt number; must equal the numeric suffix of attempt_id.",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "trust": {
+      "type": "object",
+      "description": "Trust declaration. Any other value makes the report invalid.",
+      "properties": {
+        "level": {
+          "const": "unverified_worker_claim",
+          "description": "A worker report is always an unverified claim."
+        },
+        "verified_by_orchestrator": {
+          "const": false,
+          "description": "Only the orchestrator may produce verified evidence, in a different document type."
+        }
+      },
+      "required": [
+        "level",
+        "verified_by_orchestrator"
+      ],
+      "additionalProperties": false
+    },
+    "session": {
+      "type": "object",
+      "description": "Session identifiers as seen by the worker. Informational only.",
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Worker session identifier, if known. A reviewer session must have a different identifier.",
+          "maxLength": 100
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Session URL, if known.",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "id",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "branch": {
+      "type": "string",
+      "description": "Work branch.",
+      "pattern": "^claude/[a-z]{3,5}-[0-9]{4}[a-z]?-[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "base_branch": {
+      "type": "string",
+      "description": "Branch the work started from.",
+      "pattern": "^[A-Za-z0-9._/\\-]+$",
+      "maxLength": 100
+    },
+    "base_sha": {
+      "$ref": "#/$defs/sha"
+    },
+    "head_sha": {
+      "$ref": "#/$defs/sha"
+    },
+    "started_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "finished_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "partial",
+        "blocked",
+        "failed",
+        "aborted"
+      ],
+      "description": "Self-assessed outcome."
+    },
+    "summary": {
+      "type": "string",
+      "description": "What was done, in plain language.",
+      "minLength": 20,
+      "maxLength": 4000
+    },
+    "commits": {
+      "type": "array",
+      "description": "Work commits, oldest first. The report commit itself is excluded: head_sha is the last work commit and the report is committed on top of it.",
+      "items": {
+        "type": "object",
+        "description": "A work commit between base_sha and head_sha.",
+        "properties": {
+          "sha": {
+            "$ref": "#/$defs/sha"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Commit subject line.",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "sha",
+          "subject"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "changed_files": {
+      "type": "array",
+      "description": "Files changed between base_sha and head_sha. Self-reported; the orchestrator recomputes this from git.",
+      "items": {
+        "type": "object",
+        "description": "One changed file between base_sha and head_sha (self-reported).",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Repository-relative path.",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "change_type": {
+            "type": "string",
+            "enum": [
+              "added",
+              "modified",
+              "deleted",
+              "renamed",
+              "mode_changed"
+            ],
+            "description": "Kind of change."
+          },
+          "additions": {
+            "type": "integer",
+            "description": "Added lines (0 for binary).",
+            "minimum": 0
+          },
+          "deletions": {
+            "type": "integer",
+            "description": "Deleted lines (0 for binary).",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "path",
+          "change_type",
+          "additions",
+          "deletions"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 500
+    },
+    "verification": {
+      "type": "array",
+      "description": "Evidence of checks the worker ran. Every must_pass required_check of the task needs an entry.",
+      "items": {
+        "type": "object",
+        "description": "One verification result (self-reported).",
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "description": "Identifier of the check; matches a required_check id of the task where applicable.",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$"
+          },
+          "command": {
+            "type": "string",
+            "description": "Exact command that was run.",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Observed exit code, or null when the check was not run."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_run"
+            ],
+            "description": "Result. passed requires exit_code 0; failed requires a non-zero exit_code."
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Wall-clock duration, or null."
+          },
+          "output_excerpt": {
+            "type": "string",
+            "description": "Short excerpt of the output, scrubbed of secrets.",
+            "maxLength": 2000
+          },
+          "output_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 of the full captured output, or null.",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Context, for example baseline versus after.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "check_id",
+          "command",
+          "exit_code",
+          "status",
+          "duration_seconds",
+          "output_excerpt",
+          "output_sha256",
+          "notes"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 60
+    },
+    "risk": {
+      "type": "object",
+      "description": "The worker's own classification. Advisory: it can only raise the class computed by policy.",
+      "properties": {
+        "declared_class": {
+          "$ref": "#/$defs/risk_class"
+        },
+        "categories": {
+          "type": "array",
+          "description": "Categories touched.",
+          "items": {
+            "$ref": "#/$defs/risk_category"
+          },
+          "minItems": 1,
+          "maxItems": 21
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the worker chose this class.",
+          "minLength": 5,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "declared_class",
+        "categories",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
+    "protected_paths_touched": {
+      "type": "array",
+      "description": "Protected paths changed (self-reported).",
+      "items": {
+        "type": "string",
+        "description": "A path matching a protected or control-plane rule.",
+        "maxLength": 300
+      },
+      "maxItems": 200
+    },
+    "deviations": {
+      "type": "array",
+      "description": "Departures from the task instructions.",
+      "items": {
+        "type": "object",
+        "description": "A deviation from the task.",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What differed from the task.",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why.",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "description",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 40
+    },
+    "unresolved_issues": {
+      "type": "array",
+      "description": "Issues the worker could not resolve.",
+      "items": {
+        "type": "object",
+        "description": "An unresolved issue.",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocker",
+              "major",
+              "minor",
+              "info"
+            ],
+            "description": "Severity."
+          },
+          "category": {
+            "$ref": "#/$defs/risk_category"
+          },
+          "description": {
+            "type": "string",
+            "description": "The issue.",
+            "minLength": 3,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "severity",
+          "category",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 60
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "Assumptions. Business decisions must never appear here as made.",
+      "items": {
+        "type": "string",
+        "description": "An assumption made.",
+        "minLength": 3,
+        "maxLength": 500
+      },
+      "maxItems": 40
+    },
+    "questions_for_human": {
+      "type": "array",
+      "description": "Questions needing a human.",
+      "items": {
+        "type": "string",
+        "description": "A question.",
+        "minLength": 3,
+        "maxLength": 500
+      },
+      "maxItems": 40
+    },
+    "attestations": {
+      "type": "object",
+      "description": "Self-attestations. They are claims, not evidence.",
+      "properties": {
+        "no_secrets_committed": {
+          "type": "boolean",
+          "description": "Worker claims no secret or credential was committed."
+        },
+        "no_production_changes": {
+          "type": "boolean",
+          "description": "Worker claims no production system, setting or deployment was changed."
+        },
+        "no_unauthorized_pushes": {
+          "type": "boolean",
+          "description": "Worker claims it pushed nothing beyond what was authorized."
+        },
+        "stayed_within_files_allowed": {
+          "type": "boolean",
+          "description": "Worker claims every changed file matches files_allowed."
+        }
+      },
+      "required": [
+        "no_secrets_committed",
+        "no_production_changes",
+        "no_unauthorized_pushes",
+        "stayed_within_files_allowed"
+      ],
+      "additionalProperties": false
+    },
+    "next_step_recommendation": {
+      "type": "object",
+      "description": "The worker's suggestion. Advisory.",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "review",
+            "revise",
+            "needs_human",
+            "stop"
+          ],
+          "description": "Recommended next action."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why.",
+          "minLength": 3,
+          "maxLength": 1000
+        },
+        "suggested_next_task_title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Title of a suggested follow-up task, or null.",
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "action",
+        "rationale",
+        "suggested_next_task_title"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "report_kind",
+    "task_id",
+    "attempt_id",
+    "attempt_number",
+    "trust",
+    "session",
+    "branch",
+    "base_branch",
+    "base_sha",
+    "head_sha",
+    "started_at",
+    "finished_at",
+    "outcome",
+    "summary",
+    "commits",
+    "changed_files",
+    "verification",
+    "risk",
+    "protected_paths_touched",
+    "deviations",
+    "unresolved_issues",
+    "assumptions",
+    "questions_for_human",
+    "attestations",
+    "next_step_recommendation"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?$",
+      "description": "Stable task identifier: <PREFIX>-<4 digits>, with at most one capital letter after the digits (OPS-0005B is a correction of OPS-0005). The prefix must be listed in policy.task_id_prefixes."
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,5}-[0-9]{4}[A-Z]?-a[1-9][0-9]?$",
+      "description": "Attempt identifier: <task_id>-a<attempt number>, for example the task id followed by -a1 (OPS-0005B-a1 belongs to OPS-0005B and not to OPS-0005)."
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA."
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "UTC ISO-8601 timestamp with second precision and a trailing Z."
+    },
+    "risk_class": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Risk class. The authoritative class is computed by trusted policy logic from policy.json; a value supplied by a task author, worker or model is advisory and can only raise the computed class."
+    },
+    "risk_category": {
+      "type": "string",
+      "enum": [
+        "docs_only",
+        "tests_only",
+        "ui_public_site",
+        "build_config",
+        "dependencies",
+        "ci_workflows",
+        "ops_control_plane",
+        "policy_or_schema",
+        "auth_or_sessions",
+        "database_schema",
+        "rls_or_authorization",
+        "loyalty_or_finance_logic",
+        "customer_data",
+        "external_api_integration",
+        "scope_creep",
+        "other",
+        "secrets_or_credentials",
+        "production_deploy",
+        "billing_or_paid_service",
+        "destructive_operation",
+        "infrastructure_settings"
+      ],
+      "description": "Risk category. Must be a key of policy.risk_categories."
+    }
+  }
+}

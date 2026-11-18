@@ -9,7 +9,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "ops:validate": "node ops/validate-memory.mjs",
+    "ops:test": "node --test ops/tests/*.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",
