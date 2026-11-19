@@ -102,6 +102,25 @@ describe("the redirect sanitiser (no open redirect)", { skip }, () => {
     assert.equal(redirect.safeAccountPath("https://evil.example", "/account/orders"), "/account/orders");
   });
 
+  test("safeNextPath keeps a customer or an admin path and nothing else", () => {
+    assert.equal(redirect.safeNextPath("/account/orders"), "/account/orders");
+    assert.equal(redirect.safeNextPath("/admin"), "/admin");
+    assert.equal(redirect.safeNextPath("/admin/orders/9b2c3b0e-0d3e-4b1a-9a53-5c1f4f0f3a11?x=1"), "/admin/orders/9b2c3b0e-0d3e-4b1a-9a53-5c1f4f0f3a11");
+    const hostile = ["https://evil.example/admin", "//evil.example/admin", "/administrator", "/admin@evil.example.test", "/admin/../policies", "/admin%2f..", "/admin\\..", "/admin\n/x", "/policies", "/", "", "admin"];
+    for (const input of hostile) assert.equal(redirect.safeNextPath(input), "/account", JSON.stringify(input));
+    for (const input of [null, undefined, 3, {}, ["/admin"]]) assert.equal(redirect.safeNextPath(input), "/account");
+    assert.equal(redirect.safeNextPath("https://evil.example", "/admin"), "/admin");
+  });
+
+  test("safeAccountPath still refuses the admin area", () => {
+    assert.equal(redirect.safeAccountPath("/admin"), "/account");
+  });
+
+  test("the sign-in address can lead back into the admin area, and only there", () => {
+    assert.equal(redirect.signInUrl("required", "/admin/orders"), "/auth/sign-in?reason=required&next=%2Fadmin%2Forders");
+    assert.equal(redirect.signInUrl("required", "//evil.example/admin"), "/auth/sign-in?reason=required&next=%2Faccount");
+  });
+
   test("the sign-in address carries only a safe next path and a known reason", () => {
     assert.equal(redirect.signInUrl("expired", "/account/orders"), "/auth/sign-in?reason=expired&next=%2Faccount%2Forders");
     assert.equal(redirect.signInUrl("required", "https://evil.example"), "/auth/sign-in?reason=required&next=%2Faccount");

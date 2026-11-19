@@ -4,7 +4,7 @@ import { AuthCard } from "@/components/account/AccountShell";
 import { EmailLinkForm, SignInForm } from "@/components/account/forms";
 import { Notice } from "@/components/account/ui";
 import { signInNotice } from "@/lib/accounts/shared/auth-errors";
-import { safeAccountPath } from "@/lib/accounts/shared/redirect";
+import { safeNextPath } from "@/lib/accounts/shared/redirect";
 import { getSession } from "@/lib/accounts/server/session";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -13,7 +13,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 export default async function SignInPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   // `next` is checked here and again when the form is submitted: only a path inside /account is ever followed.
-  const next = safeAccountPath(first(params.next));
+  const next = safeNextPath(first(params.next));
   const session = await getSession();
   if (session.state === "signed_in") redirect(next);
   const notice = signInNotice(first(params.reason));

@@ -19,7 +19,7 @@ import {
 import { CLAIM_FAILED_MESSAGE, normalizeClaimCode } from "../shared/claim-code";
 import { customerAccountsGate } from "../shared/flag";
 import type { FormState } from "../shared/form-state";
-import { safeAccountPath } from "../shared/redirect";
+import { safeNextPath } from "../shared/redirect";
 import { confirmUrl, resolveSiteOrigin } from "../shared/site-url";
 import { parseEmailOnly, parseProfile, parseSignIn, parseSignUp } from "../shared/validation";
 import { createSupabaseServerClient } from "./client";
@@ -76,7 +76,7 @@ export async function signInAction(_previous: FormState, formData: FormData): Pr
   assertEnabled();
   const parsed = parseSignIn(formData);
   if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-  const next = safeAccountPath(formData.get("next"));
+  const next = safeNextPath(formData.get("next"));
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 
@@ -94,7 +94,7 @@ export async function emailLinkAction(_previous: FormState, formData: FormData):
   assertEnabled();
   const parsed = parseEmailOnly(formData);
   if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-  const next = safeAccountPath(formData.get("next"));
+  const next = safeNextPath(formData.get("next"));
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 

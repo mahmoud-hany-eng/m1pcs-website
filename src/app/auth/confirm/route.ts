@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { redirect } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { customerAccountsGate } from "@/lib/accounts/shared/flag";
-import { safeAccountPath } from "@/lib/accounts/shared/redirect";
+import { safeNextPath } from "@/lib/accounts/shared/redirect";
 import { createSupabaseServerClient } from "@/lib/accounts/server/client";
 
 /**
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   if (!customerAccountsGate(process.env).enabled) return new NextResponse(null, { status: 404 });
 
   const { searchParams } = request.nextUrl;
-  const next = safeAccountPath(searchParams.get("next"));
+  const next = safeNextPath(searchParams.get("next"));
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const code = searchParams.get("code");

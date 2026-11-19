@@ -31,6 +31,9 @@ const scanned = [
   ...walk("src/lib/platform"),
   ...walk("src/lib/accounts"),
   ...walk("src/components/account"),
+  ...walk("src/components/admin"),
+  ...walk("src/lib/staff"),
+  ...walk("src/app/admin"),
   ...walk("src/app/account"),
   ...walk("src/app/auth"),
   "src/middleware.ts",
@@ -53,7 +56,15 @@ describe("migrations are well formed", () => {
   it("no migration creates roles or extensions, drops anything, or deletes data", () => {
     for (const p of migrations) {
       const sql = read(p).replace(/--.*$/gm, "");
-      assert.doesNotMatch(sql, /^\s*(create|alter)\s+role\b/im, `${p}: roles belong to the platform, not a migration`);
+      // Exactly one role may be created here: the staff gateway's, which has no login, no privilege and no table access
+      // until its owner deliberately gives it a password outside the repository.
+      const roles = [...sql.matchAll(/^\s*(?:create|alter)\s+role\s+("?)([a-z_0-9]+)\1/gim)].map((m) => m[2]);
+      for (const role of roles) assert.equal(role, "m1_staff_gateway", `${p}: roles belong to the platform, not a migration (found ${role})`);
+      for (const [stmt] of sql.matchAll(/^\s*create\s+role\b[^;]*;/gim)) {
+        assert.match(stmt, /\bnologin\b/i, `${p}: the gateway role must be created without login`);
+        for (const word of ["nosuperuser", "nocreatedb", "nocreaterole", "noreplication", "nobypassrls"]) assert.match(stmt, new RegExp(`\\b${word}\\b`, "i"), `${p}: ${word} missing`);
+        assert.doesNotMatch(stmt, /\bpassword\b/i, `${p}: a password must never be committed`);
+      }
       assert.doesNotMatch(sql, /^\s*create\s+extension\b/im, `${p}: an extension is a deliberate, reviewed change`);
       assert.doesNotMatch(sql, /^\s*(drop\s+(table|schema|view|function)|truncate|delete\s+from)\b/im, `${p}: destructive statement`);
     }
@@ -175,7 +186,17 @@ describe("customer-facing TypeScript carries no private concept", () => {
   });
 });
 
-const ACCOUNT_AREAS = ["src/lib/accounts/", "src/lib/platform/", "src/app/account/", "src/app/auth/", "src/components/account/", "src/middleware.ts"];
+const ACCOUNT_AREAS = [
+  "src/lib/accounts/",
+  "src/lib/platform/",
+  "src/lib/staff/",
+  "src/app/account/",
+  "src/app/auth/",
+  "src/app/admin/",
+  "src/components/account/",
+  "src/components/admin/",
+  "src/middleware.ts",
+];
 const inAccountArea = (p) => ACCOUNT_AREAS.some((area) => p === area || p.startsWith(area));
 const sourceFiles = () => walk("src", (p) => /\.(ts|tsx|js|jsx|mjs)$/.test(p));
 const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -255,6 +276,113 @@ describe("the public website does not depend on the customer-account code (Phase
   });
 });
 
+describe("the staff gateway keeps its privileged path narrow", () => {
+  const staffFiles = () => sourceFiles().filter((p) => p.startsWith("src/lib/staff/") || p.startsWith("src/app/admin/") || p.startsWith("src/components/admin/"));
+
+  it("the database driver is imported by one server file only, and every server module is marked server-only", () => {
+    const importers = sourceFiles().filter((p) => /from\s+["']pg["']/.test(read(p)));
+    assert.deepEqual(importers, ["src/lib/staff/gateway.ts"]);
+    for (const p of sourceFiles().filter((f) => f.startsWith("src/lib/staff/") && /\/(gateway|api|session|actions)\.ts$/.test(f))) assert.match(read(p), /import\s+["']server-only["']/, `${p} must be server-only`);
+  });
+
+  it("no client component imports the staff code, the driver or the gateway", () => {
+    let seen = 0;
+    for (const p of sourceFiles()) {
+      const text = read(p);
+      if (!/^\s*["']use client["']/.test(text)) continue;
+      seen += 1;
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']pg["']/, p);
+    }
+    assert.ok(seen >= 8);
+  });
+
+  it("the gateway runs only fixed SQL: every query text is a constant in one table, called by name", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    assert.match(code, /const CALLS\s*=/);
+    // The only place a query is sent is the helper that looks the text up by name.
+    const queries = [...code.matchAll(/\.query\(([^)]*)\)/g)].map((m) => m[1].trim());
+    for (const q of queries) assert.ok(/^(CALLS\[name\]|"[^"$`]*"|'[^'$`]*'|sql|call\.sql|statement)/.test(q) || /^"/.test(q), `unexpected query source: ${q}`);
+    assert.doesNotMatch(code, /`[^`]*\$\{[^}]*\}[^`]*`\s*,?\s*\[/, "no template string may build SQL");
+    // Everything it can call is an admin function; nothing touches a table.
+    for (const [, sql] of code.matchAll(/sql:\s*"([^"]+)"/g)) {
+      assert.match(sql, /\badmin\.[a-z_]+\(/, `not an admin function call: ${sql}`);
+      assert.doesNotMatch(sql, /\b(insert|update|delete|truncate|drop|alter|grant|copy)\b/i, sql);
+    }
+  });
+
+  it("every call the gateway can make exists in the database as an admin function, and the other way round for staff screens", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    const called = new Set([...code.matchAll(/\badmin\.([a-z_]+)\(/g)].map((m) => m[1]));
+    const defined = new Set(
+      migrations.flatMap((p) => [...read(p).matchAll(/create\s+(?:or\s+replace\s+)?function\s+admin\.([a-z_]+)\(/gi)].map((m) => m[1])),
+    );
+    assert.ok(called.size >= 20, `expected the full staff surface, saw ${called.size}`);
+    for (const name of called) assert.ok(defined.has(name), `admin.${name} is called by the gateway but defined by no migration`);
+  });
+
+  it("no staff code holds a privileged key, reads a public Supabase key, or builds a browser client", () => {
+    for (const p of staffFiles()) {
+      const text = strip(read(p));
+      assert.doesNotMatch(text, /SERVICE_ROLE|service_role|SUPABASE_SECRET|sb_secret/i, p);
+      assert.doesNotMatch(text, /NEXT_PUBLIC_STAFF|NEXT_PUBLIC_.*GATEWAY|NEXT_PUBLIC_.*DATABASE/i, p);
+      assert.doesNotMatch(text, /createBrowserClient|\bcreateClient\s*\(/, p);
+    }
+  });
+
+  it("the gateway connection string is read from a server variable only and never logged or returned", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    assert.match(code, /process\.env\.STAFF_GATEWAY_DATABASE_URL|env\.STAFF_GATEWAY_DATABASE_URL/);
+    // The one log line the gateway writes carries a database error code and nothing else.
+    for (const [call] of code.matchAll(/console\.[a-z]+\([^;]*;/g)) assert.match(call, /^console\.error\(`\[staff\] unexpected database error \(\$\{e\?\.code \?\? "no code"\}\)`\);$/, call);
+    for (const p of staffFiles()) assert.doesNotMatch(strip(read(p)), /console\.(log|info|debug|warn)/, p);
+  });
+
+  it(".env.example names the two staff variables and leaves both empty", () => {
+    const env = read(".env.example");
+    for (const name of ["STAFF_ADMIN_ENABLED", "STAFF_GATEWAY_DATABASE_URL"]) assert.match(env, new RegExp(`^#?\\s*${name}=$`, "m"), name);
+  });
+
+  it("every admin page authenticates through requireStaff before it reads anything, and every action goes through run()", () => {
+    const pages = walk("src/app/admin", (p) => /\/page\.tsx$/.test(p));
+    assert.ok(pages.length >= 11, `expected the full admin route set, found ${pages.length}`);
+    for (const p of pages) {
+      const text = read(p);
+      if (p === "src/app/admin/mfa/page.tsx") {
+        // The second-factor page is the one page a not-yet-aal2 person may open: it checks the flags and the session itself.
+        assert.match(text, /staffAdminGate\(process\.env\)/, p);
+        assert.match(text, /getSession\(\)/, p);
+        continue;
+      }
+      assert.match(text, /await requireStaff\(/, `${p} must call requireStaff`);
+      // No page may reach the gateway directly.
+      assert.doesNotMatch(text, /staffCall/, p);
+    }
+    const actions = strip(read("src/lib/staff/actions.ts"));
+    const exported = [...actions.matchAll(/export async function (\w+)\(/g)].map((m) => m[1]);
+    assert.ok(exported.length >= 11, `expected the staff actions, found ${exported.length}`);
+    for (const name of exported) {
+      const body = actions.slice(actions.indexOf(`export async function ${name}(`));
+      const end = body.indexOf("\nexport async function ", 10);
+      const fn = end === -1 ? body : body.slice(0, end);
+      assert.ok(/return run\(/.test(fn) || /await requireStaff\(/.test(fn), `${name} must authenticate through run() or requireStaff()`);
+    }
+  });
+
+  it("no staff action reads an identity, a role, a total, a balance or a receipt number from the form", () => {
+    const code = strip(read("src/lib/staff/actions.ts")) + strip(read("src/lib/staff/validation.ts"));
+    for (const name of ["user_id", "staff_id", "role", "is_staff", "permission", "total_minor", "balance", "receipt_number", "receipt_code", "amount_paid"]) {
+      assert.doesNotMatch(code, new RegExp(`(get|field|text)\\([^)]*["']${name}["']`), `a form must not supply ${name}`);
+    }
+  });
+
+  it("pg is pinned to an exact version", () => {
+    const pkg = JSON.parse(read("package.json"));
+    assert.match(pkg.dependencies.pg, /^\d+\.\d+\.\d+$/);
+    assert.match(pkg.devDependencies["@types/pg"], /^\d+\.\d+\.\d+$/);
+  });
+});
+
 describe("every customer-account entry point is guarded", () => {
   it("each account layout and auth layout asserts the feature flag", () => {
     for (const p of ["src/app/account/layout.tsx", "src/app/auth/layout.tsx"]) assert.match(read(p), /assertAccountsEnabled\(\)/, p);
@@ -297,15 +425,17 @@ describe("every customer-account entry point is guarded", () => {
         assert.ok(ok, `${p}: redirect(${a}) is not a fixed path, a checked next path, or a sign-in address`);
       }
     }
-    assert.match(read("src/lib/accounts/server/actions.ts"), /const next = safeAccountPath\(/);
-    assert.match(read("src/app/auth/confirm/route.ts"), /const next = safeAccountPath\(/);
+    assert.match(read("src/lib/accounts/server/actions.ts"), /const next = safeNextPath\(/);
+    assert.match(read("src/app/auth/confirm/route.ts"), /const next = safeNextPath\(/);
   });
 
-  it("the middleware runs only for /account and /auth, and does nothing at all while the flag is off", () => {
+  it("the middleware runs only for /account, /auth and /admin, and does nothing at all while the flag is off", () => {
     const text = read("src/middleware.ts");
-    assert.match(text, /matcher:\s*\["\/account\/:path\*",\s*"\/auth\/:path\*"\]/);
+    assert.match(text, /matcher:\s*\["\/account\/:path\*",\s*"\/auth\/:path\*",\s*"\/admin\/:path\*"\]/);
+    // An admin address does nothing in the middleware unless the admin switch is on as well.
+    assert.match(text, /inAdmin && !staffAdminGate\(process\.env\)\.enabled\) return NextResponse\.next\(\)/);
     const body = text.slice(text.indexOf("export async function middleware"));
-    assert.match(body, /^export async function middleware\(request: NextRequest\) \{\s*\n\s*if \(!customerAccountsGate\(process\.env\)\.enabled\) return NextResponse\.next\(\);/);
+    assert.match(body, /^export async function middleware\(request: NextRequest\) \{(\s*\/\/[^\n]*)*\s*\n\s*if \(!customerAccountsGate\(process\.env\)\.enabled\) return NextResponse\.next\(\);/);
   });
 
   it("every place that writes a session cookie hardens it", () => {

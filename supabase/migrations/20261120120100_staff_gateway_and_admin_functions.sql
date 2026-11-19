@@ -698,6 +698,24 @@ begin
 end;
 $$;
 
+-- What the deposit WOULD be for an order total under the policy in force now, so a person can see it before confirming.
+-- It changes nothing and records nothing: the deposit is fixed only when an order is confirmed.
+create function admin.preview_deposit(p_total_minor bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  q private.deposit_quote_result;
+begin
+  perform private.require_permission('orders.read');
+  q := private.deposit_quote(p_total_minor);
+  return jsonb_build_object('amount_minor', q.amount_minor, 'rate_bps', q.rate_bps, 'policy_version', q.policy_version, 'rule', q.rule);
+end;
+$$;
+
 -- ---------------------------------------------------------------------------------------------------------------
 -- 6. Staff management. Nobody changes their own role or status, and the last active owner cannot be removed.
 -- ---------------------------------------------------------------------------------------------------------------
