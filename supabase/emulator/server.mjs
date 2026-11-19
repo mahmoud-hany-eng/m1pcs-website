@@ -49,7 +49,8 @@ function send(res, status, body, extra = {}) {
 }
 
 export async function startEmulator({ port = 0, accessTtl = 3600, seed = true } = {}) {
-  const db = startDatabase();
+  // The preview and the browser tests run on the owner-confirmed deposit schedule, never on the tests' flat example.
+  const db = startDatabase({ schedule: "confirmed" });
   const secret = newSecret();
   const issuedAt = Math.floor(Date.now() / 1000);
   const anonKey = signJwt({ iss: "m1-local-emulator", role: "anon", iat: issuedAt, exp: issuedAt + 10 * 365 * 24 * 3600 }, secret);

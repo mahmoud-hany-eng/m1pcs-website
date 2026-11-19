@@ -103,7 +103,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
         customer_accounts: "customer_id,linked_at,linked_via,user_id",
         quotations: "additional_notes,category,created_at,customer_id,guest_email,guest_name,guest_phone,id,product_preference,quantity,quote_ref,quoted_total_minor,requested_budget_minor,requested_specs,source,specific_model,status,updated_at,valid_until",
         quotation_lines: "description,id,line_total_minor,position,quantity,quotation_id,unit_price_minor",
-        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_required_minor,id,order_ref,placed_via,quotation_id,status,total_minor,updated_at",
+        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,id,order_ref,placed_via,quotation_id,status,total_minor,updated_at",
         order_items: "description,id,kind,line_total_minor,order_id,position,quantity,unit_price_minor",
         order_tracking_events: "id,message,order_id,published_at,status_code,title",
         payments: "amount_minor,created_at,currency,entry_type,id,method,order_id,purpose,receipt_number,received_at,reverses_payment_id",
@@ -856,8 +856,9 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("each change bumps the version and keeps the previous value", () => {
       const out = db.ok(`${AS.olivia}${setDeposit(3000)}${setDeposit(4000)}${AS.superuser}
         select (select version from private.business_policies where key = 'orders.deposit') || ',' || count(*) || ',' || max(changed_by::text) from private.business_policy_versions where key = 'orders.deposit';`);
-      // v1 is the Phase 1 placeholder, v2 the migration that withdrew it, v3 the test fixture, v4 and v5 this test.
-      assert.equal(out.split("\n").pop(), `5,5,${ID.olivia}`);
+      // v1 is the Phase 1 placeholder, v2 the migration that withdrew it, v3 the owner-confirmed schedule (migration 14),
+      // v4 the test-example fixture, v5 and v6 this test.
+      assert.equal(out.split("\n").pop(), `6,6,${ID.olivia}`);
     });
 
     it("the policy list tells the owner which values are still unconfirmed placeholders", () => {
@@ -897,8 +898,9 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("a tiered schedule picks the tier by order total, applies the minimum, and never exceeds the total", () => {
       const out = db.ok(`${AS.olivia}${setPolicy(tiered)}${[10000, 100000, 100001, 500000, 500001].map((t, i) => depositFor(t, `t${i}`)).join("")}`);
       // 10 000: tier 1 fixed 20 000, minimum 25 000, capped at the total. 100 000: still tier 1, minimum 25 000 wins.
-      // 100 001: tier 2, 30 % = 30 000.3 rounds up to 30 001. 500 000: tier 2, 150 000. 500 001: tier 3, 25 % rounds up to 125 001.
-      assert.deepEqual(out.split("\n").slice(-5), ["10000", "25000", "30001", "150000", "125001"]);
+      // 100 001: tier 2, 30 % = 30 000.3 rounds to the nearest minor unit, 30 000. 500 000: tier 2, 150 000.
+      // 500 001: tier 3, 25 % = 125 000.25 rounds to 125 000.
+      assert.deepEqual(out.split("\n").slice(-5), ["10000", "25000", "30000", "150000", "125000"]);
     });
 
     it("a fixed schedule is a flat amount capped at the total", () => {
@@ -1119,7 +1121,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
       assert.match(code, /^[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/);
       const stored = db.ok(`${issue}${AS.superuser}select octet_length(code_hash) || ':' || (select count(*) from private.customer_claim_codes where code_hash = sha256(convert_to(replace(:'code', '-', ''), 'UTF8'))) from private.customer_claim_codes order by created_at desc limit 1;`);
       assert.equal(stored.split("\n").pop(), "32:1");
-      assert.equal(db.ok("select count(*) from information_schema.columns where table_schema = 'private' and table_name = 'customer_claim_codes' and data_type in ('text', 'character varying');", AS.superuser), "0", "no column can hold the code in clear");
+      assert.equal(db.ok("select count(*) from information_schema.columns where table_schema = 'private' and table_name = 'customer_claim_codes' and data_type in ('text', 'character varying') and column_name <> 'revoked_reason';", AS.superuser), "0", "no column can hold the code in clear (the revocation reason is a note, never the code)");
     });
 
     it("all 20 characters of a code are random: no position is fixed or confined to a few values", () => {
@@ -1160,8 +1162,30 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
       assert.equal(db.ok("select count(*) from public.customer_accounts;", AS.eve), "0");
     });
 
-    it("refuses a code from someone who already has a customer record", () => {
-      db.denied(`${issue}${AS.bob}select public.claim_customer_profile(:'code');`, "", /already has a customer profile/);
+    it("an account that already has a customer record can add an older record with a code: linked alongside, never merged", () => {
+      const out = db.ok(`${issue}${AS.bob}select public.claim_customer_profile(:'code') as got \\gset
+        select :'got' = :'custA' as same;
+        select (select count(*) from public.customer_accounts where user_id = :'bob') || ':' || (select string_agg(linked_via, ',' order by linked_via) from public.customer_accounts where user_id = :'bob');`);
+      assert.deepEqual(out.split("\n").slice(-2), ["t", "2:admin,claim_code"]);
+    });
+
+    it("the contact details of the two records are never compared, and a second code for the same record is refused for an account that already holds it", () => {
+      // Bob's own record has a different name, phone and email from Alice's: nothing of the kind is looked at.
+      const out = db.ok(`${issue}${AS.bob}select public.claim_customer_profile(:'code') is not null;
+        ${AS.olivia}select admin.issue_claim_code(:'custA') as second \\gset
+        ${AS.bob}select public.claim_customer_profile(:'second') is null;
+        select count(*) from public.customer_accounts where user_id = :'bob';`);
+      assert.deepEqual(out.split("\n").slice(-3), ["t", "t", "2"]);
+    });
+
+    it("an account can be linked to at most five customer records", () => {
+      const many = Array.from({ length: 6 }, (_, i) => `insert into public.customers (full_name, source) values ('Extra ${i}', 'whatsapp');`).join("\n");
+      const out = db.ok(`${AS.superuser}${many}
+        select count(*) from public.customers;`);
+      assert.ok(Number(out.split("\n").pop()) >= 6);
+      db.denied(`${AS.superuser}${many}
+        insert into public.customer_accounts (user_id, customer_id, linked_via)
+          select :'eve', id, 'admin' from public.customers where full_name like 'Extra %';`, "", /at most 5 customer records/);
     });
 
     it("a signed-in person can create their own customer profile once, and sees only that", () => {

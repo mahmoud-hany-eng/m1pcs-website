@@ -55,7 +55,12 @@ export function newOrder({ customer = ID.custA, items = itemsA, into = "oid", wh
   return `${who}select admin.create_order('${customer}', '${json(items)}'::jsonb${extra}) as ${into} \\gset\n`;
 }
 
-export function startDatabase() {
+/**
+ * Starts a throwaway database with the migrations and the fixtures. `schedule` picks the deposit schedule: "example" (the
+ * default, an arbitrary labelled flat 50 percent for the mechanics tests) or "confirmed" (the owner-confirmed tiers that
+ * the migrations ship, used by the preview data and the browser tests).
+ */
+export function startDatabase({ schedule = "example" } = {}) {
   const cluster = startCluster();
   try {
     applyShimAndMigrations(cluster);
@@ -104,13 +109,18 @@ export function startDatabase() {
       (:'alice', :'custA', 'admin'), (:'bob', :'custB', 'admin');
   `);
 
-  // ---- a SYNTHETIC deposit schedule, for the tests only ------------------------------------------------------------
-  // The migrations ship orders.deposit as "unconfigured": no commercial schedule is adopted until the owner sets one, and
-  // an order cannot be created without it. The tests need orders, so they set a labelled, unconfirmed placeholder.
-  // It is not an M1 decision, and nothing outside this fixture depends on these numbers.
-  commit(`${AS.olivia}select admin.set_policy('orders.deposit',
-    '{"percent_bps": 5000, "minimum_minor": 0, "required_before_status": "deposit_received"}'::jsonb,
-    'unconfirmed_default', 'TEST FIXTURE: synthetic schedule, not an M1 decision');`);
+  // ---- a TEST EXAMPLE schedule, for the generic deposit-mechanics tests only ----------------------------------------
+  // The migrations ship orders.deposit as the owner-CONFIRMED tiered schedule (15 / 25 / 35 percent by order total).
+  // Most Phase 1 tests exercise deposit MECHANICS (gates, snapshots, reversals) and want round numbers, so this
+  // fixture replaces the schedule with an arbitrary flat 50 percent EXAMPLE. It is not M1's policy and nothing outside
+  // the tests depends on it. Dedicated tests restore the confirmed schedule from the migration's own version history
+  // and check it (boundaries, rounding, snapshot at confirmation). The preview data and the browser tests do NOT
+  // use this example: they run on the confirmed schedule, so no demonstration implies the withdrawn 50 percent.
+  if (schedule === "example") {
+    commit(`${AS.olivia}select admin.set_policy('orders.deposit',
+      '{"percent_bps": 5000, "minimum_minor": 0, "required_before_status": "deposit_received"}'::jsonb,
+      'unconfirmed_default', 'TEST EXAMPLE ONLY: an arbitrary flat 50 percent for round numbers; not an M1 decision');`);
+  }
 
   // ---- orders for A and B, with private data that must never reach a customer -------------------------------
   const orderA = commit(`${newOrder({ into: "oa" })}select :'oa';`).trim();

@@ -4,8 +4,8 @@
 # project reference and no remote URL. Nothing in it creates, links to or changes a live Supabase project: pushing
 # configuration or migrations to a hosted project is a separate, explicitly approved step.
 #
-# It was written from the CLI's documented format. The Supabase CLI is not installed in the environment that
-# produced it, so the file has not been run through `supabase start`; see supabase/tests/REAL_SUPABASE_CHECKS.md.
+# PLAT-0003: this file has now been run through the official CLI (3.2.0) and `supabase start`; the section below that
+# the CLI rejected (the mail catcher, renamed `local_smtp`) was corrected. See supabase/tests/REAL_SUPABASE_CHECKS.md.
 
 project_id = "m1pcs-platform-local"
 
@@ -36,7 +36,7 @@ enabled = true
 port = 54323
 
 # A local mail catcher so sign-in emails can be read without sending real mail.
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 

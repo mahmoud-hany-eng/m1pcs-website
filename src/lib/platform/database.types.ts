@@ -121,6 +121,12 @@ export interface OrderRow {
   currency: "QAR";
   total_minor: MinorUnits;
   deposit_required_minor: MinorUnits;
+  /** Set when the order is confirmed: the deposit is then fixed and later policy changes never touch it. */
+  deposit_policy_version: number | null;
+  deposit_rate_bps: number | null;
+  deposit_rule: string | null;
+  deposit_gate_status: string | null;
+  deposit_fixed_at: Timestamp | null;
   amount_paid_minor: MinorUnits;
   balance_due_minor: MinorUnits;
   delivery_method: DeliveryMethod | null;
@@ -156,7 +162,7 @@ export interface OrderTrackingEventRow {
 
 export type PaymentEntryType = "payment" | "reversal" | "refund";
 export type PaymentPurpose = "deposit" | "balance" | "other";
-export type PaymentMethod = "cash" | "bank_transfer" | "card" | "other";
+export type PaymentMethod = "cash" | "fawran" | "bank_transfer" | "card" | "other";
 
 /**
  * table: public.payments. A row exists only after staff recorded a real receipt: submitting a quotation or an

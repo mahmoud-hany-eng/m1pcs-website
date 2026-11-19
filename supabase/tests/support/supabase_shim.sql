@@ -22,6 +22,17 @@ create table auth.users (
 );
 
 -- Same contract as Supabase: the claims come from the request.jwt.claims setting that PostgREST fills in.
+-- The real auth service keeps one row per sign-in session (and deletes it on sign-out). The staff gateway's database
+-- check reads it, so the shim has the columns that check uses, with the real enum for the assurance level.
+create type auth.aal_level as enum ('aal1', 'aal2', 'aal3');
+create table auth.sessions (
+  id uuid primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  aal auth.aal_level,
+  not_after timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create function auth.jwt() returns jsonb
   language sql stable
 as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
