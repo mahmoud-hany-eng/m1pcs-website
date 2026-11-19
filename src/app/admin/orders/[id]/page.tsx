@@ -137,7 +137,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <p className="text-sm text-text-secondary">The deposit is worked out from the current schedule and fixed, once, when the order is confirmed. The figure above is provisional until then.</p>
             )}
             <p className="mt-3 text-sm">
-              {order.deposit_confirmed ? <Badge tone="done">Deposit confirmed received</Badge> : <Badge tone="paused">Deposit not yet confirmed by staff</Badge>}
+              {order.deposit_received ? <Badge tone="done">Deposit received (recorded by staff)</Badge> : <Badge tone="paused">Deposit not received yet</Badge>}
             </p>
           </Section>
         </div>

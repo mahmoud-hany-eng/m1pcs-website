@@ -66,8 +66,9 @@ export async function signUpAction(_previous: FormState, formData: FormData): Pr
     logFailure("sign-up", error);
     return failureState(["weak_password", "rate_limited", "signups_closed", "unavailable"].includes(failure) ? failure : "unknown");
   }
-  // An address that already has an account is handled exactly like a new one: the same screen, no hint. (The project
-  // must keep email confirmation switched on; that is what makes the service itself answer the same way.)
+  // An address that already has an account is handled exactly like a new one: the same screen, no hint. The real auth
+  // service does NOT hide it (it answers 422 user_already_exists, even with email confirmation on: verified against the
+  // official local stack), so this mapping is what keeps the two cases indistinguishable on screen.
   if (data?.session) redirect("/account");
   redirect("/auth/check-email");
 }

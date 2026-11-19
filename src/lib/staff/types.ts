@@ -83,7 +83,10 @@ export interface OrderListRow {
   status_label: string;
   total_minor: number;
   deposit_required_minor: number;
-  deposit_confirmed: boolean;
+  /** The amount was fixed when the order was confirmed. It does NOT mean any money has arrived. */
+  deposit_fixed: boolean;
+  /** Staff have recorded payments that cover the fixed deposit. The only way a deposit counts as paid. */
+  deposit_received: boolean;
   amount_paid_minor: number;
   balance_due_minor: number;
   created_at: string;
@@ -136,7 +139,10 @@ export interface OrderDetail {
   customer: { id: string; customer_code: string; full_name: string; phone: string | null; email: string | null };
   total_minor: number;
   deposit_required_minor: number;
-  deposit_confirmed: boolean;
+  /** The amount was fixed when the order was confirmed. It does NOT mean any money has arrived. */
+  deposit_fixed: boolean;
+  /** Staff have recorded payments that cover the fixed deposit. The only way a deposit counts as paid. */
+  deposit_received: boolean;
   deposit_fixed_at: string | null;
   deposit_rate_bps: number | null;
   deposit_policy_version: number | null;

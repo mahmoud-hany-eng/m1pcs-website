@@ -50,9 +50,24 @@ enable_signup = true
 enable_anonymous_sign_ins = false
 
 [auth.email]
-enable_signup = true
+enabled = true
 double_confirm_changes = true
 enable_confirmations = true
+
+# Links carry a one-time token hash and are completed on the server by /auth/confirm, so they work in any browser
+# (the default link format only works in the browser that asked for it). {{ .RedirectTo }} is the site address the
+# request came from and always contains "?next=" (the app always sends it).
+[auth.email.template.confirmation]
+subject = "Confirm your M1 Gaming PCs account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your M1 Gaming PCs sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Reset your M1 Gaming PCs password"
+content_path = "./supabase/templates/recovery.html"
 
 # Staff must pass a second factor (policy admin.mfa); the aal2 level comes from TOTP.
 [auth.mfa.totp]

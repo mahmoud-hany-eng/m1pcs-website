@@ -479,7 +479,9 @@ begin
     select jsonb_agg(row_to_json(t)::jsonb order by t.created_at desc)
     from (
       select o.id, o.order_ref, o.status, s.customer_label as status_label, o.total_minor, o.deposit_required_minor,
-             (o.deposit_fixed_at is not null) as deposit_confirmed, o.amount_paid_minor, o.balance_due_minor,
+             (o.deposit_fixed_at is not null) as deposit_fixed,
+             (o.deposit_fixed_at is not null and o.amount_paid_minor >= o.deposit_required_minor) as deposit_received,
+             o.amount_paid_minor, o.balance_due_minor,
              o.created_at, c.id as customer_id, c.full_name as customer_name, c.customer_code
       from public.orders o
       join public.customers c on c.id = o.customer_id
@@ -517,7 +519,9 @@ begin
     'id', o.id, 'order_ref', o.order_ref, 'status', o.status, 'status_label', s.customer_label,
     'customer', jsonb_build_object('id', c.id, 'customer_code', c.customer_code, 'full_name', c.full_name, 'phone', c.phone, 'email', c.email),
     'total_minor', o.total_minor, 'deposit_required_minor', o.deposit_required_minor,
-    'deposit_confirmed', o.deposit_fixed_at is not null, 'deposit_fixed_at', o.deposit_fixed_at,
+    'deposit_fixed', o.deposit_fixed_at is not null, 'deposit_fixed_at', o.deposit_fixed_at,
+    -- Received means staff have recorded payments that cover it: nothing else ever counts a deposit as paid.
+    'deposit_received', o.deposit_fixed_at is not null and o.amount_paid_minor >= o.deposit_required_minor,
     'deposit_rate_bps', o.deposit_rate_bps, 'deposit_policy_version', o.deposit_policy_version, 'deposit_rule', o.deposit_rule,
     'deposit_gate_status', o.deposit_gate_status,
     'amount_paid_minor', o.amount_paid_minor, 'balance_due_minor', o.balance_due_minor,

@@ -315,10 +315,19 @@ suite("PLAT-0003 database (real PostgreSQL)", () => {
       assert.ok(short.some((entry) => entry.deposit_required_minor === 100000 && entry.amount_paid_minor === 0));
     });
 
+    it("a fixed deposit is not a received deposit: nothing counts until staff record the payment", () => {
+      const o = JSON.parse(db.ok(`${CONFIRMED}${newOrder({ items: item(400000), into: "g0" })}${AS.olivia}select admin.transition_order(:'g0', 'awaiting_deposit');
+        select admin.get_order(:'g0');`).split("\n").pop());
+      assert.equal(o.deposit_fixed, true);
+      assert.equal(o.deposit_received, false);
+      assert.equal(o.amount_paid_minor, 0);
+    });
+
     it("the order detail carries the deposit record, the next allowed statuses for THIS person, and payments only with payments.read", () => {
       const o = JSON.parse(db.ok(`${CONFIRMED}${newOrder({ items: item(400000), into: "g1" })}${AS.olivia}select admin.transition_order(:'g1', 'awaiting_deposit');
         select admin.record_payment(:'g1', 'deposit', 100000, 'fawran', now(), null, 'TXN-1');select admin.get_order(:'g1');`).split("\n").pop());
-      assert.equal(o.deposit_confirmed, true);
+      assert.equal(o.deposit_fixed, true);
+      assert.equal(o.deposit_received, true, "staff recorded a payment that covers the fixed deposit");
       assert.equal(o.deposit_rate_bps, 2500);
       assert.equal(o.deposit_outstanding_minor, 0);
       assert.equal(o.payments.length, 1);

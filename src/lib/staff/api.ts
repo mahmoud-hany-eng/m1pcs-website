@@ -1,6 +1,6 @@
 /** Typed wrappers over the gateway's fixed call list, bound to one verified person. Server only. */
 import "server-only";
-import { staffCall, type VerifiedStaff } from "./gateway";
+import { StaffOperationError, staffCall, type VerifiedStaff } from "./gateway";
 import type {
   AuditRow, ClaimCodeRow, CustomerDetail, CustomerListRow, DashboardSummary, DepositPreview, LoyaltyOverview, OrderDetail,
   OrderListRow, PaymentListRow, PolicyRow, PolicyVersionRow,
@@ -38,8 +38,12 @@ export function staffApi(staff: VerifiedStaff) {
       call<string>("publish_tracking_event", [orderId, title, message, statusCode]),
     retractTracking: (eventId: string, reason: string) => call<string>("retract_tracking_event", [eventId, reason]),
 
-    recordPayment: (orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null) =>
-      call<string>("record_payment", [orderId, purpose, amountMinor, method, reference, notes]),
+    // The business accepts cash and Fawran. The database also knows older methods for historical records; the website
+    // records only the two that are in use, so a crafted request cannot record another.
+    recordPayment: async (orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null) => {
+      if (method !== "cash" && method !== "fawran") throw new StaffOperationError("Payments are recorded as cash or Fawran.");
+      return call<string>("record_payment", [orderId, purpose, amountMinor, method, reference, notes]);
+    },
     reversePayment: (paymentId: string, reason: string) => call<string>("reverse_payment", [paymentId, reason]),
     listPayments: (limit = 100, offset = 0) => call<PaymentListRow[]>("list_payments", [limit, offset]),
 
