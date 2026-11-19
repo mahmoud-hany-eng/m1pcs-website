@@ -46,7 +46,7 @@ export function safeNextPath(input: unknown, fallback: string = DEFAULT_AFTER_SI
 }
 
 /** The sign-in address for a person who must sign in first, with the page they were heading to. */
-export function signInUrl(reason: "required" | "expired" | "signed_out", next?: string): string {
+export function signInUrl(reason: "required" | "expired" | "signed_out" | "reset_link", next?: string): string {
   const params = new URLSearchParams({ reason });
   if (next) params.set("next", safeNextPath(next));
   return `/auth/sign-in?${params.toString()}`;

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Empty, KeyValues, Money, Section, StatusBadge } from "@/components/admin/ui";
 import { PaymentForm, RetractTrackingForm, ReversePaymentForm, TrackingForm, TransitionForm } from "@/components/admin/forms";
 import { entryLabel, formatDay, formatWhen, methodLabel, percentLabel, plainAmount, purposeLabel } from "@/lib/staff/format";
@@ -12,12 +12,12 @@ import type { OrderDetail } from "@/lib/staff/types";
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { staff, api, can } = await requireStaff(`/admin/orders/${isUuid(id) ? id : ""}`);
-  if (!isUuid(id) || !can("orders.read")) notFound();
+  if (!isUuid(id) || !can("orders.read")) return <AdminMissing active="orders" email={staff.email} can={can} />;
   let order: OrderDetail;
   try {
     order = await api.getOrder(id);
   } catch (error) {
-    if (error instanceof StaffOperationError) notFound();
+    if (error instanceof StaffOperationError) return <AdminMissing active="orders" email={staff.email} can={can} />;
     throw error;
   }
   const fixed = order.deposit_fixed_at !== null;
@@ -100,7 +100,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               empty="No history."
               columns={[
                 { key: "to", header: "Status", cell: (h) => h.to_status.replace(/_/g, " "), primary: true },
-                { key: "from", header: "From", cell: (h) => (h.from_status ? h.from_status.replace(/_/g, " ") : "—") },
                 { key: "at", header: "When", cell: (h) => formatWhen(h.at) },
                 { key: "by", header: "By", cell: (h) => h.by ?? "—" },
                 { key: "reason", header: "Reason", cell: (h) => h.reason ?? "—" },
@@ -160,8 +159,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               {
                 key: "state",
                 header: "",
-                cell: (p) =>
-                  p.reversed ? <Badge tone="cancelled">Reversed</Badge> : p.entry_type === "payment" && can("payments.reverse") ? <ReversePaymentForm orderId={order.id} paymentId={p.id} /> : null,
+                cell: (p, view) =>
+                  p.reversed ? <Badge tone="cancelled">Reversed</Badge> : p.entry_type === "payment" && can("payments.reverse") ? <ReversePaymentForm orderId={order.id} paymentId={p.id} scope={view} /> : null,
               },
             ]}
           />

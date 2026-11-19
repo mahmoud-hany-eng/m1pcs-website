@@ -57,6 +57,18 @@ export function parseEmailOnly(formData: FormData): Parsed<{ email: string }> {
   return { ok: true, value: { email } };
 }
 
+/** The new password on the reset page: the same rules as sign-up, typed twice. */
+export function parseNewPassword(formData: FormData): Parsed<{ password: string }> {
+  const errors: FieldErrors = {};
+  const password = text(formData, "password");
+  const confirm = text(formData, "confirm");
+  if (password.length < PASSWORD_MIN_LENGTH) errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+  else if (new TextEncoder().encode(password).length > PASSWORD_MAX_BYTES) errors.password = "That password is too long.";
+  if (!errors.password && password !== confirm) errors.confirm = "The two passwords are not the same.";
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, value: { password } };
+}
+
 export interface ProfileInput {
   full_name: string;
   phone: string | null;

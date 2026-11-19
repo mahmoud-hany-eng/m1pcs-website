@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Empty, KeyValues, LinkButton, Money, Section, StatusBadge } from "@/components/admin/ui";
 import { IssueClaimCodeForm, RevokeClaimCodeForm } from "@/components/admin/forms";
 import { formatDay, formatWhen, sourceLabel } from "@/lib/staff/format";
@@ -13,12 +13,12 @@ const CODE_TONE = { active: "progress", used: "done", revoked: "cancelled", expi
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { staff, api, can } = await requireStaff(`/admin/customers/${isUuid(id) ? id : ""}`);
-  if (!isUuid(id) || !can("customers.read")) notFound();
+  if (!isUuid(id) || !can("customers.read")) return <AdminMissing active="customers" email={staff.email} can={can} />;
   let customer: CustomerDetail;
   try {
     customer = await api.getCustomer(id);
   } catch (error) {
-    if (error instanceof StaffOperationError) notFound();
+    if (error instanceof StaffOperationError) return <AdminMissing active="customers" email={staff.email} can={can} />;
     throw error;
   }
   const manage = can("customers.manage");

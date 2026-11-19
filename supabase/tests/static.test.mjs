@@ -349,9 +349,9 @@ describe("the staff gateway keeps its privileged path narrow", () => {
     for (const p of pages) {
       const text = read(p);
       if (p === "src/app/admin/mfa/page.tsx") {
-        // The second-factor page is the one page a not-yet-aal2 person may open: it checks the flags and the session itself.
-        assert.match(text, /staffAdminGate\(process\.env\)/, p);
-        assert.match(text, /getSession\(\)/, p);
+        // The second-factor page is the one page a not-yet-aal2 person may open. Only an active staff member sees it:
+        // everyone else gets the ordinary 404.
+        assert.match(text, /await requireStaffCandidate\(/, p);
         continue;
       }
       assert.match(text, /await requireStaff\(/, `${p} must call requireStaff`);
@@ -366,6 +366,17 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const end = body.indexOf("\nexport async function ", 10);
       const fn = end === -1 ? body : body.slice(0, end);
       assert.ok(/return run\(/.test(fn) || /await requireStaff\(/.test(fn), `${name} must authenticate through run() or requireStaff()`);
+    }
+  });
+
+  it("the second-step actions only run for an active staff member", () => {
+    const code = strip(read("src/lib/staff/mfa-actions.ts"));
+    const exported = [...code.matchAll(/export async function (\w+)\(/g)].map((m) => m[1]);
+    assert.deepEqual(exported.sort(), ["enrolTotpAction", "verifyTotpAction"]);
+    assert.match(code, /requireStaffCandidate\(/);
+    for (const name of exported) {
+      const fn = code.slice(code.indexOf(`export async function ${name}(`));
+      assert.match(fn.slice(0, 200), /await signedIn\(\)/, `${name} must check first`);
     }
   });
 
@@ -408,12 +419,14 @@ describe("every customer-account entry point is guarded", () => {
     assert.match(guard, /default:\s*throw new AccountsUnavailableError\(session\.state\)/);
   });
 
-  it("the confirm route answers 404 while the flag is off, and only accepts the three email types the feature sends", () => {
+  it("the confirm route answers 404 while the flag is off, and only accepts the four email types the feature sends", () => {
     const route = read("src/app/auth/confirm/route.ts");
     assert.match(route, /customerAccountsGate\(process\.env\)\.enabled/);
     assert.match(route, /status: 404/);
     const types = route.match(/ALLOWED_TYPES[^=]*=\s*\[([^\]]*)\]/)[1].match(/"[a-z_]+"/g).sort();
-    assert.deepEqual(types, ['"email"', '"magiclink"', '"signup"']);
+    assert.deepEqual(types, ['"email"', '"magiclink"', '"recovery"', '"signup"']);
+    // A recovery link always ends at the reset page, whatever `next` says; the only other destination is a checked path.
+    assert.match(route, /type === "recovery"\) return redirect\("\/auth\/reset-password"\)/);
   });
 
   it("every redirect goes to a fixed path, a checked next path, or the sign-in address", () => {

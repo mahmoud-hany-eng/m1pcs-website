@@ -47,9 +47,9 @@ export function Stat({
 }) {
   const tint = tone === "gold" ? "glass-tint-gold" : tone === "red" ? "glass-tint-red" : "";
   const body = (
-    <div className={`glass glass-flat ${tint} flex h-full flex-col gap-1 p-4 sm:p-5`}>
+    <div className={`glass glass-flat ${tint} flex h-full min-w-0 flex-col gap-1 p-4 sm:p-5`}>
       <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{label}</span>
-      <span className="font-display text-2xl font-semibold text-white sm:text-[1.75rem]">{value}</span>
+      <span className="min-w-0 break-words font-display text-2xl font-semibold text-white sm:text-[1.65rem]">{value}</span>
       {hint ? <span className="text-xs text-text-secondary">{hint}</span> : null}
     </div>
   );
@@ -102,7 +102,8 @@ export function LinkButton({ href, children, variant = "glass" }: { href: string
 export interface Column<T> {
   key: string;
   header: string;
-  cell: (row: T) => ReactNode;
+  /** `view` says which of the two layouts is being drawn, so a cell with a form can give its fields a unique id in each. */
+  cell: (row: T, view: "table" | "card") => ReactNode;
   align?: "left" | "right";
   /** The cell that titles a row when the table turns into cards on a phone. */
   primary?: boolean;
@@ -133,7 +134,7 @@ export function DataTable<T>({
   return (
     <>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[40rem] border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-[30rem] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               {columns.map((c) => (
@@ -150,10 +151,10 @@ export function DataTable<T>({
                   <td key={c.key} className={`border-b border-border/60 px-3 py-3 align-middle text-text-secondary group-hover:bg-white/[0.03] ${c.align === "right" ? "text-right" : "text-left"}`}>
                     {index === 0 && rowHref ? (
                       <Link href={rowHref(row)} className="font-medium text-white hover:text-accent focus-visible:outline-2">
-                        {c.cell(row)}
+                        {c.cell(row, "table")}
                       </Link>
                     ) : (
-                      c.cell(row)
+                      c.cell(row, "table")
                     )}
                   </td>
                 ))}
@@ -168,17 +169,17 @@ export function DataTable<T>({
             <div className="mb-3 text-sm font-semibold text-white">
               {rowHref ? (
                 <Link href={rowHref(row)} className="hover:text-accent">
-                  {primary.cell(row)}
+                  {primary.cell(row, "card")}
                 </Link>
               ) : (
-                primary.cell(row)
+                primary.cell(row, "card")
               )}
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
               {others.map((c) => (
                 <div key={c.key} className="flex min-w-0 flex-col gap-0.5">
                   <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">{c.header}</dt>
-                  <dd className="min-w-0 break-words text-sm text-text-secondary">{c.cell(row)}</dd>
+                  <dd className="min-w-0 break-words text-sm text-text-secondary">{c.cell(row, "card")}</dd>
                 </div>
               ))}
             </dl>

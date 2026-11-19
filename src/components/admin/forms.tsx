@@ -42,6 +42,8 @@ function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => 
 }
 
 const errorOf = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.fieldErrors?.[name] : undefined);
+/** What was typed before an error: React clears an uncontrolled form after every submit, so the server hands the text back. */
+const echoed = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.values?.[name] : undefined);
 
 function Feedback({ state }: { state: StaffFormState }) {
   if (state.status === "error" && state.message) return <Notice tone="error">{state.message}</Notice>;
@@ -75,12 +77,17 @@ function Field({ id, label, hint, error, children, required }: { id: string; lab
 const inputClass = "glass-input min-h-[2.75rem] w-full px-3.5 py-2 text-sm";
 
 function Input({ state, name, id, ...rest }: { state: StaffFormState; name: string; id: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input id={id} name={name} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className={inputClass} {...rest} />;
+  // A controlled input (it has `value`) keeps its own text; the others take it back from the server after an error.
+  const kept = rest.value === undefined ? { defaultValue: echoed(state, name) ?? rest.defaultValue } : {};
+  return <input id={id} name={name} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className={inputClass} {...rest} {...kept} />;
 }
 
 function Select({ state, name, id, children, ...rest }: { state: StaffFormState; name: string; id: string; children: ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const kept = rest.value === undefined ? { defaultValue: echoed(state, name) ?? rest.defaultValue } : {};
+  // React does not move a <select>'s selected option when its defaultValue changes, so the element is re-created when the
+  // value the server handed back changes: that is what puts the person's choice back after the form was cleared.
   return (
-    <select id={id} name={name} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className={`${inputClass} cursor-pointer`} {...rest}>
+    <select key={`${name}:${echoed(state, name) ?? ""}`} id={id} name={name} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className={`${inputClass} cursor-pointer`} {...rest} {...kept}>
       {children}
     </select>
   );
@@ -90,7 +97,7 @@ function Check({ state, name, id, children }: { state: StaffFormState; name: str
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="flex items-start gap-2.5 text-sm text-text-secondary">
-        <input id={id} type="checkbox" name={name} value="yes" aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--color-primary))]" />
+        <input id={id} type="checkbox" name={name} value="yes" defaultChecked={echoed(state, name) === "yes"} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--color-primary))]" />
         <span>{children}</span>
       </label>
       <FieldError id={`${id}-error`} message={errorOf(state, name)} />
@@ -490,7 +497,7 @@ export function PaymentForm({ orderId, defaultPurpose, defaultAmount }: { orderI
   );
 }
 
-export function ReversePaymentForm({ orderId, paymentId }: { orderId: string; paymentId: string }) {
+export function ReversePaymentForm({ orderId, paymentId, scope = "t" }: { orderId: string; paymentId: string; scope?: string }) {
   const [state, action, pending] = useStaffForm(reversePaymentAction);
   return (
     <details>
@@ -499,11 +506,11 @@ export function ReversePaymentForm({ orderId, paymentId }: { orderId: string; pa
         <input type="hidden" name="order_id" value={orderId} />
         <input type="hidden" name="payment_id" value={paymentId} />
         <Feedback state={state} />
-        <Field id={`rp-${paymentId}`} label="Reason" error={errorOf(state, "reason")}>
-          <Input state={state} id={`rp-${paymentId}`} name="reason" maxLength={500} required />
+        <Field id={`${scope}-rp-${paymentId}`} label="Reason" error={errorOf(state, "reason")}>
+          <Input state={state} id={`${scope}-rp-${paymentId}`} name="reason" maxLength={500} required />
         </Field>
-        <Field id={`rpc-${paymentId}`} label="Type REVERSE to confirm" error={errorOf(state, "typed_confirmation")}>
-          <Input state={state} id={`rpc-${paymentId}`} name="typed_confirmation" autoComplete="off" maxLength={10} />
+        <Field id={`${scope}-rpc-${paymentId}`} label="Type REVERSE to confirm" error={errorOf(state, "typed_confirmation")}>
+          <Input state={state} id={`${scope}-rpc-${paymentId}`} name="typed_confirmation" autoComplete="off" maxLength={10} />
         </Field>
         <p className="text-xs text-text-muted">The original entry is never changed or deleted. A matching reversal entry is added to the history.</p>
         <div>

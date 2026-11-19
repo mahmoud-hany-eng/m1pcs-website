@@ -11,11 +11,11 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export default async function AccountOverviewPage({ searchParams }: { searchParams: SearchParams }) {
-  const { user, supabase, customer } = await requireCustomerContext("/account");
+  const { user, supabase, customer, customers } = await requireCustomerContext("/account");
   const params = await searchParams;
 
   // A new account has no customer profile yet. It must choose: link an earlier (WhatsApp) customer record with a code,
-  // or start a new profile. The choice is shown first because an account with a profile cannot be linked later.
+  // or start a new profile. Either way, earlier records can still be linked later with a claim code.
   if (!customer) {
     return (
       <AccountShell active="overview" email={user.email} title="Welcome to M1" description="One quick step to set up your account." minimal>
@@ -35,7 +35,7 @@ export default async function AccountOverviewPage({ searchParams }: { searchPara
           <Panel title="New to M1?">
             <div className="flex flex-col gap-4">
               <p className="text-sm text-text-secondary">
-                Start a new profile. Choose this only if you do not have orders with M1 yet: an account that starts with a new profile cannot be linked to an older one later.
+                Start a new profile if you have not ordered with M1 before. If you have ordered through WhatsApp, you can still link those orders afterwards with a claim code.
               </p>
               <ProfileForm mode="create" />
             </div>
@@ -46,11 +46,16 @@ export default async function AccountOverviewPage({ searchParams }: { searchPara
   }
 
   const [statuses, orders, loyalty] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadLoyalty(supabase)]);
-  const overview = buildOverview(customer, orders, statuses, loyalty.balance);
+  const overview = buildOverview(customer, orders, statuses, loyalty.balances);
 
   return (
     <AccountShell active="overview" email={user.email} title={overview.greeting} description="Your orders, payments and rewards at M1 Gaming PCs.">
       {first(params.linked) === "1" ? <Notice tone="success">Your earlier orders are now linked to this account.</Notice> : null}
+      {customers.length > 1 ? (
+        <Notice tone="info">
+          This account shows orders from {customers.length} linked customer records ({customers.map((c) => c.customer_code).join(", ")}). They stay separate records at M1; this page simply shows them together.
+        </Notice>
+      ) : null}
       {first(params.welcome) === "1" ? <Notice tone="success">Your profile is ready. Your orders will appear here as soon as M1 creates one for you.</Notice> : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

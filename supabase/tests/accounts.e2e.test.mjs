@@ -310,7 +310,9 @@ describe("customer accounts: browser journeys against the local emulator", { ski
     it("a new account has no profile, and must choose between claiming earlier orders and starting new", async () => {
       const { page } = session;
       assert.match(await text(page), /Already ordered through WhatsApp\?/);
-      assert.match(await text(page), /cannot be linked to an older one later/);
+      // Choosing "new profile" no longer closes the door: earlier records can still be linked later with a code.
+      assert.match(await text(page), /still link those orders afterwards with a claim code/);
+      assert.doesNotMatch(await text(page), /cannot be linked to an older one later/);
       assert.equal(emu.query(`select count(*) from public.customer_accounts where user_id = (select id from auth.users where email = '${carol}');`), "0");
     });
 
@@ -421,10 +423,12 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       await page.goto(`${on.base}/account/orders/${aliceOpen()}`);
       const detail = await text(page);
       assert.match(detail, /Order total\s+QAR 4,000\.00/);
-      assert.match(detail, /Deposit required\s+QAR 2,000\.00/);
+      // The demonstration data follows the owner-confirmed schedule (25 percent of a QAR 4,000.00 order), not a flat half.
+      assert.match(detail, /Deposit required\s+QAR 1,000\.00/);
       assert.match(detail, /Paid so far\s+QAR 1,000\.00/);
       assert.match(detail, /Remaining balance\s+QAR 3,000\.00/);
-      assert.match(detail, /The deposit is not fully paid yet: QAR 1,000\.00 to go/);
+      assert.doesNotMatch(detail, /deposit is not fully paid yet/);
+      assert.doesNotMatch(detail, /50\s*%|QAR 2,000\.00/, "no demonstration figure implies the withdrawn flat 50 percent");
       assert.match(detail, /RCPT-TEST-1/);
       assert.match(detail, /Order confirmed/);
       assert.match(detail, /Graphics card|Test graphics card/);
@@ -652,8 +656,10 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       assert.match(detail, /Parts ordered/);
       const content = (await page.content()) + detail;
       for (const secret of PRIVATE_STRINGS) assert.ok(!content.includes(secret), `the claimed customer's order must not contain "${secret}"`);
+      // An account that already has a record may link another one with a new code; the page now says so.
       await page.goto(`${on.base}/account/claim`);
-      assert.match(await text(page), /already linked/);
+      assert.match(await text(page), /Link another earlier record/);
+      assert.match(await text(page), /Records linked to this account/);
       await context.close();
     });
 

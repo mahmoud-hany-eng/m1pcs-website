@@ -5,15 +5,17 @@
  * and no customer id: the browser sends only what the person typed, and the server decides everything else.
  */
 import Link from "next/link";
-import { useActionState, useEffect, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { AFTER_SUCCESS_PATH, idleState, type FormState } from "@/lib/accounts/shared/form-state";
 import {
   claimAction,
   createProfileAction,
   emailLinkAction,
+  requestPasswordResetAction,
   resendConfirmationAction,
   signInAction,
   signUpAction,
+  updatePasswordAction,
   updateProfileAction,
 } from "@/lib/accounts/server/actions";
 import { PASSWORD_MIN_LENGTH } from "@/lib/accounts/shared/validation";
@@ -71,12 +73,14 @@ function Submit({ pending, children, pendingLabel = "Please wait…" }: { pendin
 
 export function SignInForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(signInAction, idleState);
+  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
+  const [email, setEmail] = useState("");
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="next" value={next} />
       <Feedback state={state} />
       <FieldWrapper label="Email" htmlFor="signin-email" required>
-        <TextInput id="signin-email" name="email" type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="signin-email-error" />
+        <TextInput id="signin-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="signin-email-error" />
         <FieldError id="signin-email-error" message={errorOf(state, "email")} />
       </FieldWrapper>
       <FieldWrapper label="Password" htmlFor="signin-password" required>
@@ -90,14 +94,55 @@ export function SignInForm({ next }: { next: string }) {
   );
 }
 
+export function ForgotPasswordForm() {
+  const [state, action, pending] = useActionState(requestPasswordResetAction, idleState);
+  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
+  const [email, setEmail] = useState("");
+  return (
+    <form action={action} className="flex flex-col gap-4" noValidate>
+      <Feedback state={state} />
+      <FieldWrapper label="Email" htmlFor="forgot-email" required hint="We will email you a link to choose a new password.">
+        <TextInput id="forgot-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="forgot-email-error" />
+        <FieldError id="forgot-email-error" message={errorOf(state, "email")} />
+      </FieldWrapper>
+      <Submit pending={pending} pendingLabel="Sending…">
+        Email me a reset link
+      </Submit>
+    </form>
+  );
+}
+
+export function ResetPasswordForm() {
+  const [state, action, pending] = useActionState(updatePasswordAction, idleState);
+  useFollowRedirect(state);
+  return (
+    <form action={action} className="flex flex-col gap-4" noValidate>
+      <Feedback state={state} />
+      <FieldWrapper label="New password" htmlFor="reset-password" required hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
+        <TextInput id="reset-password" name="password" type="password" autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} required aria-invalid={Boolean(errorOf(state, "password"))} aria-describedby="reset-password-error" />
+        <FieldError id="reset-password-error" message={errorOf(state, "password")} />
+      </FieldWrapper>
+      <FieldWrapper label="Type it again" htmlFor="reset-confirm" required>
+        <TextInput id="reset-confirm" name="confirm" type="password" autoComplete="new-password" required aria-invalid={Boolean(errorOf(state, "confirm"))} aria-describedby="reset-confirm-error" />
+        <FieldError id="reset-confirm-error" message={errorOf(state, "confirm")} />
+      </FieldWrapper>
+      <Submit pending={pending} pendingLabel="Saving…">
+        Change password
+      </Submit>
+    </form>
+  );
+}
+
 export function EmailLinkForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(emailLinkAction, idleState);
+  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
+  const [email, setEmail] = useState("");
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="next" value={next} />
       <Feedback state={state} />
       <FieldWrapper label="Email" htmlFor="link-email" hint="We will email you a link that signs you in once. No password needed.">
-        <TextInput id="link-email" name="email" type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="link-email-error" />
+        <TextInput id="link-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="link-email-error" />
         <FieldError id="link-email-error" message={errorOf(state, "email")} />
       </FieldWrapper>
       <button type="submit" disabled={pending} aria-busy={pending} className="btn-sheen btn-glass inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-60">
@@ -109,11 +154,13 @@ export function EmailLinkForm({ next }: { next: string }) {
 
 export function SignUpForm() {
   const [state, action, pending] = useActionState(signUpAction, idleState);
+  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
+  const [email, setEmail] = useState("");
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <Feedback state={state} />
       <FieldWrapper label="Email" htmlFor="signup-email" required>
-        <TextInput id="signup-email" name="email" type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="signup-email-error" />
+        <TextInput id="signup-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="signup-email-error" />
         <FieldError id="signup-email-error" message={errorOf(state, "email")} />
       </FieldWrapper>
       <FieldWrapper label="Password" htmlFor="signup-password" required hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
@@ -129,11 +176,13 @@ export function SignUpForm() {
 
 export function ResendForm() {
   const [state, action, pending] = useActionState(resendConfirmationAction, idleState);
+  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
+  const [email, setEmail] = useState("");
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <Feedback state={state} />
       <FieldWrapper label="Email" htmlFor="resend-email">
-        <TextInput id="resend-email" name="email" type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="resend-email-error" />
+        <TextInput id="resend-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="resend-email-error" />
         <FieldError id="resend-email-error" message={errorOf(state, "email")} />
       </FieldWrapper>
       <button type="submit" disabled={pending} aria-busy={pending} className="btn-sheen btn-glass inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-60">

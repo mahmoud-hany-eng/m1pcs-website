@@ -8,7 +8,7 @@ import type { CustomerRow } from "@/lib/platform/database.types";
 import { signInUrl } from "../shared/redirect";
 import { customerAccountsGate } from "../shared/flag";
 import type { AppSupabaseClient } from "./client";
-import { loadCustomer } from "./data";
+import { loadCustomers } from "./data";
 import { getSession, type SessionUser } from "./session";
 
 /** With the feature flag off (or blocked in production) the account area does not exist: 404. */
@@ -45,14 +45,16 @@ export async function requireSignedIn(nextPath: string): Promise<SignedIn> {
 }
 
 export interface SignedInCustomer extends SignedIn {
-  /** Null while the account has no customer profile yet (it must create one or claim an existing one). */
+  /** The account's main customer record (its oldest link). Null while the account has none (it must create one or claim one). */
   customer: CustomerRow | null;
+  /** Every record linked to the account, oldest first. More than one after claim codes for older records were used. */
+  customers: CustomerRow[];
 }
 
 export async function requireCustomerContext(nextPath: string): Promise<SignedInCustomer> {
   const base = await requireSignedIn(nextPath);
-  const customer = await loadCustomer(base.supabase, base.user.id);
-  return { ...base, customer };
+  const customers = await loadCustomers(base.supabase, base.user.id);
+  return { ...base, customer: customers[0] ?? null, customers };
 }
 
 /** For pages that only make sense once the account has a customer profile: it goes to the overview to set one up. */

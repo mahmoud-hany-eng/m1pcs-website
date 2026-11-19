@@ -219,7 +219,7 @@ export interface LoyaltyView {
  * The balance shown is the one the database derived (the view over the ledger), never one added up here. The running
  * balance beside each entry is computed from the ledger in date order, for reading only.
  */
-export function buildLoyalty(balance: LoyaltyBalanceRow | null, ledger: readonly LoyaltyLedgerRow[]): LoyaltyView {
+export function buildLoyalty(balances: readonly LoyaltyBalanceRow[], ledger: readonly LoyaltyLedgerRow[]): LoyaltyView {
   const ascending = [...ledger].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   let running = 0;
   const entries = ascending.map((entry) => {
@@ -234,7 +234,9 @@ export function buildLoyalty(balance: LoyaltyBalanceRow | null, ledger: readonly
       when: formatDate(entry.created_at),
     };
   });
-  return { balance: balance?.balance_points ?? 0, entryCount: entries.length, entries: entries.reverse() };
+  // One balance per linked record, added together. Each is an exact whole number, so the sum is exact.
+  const balance = balances.reduce((sum, row) => sum + (row.balance_points ?? 0), 0);
+  return { balance, entryCount: entries.length, entries: entries.reverse() };
 }
 
 // ----- the overview ---------------------------------------------------------------------------------------------
@@ -253,7 +255,7 @@ export function buildOverview(
   customer: Pick<CustomerRow, "full_name">,
   orders: readonly OrderRow[],
   statuses: readonly OrderStatusRow[],
-  loyalty: LoyaltyBalanceRow | null,
+  loyalty: readonly LoyaltyBalanceRow[],
 ): OverviewView {
   const newestFirst = [...orders].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const terminal = new Set(statuses.filter((s) => s.is_terminal).map((s) => s.code));
@@ -269,7 +271,7 @@ export function buildOverview(
     latestOrder: newestFirst[0] ? buildOrderSummary(newestFirst[0], statuses) : null,
     totalBalanceDue: formatQar(due),
     hasBalanceDue: due > 0,
-    loyaltyBalance: loyalty?.balance_points ?? 0,
+    loyaltyBalance: loyalty.reduce((sum, row) => sum + (row.balance_points ?? 0), 0),
   };
 }
 

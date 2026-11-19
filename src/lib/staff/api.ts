@@ -16,6 +16,7 @@ export interface NewOrderItem {
 export function staffApi(staff: VerifiedStaff) {
   const call = <T>(name: Parameters<typeof staffCall>[1], params: readonly unknown[] = []) => staffCall<T>(staff, name, params);
   return {
+    isStaffMember: () => call<boolean>("is_staff_member"),
     permissions: () => call<string[]>("my_permissions"),
     dashboard: () => call<DashboardSummary>("dashboard_summary"),
     previewDeposit: (totalMinor: number) => call<DepositPreview>("preview_deposit", [totalMinor]),

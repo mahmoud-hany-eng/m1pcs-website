@@ -21,7 +21,7 @@ import { customerAccountsGate } from "../shared/flag";
 import type { FormState } from "../shared/form-state";
 import { safeNextPath } from "../shared/redirect";
 import { confirmUrl, resolveSiteOrigin } from "../shared/site-url";
-import { parseEmailOnly, parseProfile, parseSignIn, parseSignUp } from "../shared/validation";
+import { parseEmailOnly, parseNewPassword, parseProfile, parseSignIn, parseSignUp } from "../shared/validation";
 import { createSupabaseServerClient } from "./client";
 import { requireCustomerContext, requireLinkedCustomer } from "./guard";
 
@@ -133,6 +133,52 @@ export async function resendConfirmationAction(_previous: FormState, formData: F
   return { status: "success", message: "If that address is waiting for confirmation, we have sent the link again." };
 }
 
+/**
+ * Starts a password reset. The answer is the same whether or not the address has an account, so this form cannot be used
+ * to find out who has one. The link in the email signs the person in for the reset only: it lands on /auth/confirm, which
+ * sends a recovery link to the new-password page and nowhere else.
+ */
+export async function requestPasswordResetAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  assertEnabled();
+  const parsed = parseEmailOnly(formData);
+  if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return failureState("unavailable");
+
+  const redirectTo = await emailLinkTarget("/auth/reset-password");
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.value.email, redirectTo ? { redirectTo } : undefined);
+  if (error) {
+    const failure = classifyAuthError(error);
+    if (failure === "rate_limited" || failure === "unavailable") return failureState(failure);
+  }
+  return { status: "success", message: "If that address has an account, we have sent a link to choose a new password. It works once and expires soon." };
+}
+
+/**
+ * Sets a new password for the person who opened a recovery link (or who is signed in). The person is identified by the
+ * verified session, never by anything in the form. Other sign-ins of the account are ended, so a stolen session does not
+ * survive a password change.
+ */
+export async function updatePasswordAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  assertEnabled();
+  const parsed = parseNewPassword(formData);
+  if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return failureState("unavailable");
+  const { data: current } = await supabase.auth.getUser();
+  if (!current.user) return failureState("session_expired");
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.value.password });
+  if (error) {
+    const failure = classifyAuthError(error);
+    if (failure === "unknown") logFailure("update password", error);
+    return failureState(["weak_password", "same_password", "session_expired", "rate_limited", "unavailable"].includes(failure) ? failure : "unknown");
+  }
+  const others = await supabase.auth.signOut({ scope: "others" });
+  if (others.error) logFailure("end other sessions", others.error);
+  return { status: "success", message: "Your password has been changed. Taking you to your account…", then: "account" };
+}
+
 export async function signOutAction(): Promise<void> {
   assertEnabled();
   const supabase = await createSupabaseServerClient();
@@ -204,14 +250,15 @@ export async function updateProfileAction(_previous: FormState, formData: FormDa
  * sentence, so it reveals nothing about which customers or codes exist.
  */
 export async function claimAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  const { supabase, customer } = await requireCustomerContext("/account/claim");
-  if (customer) return { status: "error", message: "This account is already linked to a customer profile." };
+  const { supabase } = await requireCustomerContext("/account/claim");
+  // An account that already has a profile may link another earlier record: a customer who created a profile before they
+  // knew about their WhatsApp orders must not be locked out of them. Each link needs its own staff-issued, single-use code;
+  // nothing is ever linked or merged by matching an email address or a phone number.
 
   const code = normalizeClaimCode(formData.get("code"));
   if (!code) return { status: "error", message: CLAIM_FAILED_MESSAGE };
 
   const { data, error } = await supabase.rpc("claim_customer_profile", { p_code: code });
-  if (error?.code === "23505") return { status: "error", message: "This account is already linked to a customer profile." };
   if (error) logFailure("claim", error);
   // One failure path and one sentence: an unexpected error looks the same as a wrong code.
   if (error || !data) return { status: "error", message: CLAIM_FAILED_MESSAGE };

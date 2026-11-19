@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { DataTable, SearchBar, Section } from "@/components/admin/ui";
 import { OrderForm } from "@/components/admin/forms";
 import { StaffOperationError } from "@/lib/staff/gateway";
@@ -11,7 +11,7 @@ const first = (value: string | string[] | undefined): string => (Array.isArray(v
 
 export default async function NewOrderPage({ searchParams }: { searchParams: Promise<{ customer?: string | string[]; q?: string | string[] }> }) {
   const { staff, api, can } = await requireStaff("/admin/orders/new");
-  if (!can("orders.create") || !can("customers.read")) notFound();
+  if (!can("orders.create") || !can("customers.read")) return <AdminMissing active="orders" email={staff.email} can={can} />;
   const params = await searchParams;
   const customerId = first(params.customer);
   const shell = { active: "orders" as const, email: staff.email, can, previewLabel: process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null };
@@ -21,7 +21,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
     try {
       customer = await api.getCustomer(customerId);
     } catch (error) {
-      if (error instanceof StaffOperationError) notFound();
+      if (error instanceof StaffOperationError) return <AdminMissing active="orders" email={staff.email} can={can} />;
       throw error;
     }
     return (

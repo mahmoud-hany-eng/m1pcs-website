@@ -1,23 +1,15 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { MfaPanel } from "@/components/admin/forms";
 import { Container } from "@/components/ui/Container";
-import { customerAccountsGate } from "@/lib/accounts/shared/flag";
-import { signInUrl } from "@/lib/accounts/shared/redirect";
-import { getSession } from "@/lib/accounts/server/session";
-import { staffAdminGate } from "@/lib/staff/flag";
+import { requireStaffCandidate } from "@/lib/staff/session";
 
 /**
  * The second-factor page for staff. A signed-in person without the second level lands here from any admin page.
- * It does not say whether the person is staff: anyone signed in can set up a factor, and the staff area decides
- * separately whether they may enter.
+ * Only an active staff member sees it: anyone else gets the ordinary 404, so it cannot be used to find out that an
+ * admin area exists.
  */
 export default async function MfaPage() {
-  if (!staffAdminGate(process.env).enabled || !customerAccountsGate(process.env).enabled) notFound();
-  const session = await getSession();
-  if (session.state === "signed_out") redirect(signInUrl("required", "/admin"));
-  if (session.state === "expired") redirect(signInUrl("expired", "/admin"));
-  if (session.state !== "signed_in") throw new Error("unavailable");
-  const { supabase } = session;
+  const { supabase } = await requireStaffCandidate("/admin/mfa");
 
   const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assurance.data?.currentLevel === "aal2") redirect("/admin");

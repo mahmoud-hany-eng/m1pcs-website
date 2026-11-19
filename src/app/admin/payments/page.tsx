@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Money, Section } from "@/components/admin/ui";
 import { entryLabel, formatWhen, methodLabel, purposeLabel } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
 export default async function PaymentsPage() {
   const { staff, api, can } = await requireStaff("/admin/payments");
-  if (!can("payments.read")) notFound();
+  if (!can("payments.read")) return <AdminMissing active="payments" email={staff.email} can={can} />;
   const rows = await api.listPayments(200, 0);
   return (
     <AdminShell

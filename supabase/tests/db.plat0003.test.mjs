@@ -412,6 +412,21 @@ suite("PLAT-0003 database (real PostgreSQL)", () => {
       db.denied(`${gateway()}select private.has_permission('orders.read');`, "", /permission denied/);
     });
 
+    it("is_staff_member answers only for the caller, needs no second factor, and still checks the sign-in session through the gateway", () => {
+      // An active staff member, signed in at the first level only: yes. The staff functions themselves still refuse.
+      assert.equal(db.ok(`${session(SID, ID.olivia, "aal1")}${gateway({ aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "t");
+      // A customer, an inactive staff member and nobody: no.
+      assert.equal(db.ok(`${session(SID, ID.alice, "aal1")}${gateway({ sub: ID.alice, aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "f");
+      assert.equal(db.ok(`${session(SID, ID.dana, "aal1")}${gateway({ sub: ID.dana, aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "f");
+      assert.equal(db.ok(`reset role;\nreset session authorization;\nset session authorization m1_staff_gateway;\nselect admin.is_staff_member();`).split("\n").pop(), "f");
+      // Through the gateway the session must exist, belong to the user and be unexpired.
+      assert.equal(db.ok(`${gateway({ aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "f", "no session row");
+      assert.equal(db.ok(`${session(SID, ID.sam, "aal1")}${gateway({ sub: ID.olivia, aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "f", "someone else's session");
+      assert.equal(db.ok(`${session(SID, ID.olivia, "aal1", "now() - interval '1 minute'")}${gateway({ aal: "aal1" })}select admin.is_staff_member();`).split("\n").pop(), "f", "expired session");
+      // The staff functions still need the second factor.
+      db.denied(`${session(SID, ID.olivia, "aal1")}${gateway({ aal: "aal1" })}select * from admin.search_customers('a');`, "", /permission denied/);
+    });
+
     it("with a live second-factor session of the same user, the staff functions work", () => {
       const out = db.ok(`${session(SID, ID.olivia)}${gateway()}select admin.my_permissions() is not null;select count(*) > 0 from admin.search_customers('alice');`).split("\n").slice(-2);
       assert.deepEqual(out, ["t", "t"]);

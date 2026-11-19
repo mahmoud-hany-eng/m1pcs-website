@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { DataTable, LinkButton, Money, SearchBar, Section, StatusBadge } from "@/components/admin/ui";
 import { formatDay } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
@@ -22,7 +22,7 @@ const first = (value: string | string[] | undefined): string => (Array.isArray(v
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ q?: string | string[]; status?: string | string[] }> }) {
   const { staff, api, can } = await requireStaff("/admin/orders");
-  if (!can("orders.read")) notFound();
+  if (!can("orders.read")) return <AdminMissing active="orders" email={staff.email} can={can} />;
   const params = await searchParams;
   const q = first(params.q).slice(0, 80);
   const requested = first(params.status);

@@ -35,6 +35,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
       {notice ? <Notice tone={first(params.reason) === "expired" ? "error" : "info"}>{notice}</Notice> : null}
       {session.state === "unavailable" ? <Notice tone="error">We could not reach the sign-in service just now. Please try again in a moment.</Notice> : null}
       <SignInForm next={next} />
+      <p className="-mt-2 text-center text-sm">
+        <Link href="/auth/forgot-password" className="text-text-secondary underline-offset-2 hover:text-white hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
       <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-text-muted">
         <span className="h-px flex-1 bg-border" />
         or

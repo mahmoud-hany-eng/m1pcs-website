@@ -39,7 +39,8 @@ export function freePort() {
 }
 
 function newestMtime(dir, skip = new Set()) {
-  let newest = 0;
+  // A directory's own time moves when a file in it is deleted or renamed, which no file's time shows.
+  let newest = statSync(dir).mtimeMs;
   for (const name of readdirSync(dir)) {
     if (skip.has(name)) continue;
     const full = join(dir, name);
@@ -66,7 +67,7 @@ export async function startWebsite(extraEnv = {}) {
   const port = await freePort();
   const env = { ...process.env, ...BUILD_ENV, PORT: String(port) };
   // The flag and Supabase settings come only from what the caller passes, never from the surrounding shell.
-  for (const key of Object.keys(env)) if (key.startsWith("CUSTOMER_ACCOUNTS_") || key.startsWith("NEXT_PUBLIC_SUPABASE_") || key === "VERCEL_ENV") delete env[key];
+  for (const key of Object.keys(env)) if (key.startsWith("CUSTOMER_ACCOUNTS_") || key.startsWith("STAFF_") || key.startsWith("NEXT_PUBLIC_SUPABASE_") || key === "VERCEL_ENV") delete env[key];
   Object.assign(env, extraEnv);
   const child = spawn(process.execPath, [join(ROOT, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(port), "-H", "127.0.0.1"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";

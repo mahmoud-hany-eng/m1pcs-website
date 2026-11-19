@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { DataTable, Section } from "@/components/admin/ui";
 import { formatWhen } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
 export default async function AuditPage() {
   const { staff, api, can } = await requireStaff("/admin/audit");
-  if (!can("audit.read")) notFound();
+  if (!can("audit.read")) return <AdminMissing active="audit" email={staff.email} can={can} />;
   const rows = await api.audit(200);
   return (
     <AdminShell

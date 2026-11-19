@@ -16,7 +16,7 @@ import { formatQar } from "@/lib/platform/money";
 import type { StaffContext } from "./session";
 import { requireStaff } from "./session";
 import { StaffOperationError, StaffPermissionError, StaffUnavailableError } from "./gateway";
-import type { StaffFormState } from "./form-state";
+import { echoValues, type StaffFormState } from "./form-state";
 import {
   CLAIM_CODE_HOURS,
   depositPolicyValue,
@@ -39,17 +39,19 @@ const field = (form: FormData, name: string): string => {
 };
 
 /** Runs one action as the verified staff member and turns every failure into a safe message. */
-async function run(nextPath: string, permission: string, work: (ctx: StaffContext) => Promise<StaffFormState>): Promise<StaffFormState> {
+async function run(nextPath: string, permission: string, formData: FormData, work: (ctx: StaffContext) => Promise<StaffFormState>): Promise<StaffFormState> {
   const ctx = await requireStaff(nextPath);
+  // Whatever goes wrong, what was typed goes back to the form so a long form is never wiped by an error.
+  const failed = (state: StaffFormState): StaffFormState => (state.status === "error" && !state.values ? { ...state, values: echoValues(formData) } : state);
   // The database checks the permission again; this only avoids a round trip and gives a clear message.
-  if (!ctx.can(permission)) return { status: "error", message: DENIED };
+  if (!ctx.can(permission)) return failed({ status: "error", message: DENIED });
   try {
-    return await work(ctx);
+    return failed(await work(ctx));
   } catch (error) {
-    if (error instanceof StaffPermissionError) return { status: "error", message: DENIED };
-    if (error instanceof StaffOperationError) return { status: "error", message: error.message };
-    if (error instanceof StaffUnavailableError) return { status: "error", message: error.message };
-    return { status: "error", message: FAILED };
+    if (error instanceof StaffPermissionError) return failed({ status: "error", message: DENIED });
+    if (error instanceof StaffOperationError) return failed({ status: "error", message: error.message });
+    if (error instanceof StaffUnavailableError) return failed({ status: "error", message: error.message });
+    return failed({ status: "error", message: FAILED });
   }
 }
 
@@ -60,7 +62,7 @@ const badId = (): StaffFormState => ({ status: "error", message: "That record co
 // ---------------------------------------------------------------------------------------------------------------
 
 export async function createCustomerAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
-  return run("/admin/customers/new", "customers.manage", async ({ api }) => {
+  return run("/admin/customers/new", "customers.manage", formData, async ({ api }) => {
     const parsed = parseCustomer(formData);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
     const id = await api.createCustomer(parsed.value);
@@ -71,7 +73,7 @@ export async function createCustomerAction(_previous: StaffFormState, formData: 
 
 export async function issueClaimCodeAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const customerId = field(formData, "customer_id");
-  return run(`/admin/customers/${isUuid(customerId) ? customerId : ""}`, "customers.manage", async ({ api }) => {
+  return run(`/admin/customers/${isUuid(customerId) ? customerId : ""}`, "customers.manage", formData, async ({ api }) => {
     if (!isUuid(customerId)) return badId();
     const hours = Number(field(formData, "hours"));
     if (!(CLAIM_CODE_HOURS as readonly number[]).includes(hours)) return { status: "error", fieldErrors: { hours: "Choose how long the code lasts." } };
@@ -85,7 +87,7 @@ export async function issueClaimCodeAction(_previous: StaffFormState, formData: 
 export async function revokeClaimCodeAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const customerId = field(formData, "customer_id");
   const codeId = field(formData, "code_id");
-  return run(`/admin/customers/${isUuid(customerId) ? customerId : ""}`, "customers.manage", async ({ api }) => {
+  return run(`/admin/customers/${isUuid(customerId) ? customerId : ""}`, "customers.manage", formData, async ({ api }) => {
     if (!isUuid(customerId) || !isUuid(codeId)) return badId();
     const reason = parseReason(formData);
     if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
@@ -101,7 +103,7 @@ export async function revokeClaimCodeAction(_previous: StaffFormState, formData:
 
 export async function createOrderAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const customerId = field(formData, "customer_id");
-  return run("/admin/orders/new", "orders.create", async ({ api }) => {
+  return run("/admin/orders/new", "orders.create", formData, async ({ api }) => {
     if (!isUuid(customerId)) return { status: "error", fieldErrors: { customer_id: "Choose the customer first." } };
     const parsed = parseOrder(formData, customerId);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
@@ -114,7 +116,7 @@ export async function createOrderAction(_previous: StaffFormState, formData: For
 
 export async function transitionOrderAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "orders.transition", async ({ api }) => {
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "orders.transition", formData, async ({ api }) => {
     if (!isUuid(orderId)) return badId();
     const toStatus = field(formData, "to_status");
     if (!ORDER_STATUS.test(toStatus)) return { status: "error", fieldErrors: { to_status: "Choose the new status." } };
@@ -130,7 +132,7 @@ export async function transitionOrderAction(_previous: StaffFormState, formData:
 
 export async function publishTrackingAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "tracking.publish", async ({ api }) => {
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "tracking.publish", formData, async ({ api }) => {
     if (!isUuid(orderId)) return badId();
     const parsed = parseTracking(formData);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
@@ -143,7 +145,7 @@ export async function publishTrackingAction(_previous: StaffFormState, formData:
 export async function retractTrackingAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
   const eventId = field(formData, "event_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "tracking.publish", async ({ api }) => {
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "tracking.publish", formData, async ({ api }) => {
     if (!isUuid(orderId) || !isUuid(eventId)) return badId();
     const reason = parseReason(formData);
     if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
@@ -159,7 +161,7 @@ export async function retractTrackingAction(_previous: StaffFormState, formData:
 
 export async function recordPaymentAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.record", async ({ api }) => {
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.record", formData, async ({ api }) => {
     if (!isUuid(orderId)) return badId();
     const parsed = parsePayment(formData);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
@@ -175,7 +177,7 @@ export async function recordPaymentAction(_previous: StaffFormState, formData: F
 export async function reversePaymentAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
   const paymentId = field(formData, "payment_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.reverse", async ({ api }) => {
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.reverse", formData, async ({ api }) => {
     if (!isUuid(orderId) || !isUuid(paymentId)) return badId();
     const reason = parseReason(formData);
     if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
@@ -193,7 +195,7 @@ export async function reversePaymentAction(_previous: StaffFormState, formData: 
 // ---------------------------------------------------------------------------------------------------------------
 
 export async function setDepositScheduleAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
-  return run("/admin/policies", "policies.manage", async ({ api }) => {
+  return run("/admin/policies", "policies.manage", formData, async ({ api }) => {
     // The gate status (the status before which a deposit is required) is carried over from the current policy.
     const current = (await api.policies()).find((p) => p.key === "orders.deposit");
     const gate = typeof (current?.value as { required_before_status?: unknown } | undefined)?.required_before_status === "string"

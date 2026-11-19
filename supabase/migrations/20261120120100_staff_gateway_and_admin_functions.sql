@@ -720,6 +720,41 @@ begin
 end;
 $$;
 
+-- Is the signed-in person active staff? It answers only for the caller, so a person learns nothing about anyone else.
+-- It does not need the second factor: it decides whether the second-step page is shown at all, so that a customer who
+-- opens an admin address sees the same "not found" as for any other address. Through the gateway the sign-in session
+-- must still exist, belong to this user and be unexpired. It grants no access to any data.
+create function admin.is_staff_member()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := (select auth.uid());
+  sid uuid;
+begin
+  if uid is null then
+    return false;
+  end if;
+  if private.via_gateway() then
+    begin
+      sid := ((select auth.jwt()) ->> 'session_id')::uuid;
+    exception when others then
+      return false;
+    end;
+    if sid is null or not exists (
+      select 1 from auth.sessions s
+      where s.id = sid and s.user_id = uid and (s.not_after is null or s.not_after > now())
+    ) then
+      return false;
+    end if;
+  end if;
+  return exists (select 1 from private.staff_members sm where sm.user_id = uid and sm.is_active);
+end;
+$$;
+
 -- ---------------------------------------------------------------------------------------------------------------
 -- 6. Staff management. Nobody changes their own role or status, and the last active owner cannot be removed.
 -- ---------------------------------------------------------------------------------------------------------------

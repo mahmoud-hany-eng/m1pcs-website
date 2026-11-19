@@ -18,7 +18,7 @@ export default async function AdminOverview() {
       previewLabel={process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null}
       actions={can("orders.create") ? <LinkButton href="/admin/orders/new" variant="red">New order</LinkButton> : undefined}
     >
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5" data-testid="overview-stats">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[1fr_1fr_1.1fr_1fr_1.6fr]" data-testid="overview-stats">
         <Stat label="Total orders" value={summary.total_orders} href={can("orders.read") ? "/admin/orders" : undefined} />
         <Stat label="Awaiting deposit" value={summary.awaiting_deposit} tone="gold" href={can("orders.read") ? "/admin/orders?status=awaiting_deposit" : undefined} />
         <Stat label="Under assembly" value={underAssembly} hint="Sourcing, in transit, building, final checks" href={can("orders.read") ? "/admin/orders?status=building" : undefined} />

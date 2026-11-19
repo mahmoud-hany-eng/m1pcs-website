@@ -53,6 +53,7 @@ export class StaffUnavailableError extends Error {
 
 /** Every call the website can make. Fixed text, bound parameters: this list IS the interface. */
 const CALLS = {
+  is_staff_member: "select admin.is_staff_member() as r",
   my_permissions: "select coalesce(jsonb_agg(p), '[]'::jsonb) as r from admin.my_permissions() p",
   dashboard_summary: "select admin.dashboard_summary() as r",
   preview_deposit: "select admin.preview_deposit($1::bigint) as r",

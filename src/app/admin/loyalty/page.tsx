@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { DataTable, Section } from "@/components/admin/ui";
 import { formatWhen } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
 export default async function LoyaltyPage() {
   const { staff, api, can } = await requireStaff("/admin/loyalty");
-  if (!can("loyalty.read")) notFound();
+  if (!can("loyalty.read")) return <AdminMissing active="loyalty" email={staff.email} can={can} />;
   const data = await api.loyalty(null, 100);
   return (
     <AdminShell

@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { DataTable, LinkButton, SearchBar, Section } from "@/components/admin/ui";
 import { formatDay, sourceLabel } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
   const { staff, api, can } = await requireStaff("/admin/customers");
-  if (!can("customers.read")) notFound();
+  if (!can("customers.read")) return <AdminMissing active="customers" email={staff.email} can={can} />;
   const raw = (await searchParams).q;
   const q = (Array.isArray(raw) ? raw[0] : raw ?? "").slice(0, 80);
   const rows = await api.searchCustomers(q, 50);

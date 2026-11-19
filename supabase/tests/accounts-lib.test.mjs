@@ -230,6 +230,25 @@ describe("form validation", { skip }, () => {
   });
 });
 
+describe("password recovery inputs", { skip }, () => {
+  test("a new password follows the sign-up rules and must be typed twice the same", () => {
+    const ok = validation.parseNewPassword(form({ password: "A-long-synthetic-passphrase-1", confirm: "A-long-synthetic-passphrase-1" }));
+    assert.equal(ok.ok, true);
+    assert.ok(validation.parseNewPassword(form({ password: "short", confirm: "short" })).errors.password);
+    assert.ok(validation.parseNewPassword(form({ password: "A-long-synthetic-passphrase-1", confirm: "A-long-synthetic-passphrase-2" })).errors.confirm);
+    assert.ok(validation.parseNewPassword(form({ password: "x".repeat(73), confirm: "x".repeat(73) })).errors.password);
+    assert.equal(validation.parseNewPassword(form({})).ok, false);
+  });
+  test("the service's same-password error has its own fixed message", () => {
+    assert.equal(errors.classifyAuthError({ code: "same_password", status: 422 }), "same_password");
+    assert.match(errors.authFailureMessage("same_password"), /different password/);
+  });
+  test("an expired reset link has a notice and a sign-in address", () => {
+    assert.match(errors.signInNotice("reset_link"), /reset link/);
+    assert.equal(redirect.signInUrl("reset_link"), "/auth/sign-in?reason=reset_link");
+  });
+});
+
 describe("auth error mapping (no enumeration, no raw text)", { skip }, () => {
   const classify = (code, status = 400, name = "AuthApiError") => errors.classifyAuthError({ code, status, name });
 
@@ -452,10 +471,13 @@ describe("dashboard view models", { skip }, () => {
       { id: "l2", customer_id: "c1", order_id: null, entry_type: "adjustment", points: -5, reverses_entry_id: null, description: "Correction", created_at: "2026-11-12T00:00:00Z" },
       { id: "l1", customer_id: "c1", order_id: "o1", entry_type: "award", points: 40, reverses_entry_id: null, description: "Points earned on order O-2611-00001", created_at: "2026-11-10T00:00:00Z" },
     ];
-    const loyalty = views.buildLoyalty({ customer_id: "c1", balance_points: 35, entries: 2 }, ledger);
+    const loyalty = views.buildLoyalty([{ customer_id: "c1", balance_points: 35, entries: 2 }], ledger);
     assert.equal(loyalty.balance, 35, "the balance comes from the database view");
     assert.deepEqual(loyalty.entries.map((e) => [e.id, e.runningBalance, e.pointsText]), [["l2", 35, "-5"], ["l1", 40, "+40"]]);
-    assert.deepEqual(views.buildLoyalty(null, []), { balance: 0, entryCount: 0, entries: [] });
+    assert.deepEqual(views.buildLoyalty([], []), { balance: 0, entryCount: 0, entries: [] });
+    // Two linked records: the balances are added up, exactly.
+    assert.equal(views.buildLoyalty([{ customer_id: "c1", balance_points: 35, entries: 2 }, { customer_id: "c2", balance_points: 15, entries: 1 }], []).balance, 50);
+    assert.equal(views.buildLoyalty([{ customer_id: "c1", balance_points: null, entries: 0 }], []).balance, 0);
   });
 
   test("the overview leaves a cancelled order's balance out, keeps a delivered one that still owes, and counts open orders", () => {
@@ -464,7 +486,7 @@ describe("dashboard view models", { skip }, () => {
       order({ id: "b", order_ref: "O-2611-00002", status: "cancelled", balance_due_minor: 999999, created_at: "2026-11-11T00:00:00Z" }),
       order({ id: "c", order_ref: "O-2611-00003", status: "delivered", balance_due_minor: 50000, created_at: "2026-11-09T00:00:00Z" }),
     ];
-    const overview = views.buildOverview({ full_name: "Alice Test" }, orders, STATUSES, { customer_id: "c1", balance_points: 12, entries: 1 });
+    const overview = views.buildOverview({ full_name: "Alice Test" }, orders, STATUSES, [{ customer_id: "c1", balance_points: 12, entries: 1 }]);
     assert.equal(overview.totalBalanceDue, "QAR 3,500.00");
     assert.equal(overview.hasBalanceDue, true);
     assert.equal(overview.orderCount, 3);
@@ -475,7 +497,7 @@ describe("dashboard view models", { skip }, () => {
   });
 
   test("a customer with no orders gets zeros and no latest order, not an error", () => {
-    const overview = views.buildOverview({ full_name: "  " }, [], STATUSES, null);
+    const overview = views.buildOverview({ full_name: "  " }, [], STATUSES, []);
     assert.deepEqual([overview.orderCount, overview.openOrderCount, overview.latestOrder, overview.hasBalanceDue, overview.loyaltyBalance, overview.greeting], [0, 0, null, false, 0, "Welcome back"]);
   });
 

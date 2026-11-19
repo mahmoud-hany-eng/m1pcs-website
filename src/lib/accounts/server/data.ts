@@ -32,13 +32,19 @@ function fail(label: string, error: { code?: string } | null): never {
   throw new AccountsDataError();
 }
 
-export async function loadCustomer(supabase: AppSupabaseClient, userId: string): Promise<CustomerRow | null> {
-  const link = await supabase.from("customer_accounts").select("customer_id").eq("user_id", userId).maybeSingle();
-  if (link.error) fail("customer link", link.error);
-  if (!link.data) return null;
-  const customer = await supabase.from("customers").select("*").eq("id", link.data.customer_id).maybeSingle();
-  if (customer.error) fail("customer profile", customer.error);
-  return customer.data;
+/**
+ * Every customer record linked to this account, oldest link first. An account normally has one; it can have several
+ * when staff issued claim codes for older WhatsApp-managed records (the database allows up to five). Nothing here picks
+ * a record from the browser: the links are read with the verified session and row level security.
+ */
+export async function loadCustomers(supabase: AppSupabaseClient, userId: string): Promise<CustomerRow[]> {
+  const links = await supabase.from("customer_accounts").select("customer_id, linked_at").eq("user_id", userId).order("linked_at", { ascending: true });
+  if (links.error) fail("customer links", links.error);
+  if (!links.data || links.data.length === 0) return [];
+  const customers = await supabase.from("customers").select("*").in("id", links.data.map((l) => l.customer_id));
+  if (customers.error) fail("customer profiles", customers.error);
+  const byId = new Map((customers.data ?? []).map((c) => [c.id, c]));
+  return links.data.map((l) => byId.get(l.customer_id)).filter((c): c is CustomerRow => Boolean(c));
 }
 
 export async function loadStatuses(supabase: AppSupabaseClient): Promise<OrderStatusRow[]> {
@@ -83,12 +89,13 @@ export async function loadPayments(supabase: AppSupabaseClient): Promise<Payment
   return result.data ?? [];
 }
 
-export async function loadLoyalty(supabase: AppSupabaseClient): Promise<{ balance: LoyaltyBalanceRow | null; ledger: LoyaltyLedgerRow[] }> {
+/** Loyalty across every linked record. With several records the balances are listed per record and added up for display. */
+export async function loadLoyalty(supabase: AppSupabaseClient): Promise<{ balances: LoyaltyBalanceRow[]; ledger: LoyaltyLedgerRow[] }> {
   const [balance, ledger] = await Promise.all([
-    supabase.from("loyalty_balances").select("*").maybeSingle(),
+    supabase.from("loyalty_balances").select("*"),
     supabase.from("loyalty_ledger").select("*").order("created_at", { ascending: true }).limit(500),
   ]);
   if (balance.error) fail("loyalty balance", balance.error);
   if (ledger.error) fail("loyalty ledger", ledger.error);
-  return { balance: balance.data, ledger: ledger.data ?? [] };
+  return { balances: balance.data ?? [], ledger: ledger.data ?? [] };
 }

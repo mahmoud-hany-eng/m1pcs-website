@@ -43,7 +43,8 @@ port = 54324
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000"]
+# Local development and the browser tests (any local port). A hosted project lists its own preview and production addresses.
+additional_redirect_urls = ["http://localhost:3000/**", "http://localhost:*/**", "http://127.0.0.1:*/**"]
 jwt_expiry = 3600
 enable_signup = true
 # Customers sign in with a real identity; anonymous sessions would defeat the claim-code and ownership rules.

@@ -7,8 +7,8 @@ import { buildLoyalty } from "@/lib/accounts/shared/view-models";
 
 export default async function LoyaltyPage() {
   const { user, supabase } = await requireLinkedCustomer("/account/loyalty");
-  const { balance, ledger } = await loadLoyalty(supabase);
-  const loyalty = buildLoyalty(balance, ledger);
+  const { balances, ledger } = await loadLoyalty(supabase);
+  const loyalty = buildLoyalty(balances, ledger);
 
   return (
     <AccountShell active="loyalty" email={user.email} title="Loyalty points" description="Points you have earned with M1. Every change is recorded below.">

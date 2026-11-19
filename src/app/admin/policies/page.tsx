@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Section } from "@/components/admin/ui";
 import { DepositScheduleForm, type ScheduleDefaults } from "@/components/admin/forms";
 import { formatQar } from "@/lib/platform/money";
@@ -19,7 +19,7 @@ function tiersOf(policy: PolicyRow | undefined): Tier[] | null {
 
 export default async function PoliciesPage() {
   const { staff, api, can } = await requireStaff("/admin/policies");
-  if (!can("policies.read")) notFound();
+  if (!can("policies.read")) return <AdminMissing active="policies" email={staff.email} can={can} />;
   const policies = await api.policies();
   const deposit = policies.find((p) => p.key === "orders.deposit");
   const versions = deposit ? await api.policyVersions("orders.deposit") : [];

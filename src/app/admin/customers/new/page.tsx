@@ -1,12 +1,12 @@
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminMissing } from "@/components/admin/Missing";
 import { Section } from "@/components/admin/ui";
 import { CustomerForm } from "@/components/admin/forms";
 import { requireStaff } from "@/lib/staff/session";
-import { notFound } from "next/navigation";
 
 export default async function NewCustomerPage() {
   const { staff, can } = await requireStaff("/admin/customers/new");
-  if (!can("customers.manage")) notFound();
+  if (!can("customers.manage")) return <AdminMissing active="customers" email={staff.email} can={can} />;
   return (
     <AdminShell
       active="customers"

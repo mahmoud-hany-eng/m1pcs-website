@@ -18,8 +18,9 @@ import { createSupabaseServerClient } from "@/lib/accounts/server/client";
  */
 export const dynamic = "force-dynamic";
 
-// Only the kinds of email this feature sends. Password recovery, invitations and address changes are not offered.
-const ALLOWED_TYPES: readonly EmailOtpType[] = ["signup", "email", "magiclink"];
+// Only the kinds of email this feature sends. Invitations and address changes are not offered.
+const ALLOWED_TYPES: readonly EmailOtpType[] = ["signup", "email", "magiclink", "recovery"];
+// A recovery link signs the person in for one purpose and always ends at the same page, whatever `next` says.
 
 function isAllowedType(value: string | null): value is EmailOtpType {
   return value !== null && (ALLOWED_TYPES as readonly string[]).includes(value);
@@ -39,9 +40,12 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash && isAllowedType(type)) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    if (!error && type === "recovery") return redirect("/auth/reset-password");
     if (!error) return redirect(next);
   } else if (code && code.length <= 512) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
+    // The default (PKCE) recovery link carries no type; it is recognised by the reset page it asks to land on.
+    if (!error && searchParams.get("next") === "/auth/reset-password") return redirect("/auth/reset-password");
     if (!error) return redirect(next);
   }
   return redirect("/auth/error?reason=link");
