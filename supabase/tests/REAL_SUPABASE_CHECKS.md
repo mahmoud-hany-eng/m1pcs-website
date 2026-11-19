@@ -3,14 +3,16 @@
 The local suite runs the migrations on a real PostgreSQL server with a small shim that imitates the Supabase roles and
 `auth.uid()` / `auth.jwt()`. That proves the SQL. It cannot prove the parts of Supabase that sit around the database.
 This is the list to work through, on a **development** project, before anything real depends on this schema.
-None of it has been done: no Supabase project exists for M1 yet.
+None of it has been done **on a hosted project**: no Supabase project exists for M1 yet. Since PLAT-0003 most items have been
+run against the **official Supabase local stack** (the CLI's Docker services), which is the real software but not a hosted
+project: section 8 says which, and what is left for a hosted project.
 
 Record each result (pass, fail, not applicable) with the date, the project's reference **kept out of the repository**,
 and the migration version applied.
 
 ## 1. The migrations on the real platform
 
-- [ ] All eleven migrations apply in order on a fresh project without error.
+- [ ] All fifteen migrations apply in order on a fresh project without error. (Local stack: done, PostgreSQL 15.20.)
 - [ ] `select count(*) from private.security_audit();` returns `0`.
 - [ ] The migrations ran as Supabase's `postgres` role (not a superuser, as in the local run). Confirm every staff
       function in `admin` still works end to end, because they rely on their owner being able to read the `private`
@@ -95,6 +97,40 @@ Use a project with synthetic data only, set `CUSTOMER_ACCOUNTS_ENABLED=true` in 
 - [ ] Re-test the profile-creation and claim flows in a real browser: in the local browser tests a Server Action
       redirect sometimes failed to move the page, and the code ends those two flows with a full page load
       (see CUSTOMER_ACCOUNTS.md section 10).
+
+## 8. Results of the official local stack (PLAT-0003), and what is left for a hosted project
+
+Run on the Supabase CLI 3.2.0 local stack (Auth v2.198.0, PostgREST v16.5, supabase/postgres 15.20, Mailpit v1.31.3).
+72 tests; the commands are in `supabase/README.md`. Nothing here is a hosted result.
+
+| Section | Local-stack result | Left for a hosted development project |
+| --- | --- | --- |
+| 1 migrations | All 15 apply as the platform's `postgres` role; `security_audit()` and `gateway_audit()` return 0 | The same on the hosted project; its default privileges and region |
+| 2 Data API | Only `public` exposed (admin, private, auth, extensions give PGRST106); anon sees two reference tables; no staff function or staff table is reachable; two customers are isolated by list and by id; no write to orders, payments, items, tracking or loyalty; only permitted profile columns are editable; quotations cannot be altered by the customer; no private data in any customer response | The dashboard's exposed-schema setting |
+| 3 Auth | Claims (`sub`, `role`, `aal`, `session_id`) as the code expects; a real authenticator code gives `aal2` on the same session; a wrong code does not; forged `user_metadata` changes nothing; expired, altered, unsigned and wrong-key tokens are refused; sign-out ends the session in the auth service but **not** at the REST layer until the token expires (a finding) | Hosted rate limits and the built-in mailer; CAPTCHA; the project's JWT signing-key setup |
+| 4 claim codes | One-time, expiring, revocable, rate limited at five, identical failures, no automatic link by email or phone, a second record can be added | Same, on the hosted project |
+| 5 Realtime | Not used by this phase; excluded from the local stack | Not applicable until used |
+| 6 operations | The service-role key appears nowhere in the website code | Backups, separate projects, cost approval |
+| 7 customer accounts | All items run in a real browser except those that need real deliverability. **Duplicate sign-up**: the real service answers 422 `user_already_exists` (it does not hide it); the app shows the identical screen anyway. Token-hash links work on a fresh browser and only once. Cookies are HttpOnly, SameSite=Lax, not readable by script; an expired access token is refreshed and new cookies are written; a revoked session is refused on the next page load; a damaged cookie is a sign-out. The session cookie is not Secure on local http (expected) | `Secure` on HTTPS, cookie size with the hosted session, the hosted redirect allow-list, email deliverability |
+
+## 9. The staff gateway and the admin dashboard (hosted development project only)
+
+Do these after section 8, on a development project, with synthetic data, in a Preview environment, following
+`docs/project-memory/architecture/STAFF_GATEWAY.md` section 6.
+
+- [ ] The gateway login connects from the hosting provider through the project's **direct or pooled** connection string. If
+      the pooled (transaction mode) string is used, a staff call and the claim-setting statement run in one transaction
+      and prepared statements are not required: confirm both work and that two staff members' calls on a busy pool never
+      see each other's identity (the local test alternates 12 calls; repeat it against the pooler).
+- [ ] `select count(*) from private.gateway_audit();` returns `0`, and the role has no login until the owner sets a password.
+- [ ] A staff member with a live second-factor session reaches `/admin`; a staff member who has not entered the code is
+      sent to the second step; a customer and a signed-out visitor see the site's ordinary not-found page for every admin
+      address.
+- [ ] Signing out ends admin access at once (replay the old cookie).
+- [ ] Rotating the gateway password (`alter role m1_staff_gateway ... password`) locks the dashboard out until the host's
+      variable is updated, and nothing else changes.
+- [ ] Production: confirm `STAFF_ADMIN_ENABLED` and `CUSTOMER_ACCOUNTS_ENABLED` are **not** set, and that `/admin` and
+      `/account` answer the ordinary not-found page.
 
 ## Not covered anywhere yet
 

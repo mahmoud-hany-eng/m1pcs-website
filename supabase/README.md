@@ -1,4 +1,4 @@
-# M1 business platform: Supabase foundation (PLAT-0001, Phase 1) and customer accounts (PLAT-0002, Phase 2)
+# M1 business platform: Supabase foundation (PLAT-0001), customer accounts (PLAT-0002), real Supabase and the admin dashboard (PLAT-0003)
 
 This directory holds the database foundation for customer profiles, quotations, orders, payments, order tracking, a
 loyalty ledger and staff roles. It is **written and tested locally only**. No Supabase project exists for it, no
@@ -6,7 +6,12 @@ credential was created, nothing was deployed, and the public website does not re
 
 **Phase 2 (PLAT-0002)** adds customer sign-in and a customer dashboard on top of it, in `src/`, behind a feature flag
 that is off by default (see [`docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md`](../docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md)).
-It has been exercised only against a **local emulator** (`emulator/`) that is not Supabase; the checklist for the first
+It was first exercised against a **local emulator** (`emulator/`) that is not Supabase.
+
+**Phase 3 (PLAT-0003)** runs the same code against the **official Supabase local stack** (Auth, REST layer, Postgres and the
+mail-testing service started by the Supabase CLI in Docker; see "The official local stack" below), adds the staff **admin
+dashboard** and its server-only database gateway (see [`docs/project-memory/architecture/STAFF_GATEWAY.md`](../docs/project-memory/architecture/STAFF_GATEWAY.md)),
+and the owner-confirmed deposit schedule. Still **nothing is connected to a hosted project**; the checklist for the first
 real project is `tests/REAL_SUPABASE_CHECKS.md`.
 
 The design, the reasons for it and the open questions are in
@@ -17,8 +22,11 @@ This file is the practical guide: layout, how to run the tests, and how the foun
 
 | Path | What it is |
 | --- | --- |
-| `migrations/` | Thirteen ordered SQL migrations (eleven from Phase 1; 12 and 13 are the Phase 2 corrections). Apply in file order. Each one is complete on its own and safe to read. |
+| `migrations/` | Fifteen ordered SQL migrations (eleven from Phase 1; 12 and 13 the Phase 2 corrections; 14 the confirmed deposit schedule; 15 the staff gateway role, claim-code revocation and multiple links, receipts and the staff functions). Apply in file order. Each one is complete on its own and safe to read. |
 | `config.toml` | Supabase CLI configuration for a **local** stack. Exposes only the `public` schema. No secret, no project reference. |
+| `templates/` | The three email templates (confirmation, sign-in link, password recovery). Links carry a one-time token hash and work in any browser. |
+| `tests/db.plat0003.test.mjs`, `tests/staff-lib.test.mjs` | PLAT-0003 database tests (deposit schedule, gateway, claim links, staff functions) and unit tests for the admin form parsing. |
+| `tests/real/` | **Official-stack tests** (API, staff and gateway, and browser journeys). They need the Supabase local stack running and skip otherwise. Kept apart from the emulator tests on purpose. |
 | `tests/db.test.mjs` | Database tests against a real PostgreSQL server that the harness starts and removes. |
 | `tests/static.test.mjs` | File-level checks: no credential or real personal data, RLS on every table, pinned `search_path`, narrow API exposure. |
 | `tests/platform-lib.test.mjs` | Unit tests for the TypeScript money helpers and the environment contract. |
@@ -41,7 +49,7 @@ This file is the practical guide: layout, how to run the tests, and how the foun
 
 ```
 npm run db:test:static   # no database needed; also needs Node 22.18+ for the TypeScript unit tests
-npm run db:test          # needs the PostgreSQL server programs (initdb, pg_ctl, psql) and Node 22.18+
+npm run db:test          # needs the PostgreSQL server programs (initdb, pg_ctl, psql) and Node 22.18+ (212 tests)
 ```
 
 ```
@@ -57,6 +65,30 @@ network. The suite takes a few seconds.
 What this proves, and what it does not, is stated at the top of `tests/db.test.mjs` and in
 `tests/REAL_SUPABASE_CHECKS.md`. In short: migrations, constraints, RLS, privileges, transitions, ledgers, claim codes
 and the staff checks are exercised for real; GoTrue, PostgREST, Realtime, the dashboard and the Supabase CLI are not.
+
+## The official local stack (Supabase CLI and Docker)
+
+Needs Docker and the Supabase CLI (a pinned copy is fine: `npm i supabase@3.2.0` in a scratch folder, not in this
+project). Nothing here creates an online project or uses a credential: the CLI generates local-only keys for a disposable
+database.
+
+```
+supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+# applies the 15 migrations to a fresh Postgres, starts Auth, the REST layer, Kong and Mailpit (http://127.0.0.1:54324)
+supabase db reset                 # re-applies the migrations after you change one
+npm run real:test                 # 50 API, staff and gateway tests against the real services
+npm run real:e2e                  # 22 browser journeys (customers and staff, desktop and phone width); builds the site if needed
+REAL_E2E_SHOTS=/some/folder npm run real:e2e   # also writes screenshots
+supabase stop --no-backup
+```
+
+The tests read the stack's address and keys from `supabase status -o json` (set `SUPABASE_CLI` if the CLI is not on the path)
+or from `M1_STACK_*` variables; keys are never written to a file. The staff gateway login is given a throw-away password
+for the test run only, and set back to no login afterwards. They run **serially** (`--test-concurrency=1`) because they
+share one database.
+
+**This is not a test of a hosted project.** What it can and cannot prove is in
+`docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md` (section 9) and `tests/REAL_SUPABASE_CHECKS.md`.
 
 `db:test` is **not** part of the GitHub Actions workflow in this phase: changing the workflow is a separate approval.
 The runners already ship PostgreSQL, so adding it later is small.
@@ -88,8 +120,10 @@ Not authorised or done in this phase. When it is approved:
 
 ## Placeholders, not decisions
 
-**The deposit policy is not a placeholder: it is unconfigured.** No deposit schedule is adopted, and while it is
-unconfigured an order cannot be created. See `docs/project-memory/architecture/DEPOSIT_POLICY_AUDIT.md`.
+**The deposit policy is no longer a placeholder: it is the schedule the owner confirmed** (15 % / 25 % / 35 % of the whole
+order total, by total; see `docs/project-memory/architecture/DEPOSIT_POLICY_AUDIT.md`). The earlier flat 50 % stays in the
+version history only. The tests that need round numbers use a clearly labelled TEST EXAMPLE flat schedule installed by the
+test fixture, never by a migration.
 
 The order-status vocabulary, the payment policy, the staff roles and the loyalty details beyond the earn
 rate and the point value are **provisional placeholders**, marked in the data and tracked as open questions

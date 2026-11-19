@@ -1,4 +1,10 @@
-# Customer accounts and dashboard (PLAT-0002, Phase 2)
+# Customer accounts and dashboard (PLAT-0002, Phase 2; updated in PLAT-0003)
+
+> **PLAT-0003 update.** The account code was run against the **official Supabase local stack** (the real Auth service,
+> REST layer, Postgres image and mail-testing service) and not only against the project's own emulator: see section 9.
+> Three behaviours changed as a result: an account that has a profile can now claim older records (section 6), password
+> recovery exists (section 6a), and the sign-up screen no longer relies on the auth service hiding that an address is
+> registered (it does not hide it). The staff side is described in `STAFF_GATEWAY.md`.
 
 **Status: implemented locally and tested locally, behind a feature flag that is off by default. Not deployed. Not
 connected to any Supabase project. Nothing here has been run against a real Supabase.** The tests that exist run the
@@ -118,17 +124,38 @@ already allows (and that is used only on the server here).
 
 ## 6. Claiming an older order
 
-Staff issue a single-use code for a customer record (the Phase 1 `admin.issue_claim_code`). It is stored only as a
-hash, expires (default 72 hours), works once, and after five failures in an hour every attempt from that account is
-refused. The customer types it at `/account/claim`. `claimAction` calls the database function
+Staff issue a single-use code for a customer record (`admin.issue_claim_code`, now reachable from the admin dashboard). It
+is stored only as a hash, expires (24 hours, 3 days or 7 days), works once, can be **revoked** by staff with a reason, and
+after five wrong tries in an hour every attempt from that account is refused (the code itself is not spent by someone
+else's wrong tries). The customer types it at `/account/claim`. `claimAction` calls the database function
 `claim_customer_profile`, which does all of the checking.
 
-* Every failure (malformed, wrong, expired, already used, too many attempts) shows the **same** sentence, so it reveals
-  nothing about whether a customer or a code exists.
-* An account is **never** linked because an email address or phone number matches. The profile form says so.
-* An account that has started a new profile cannot be linked to an older one later; the screen says this before the
-  customer chooses.
+* Every failure (malformed, wrong, expired, revoked, already used, too many attempts, already linked) is the **same**
+  empty answer, and the screen shows the **same** sentence, so it reveals nothing about whether a customer or a code exists
+  (**proven** through the real REST layer: the answers are byte-identical).
+* An account is **never** linked because an email address or phone number matches. A customer record with the same email
+  as a signed-in account stays unlinked (**tested** through the real REST layer and in a browser).
+* **Changed in PLAT-0003: the "profile blocks claiming" restriction is gone.** Before, an account that had created a new
+  profile could never be linked to its older WhatsApp orders, which locked out exactly the customers who signed up first.
+  Now an account may hold up to five linked customer records (primary key `(user_id, customer_id)`), each added by its own
+  staff-issued code. Linking **adds** a record to the account; it does **not merge** two records, rewrite either, or move
+  an order. Each link is an audited event (`customer.claim_code_used`, with who, which record and how many the account
+  already had). The dashboard, payments and loyalty pages show the records together; the overview says so when there is
+  more than one; loyalty balances are added up per record.
+* **Account merging** (turning two customer records into one) is a different operation and is **not built**. If it is
+  ever needed it must have explicit ownership verification and an auditable result, as the owner required; a claim code
+  is the only verification that exists today, and it links, it does not merge.
 * After success the page is loaded afresh (section 10) and shows the linked orders.
+
+### 6a. Password recovery (new)
+
+`/auth/forgot-password` asks for an email address and always answers the same sentence (an unknown address gets the same
+answer and **no email**: tested). The email (template in `supabase/templates/recovery.html`) carries a one-time
+`type=recovery` link to `/auth/confirm`, which signs the person in for the reset only and always continues to
+`/auth/reset-password`, whatever `next` says. The new password follows the sign-up rules and is typed twice; on success the
+account's other sessions are ended, and the old password stops working (all **browser-tested against the real Auth
+service**, including that the same link cannot be used twice and that opening the reset page without a session sends the
+visitor to start again).
 
 ## 7. States the dashboard handles
 
@@ -155,44 +182,68 @@ through the preview banner. No business figure is hard-coded in a component.
 | Cookie flags | `hardenCookieOptions` | unit tests; browser tests read the real cookie |
 | No privileged key or browser client | static rules | static tests scan the source for the service-role key, browser Supabase clients and unguarded account routes |
 
-## 9. The local emulator, and what it does not prove
+## 9. The local emulator, and the official Supabase local stack
 
-`supabase/emulator/` starts a small HTTP server that answers the auth and data requests this code makes, **in front of a
-real local PostgreSQL** that has the real migrations and row level security applied. It exists so the real Next.js
-app, the real `@supabase/ssr` cookie handling and the real policies can run together on a laptop with synthetic data,
-no account, no credential and no network. It listens on 127.0.0.1 only, signs tokens with a random per-run secret, and
-deletes its database on exit.
+There are now **two separate kinds of test**, kept apart on purpose.
 
-**It is not Supabase and is not a test of Supabase.** It imitates a subset of GoTrue and PostgREST. It does not prove
-that the real auth service, PostgREST, email delivery, rate limits, dashboard settings, JWT signing keys or the
-`@supabase/ssr` behaviour against the real service match. Those are listed in
-`supabase/tests/REAL_SUPABASE_CHECKS.md` and need a real development project. **Do not claim the integration works
-until they have been run.**
+* **Emulator tests** (`npm run accounts:e2e`, 43 browser tests; and the unit and static tests): `supabase/emulator/`
+  answers the auth and data requests in front of a real local PostgreSQL with the real migrations. **It is a mock of Auth
+  and PostgREST, not Supabase.** It cannot prove how the real services behave.
+* **Official-stack tests** (`npm run real:test`, `npm run real:e2e`): the Supabase CLI's own local stack in Docker (Auth,
+  PostgREST behind Kong, the `supabase/postgres` image and Mailpit). Nothing is mocked. 72 tests: 37 API tests, 13 staff
+  and gateway tests, 10 customer browser journeys and 12 staff browser journeys. They skip, never pass vacuously, when no
+  stack is running. The setup is in `supabase/README.md`.
+
+**What the official stack showed that the emulator did not** (each is a recorded test):
+
+| Finding | Emulator said | The real service does | What was done |
+| --- | --- | --- | --- |
+| Signing up again with a registered address | Hid it by default (same answer as a new address) | **Refuses with 422 `user_already_exists`**, even with email confirmation on | The app already mapped that code to the same "check your email" screen as a new sign-up; a browser test proves the two screens are identical; a wrong code comment was corrected |
+| Sign-out | A signed-out token was rejected everywhere | The **REST layer keeps accepting a signed-out access token until it expires** (it checks signature and expiry only); only `getUser()` and the session table know | The app asks the auth service (`getUser`) on every request, and the staff database function checks `auth.sessions` itself |
+| Refresh tokens | Simplified | A retry of a used refresh token returns the same child; a replay once the child has been used is refused (`refresh_token_already_used`) but the **session is not revoked**, the newest token keeps working | Recorded; no change needed |
+| Access-token signing | One shared secret | The CLI stack signs with **ES256 keys** (`kid` header) and still accepts the legacy secret at the REST layer | The server verifies through the library (`getClaims`); tests forge expired, altered, unsigned and wrong-key tokens and all are refused |
+| User-editable metadata | Not modelled | A user **can** write `is_admin` and `role` into their own `user_metadata` through the auth API and it appears in their token | Authorization never reads metadata (static test); **proven** to change nothing |
+| Email links | Not sent | Default links only work in the browser that asked for them | Token-hash templates (`supabase/templates/`) so links work on any device |
+| `quotations` / `customers` writes | Mock | Column privileges and row level security as designed: customers cannot change a quotation's status or total, nor a customer's code or source | **Tested** through real PostgREST |
+| `loyalty_balances.maybeSingle()` | One customer only | Fails when an account has two linked records | Fixed with the multi-record model (section 6) |
+
+**Still not proven** (needs a hosted development project; the checklist is `supabase/tests/REAL_SUPABASE_CHECKS.md`): the
+built-in mailer's rate limits and deliverability, custom SMTP, the hosted dashboard's settings and redirect allow-list, the
+hosted JWT signing-key setup, connection pooling for the staff gateway, backups, and the behaviour of a project whose
+region and plan are not yet chosen. **Do not claim the hosted integration works until they have been run.**
 
 ## 10. A finding about Next.js 15.5: do not rely on an in-app navigation straight after a Server Action
 
-In the browser tests, after a Server Action succeeded, the router **sometimes did not move**: with a server-side
+In the PLAT-0002 browser tests, after a Server Action succeeded, the router **sometimes did not move**: with a server-side
 `redirect()` and, equally, with a client `router.replace()` right after the action. The database change had been made,
 the old form stayed on screen, and the same sequence passed or failed depending on timing (about two attempts in eight
-passed). Adding almost any instrumentation made it pass, which is why it was found only by repetition. The cause was
-not isolated in Next.js itself.
+passed). Adding almost any instrumentation made it pass, which is why it was found only by repetition. **The cause was
+not isolated in Next.js itself, and still is not.**
 
-The two one-time transitions this affects (creating a profile, and linking earlier orders) therefore end with a full
-page load (`window.location.assign`) to one of a fixed list of destinations that the server chooses
-(`AFTER_SUCCESS_PATH`). Ten of ten clean attempts passed with the full load. Sign-in, sign-up and sign-out use a
-server redirect between different layouts and were reliable in every run. If the framework is upgraded, this should be
-re-tested before it is simplified.
+The one-time transitions this affects (creating a profile, linking records, changing a password, and creating a customer
+or order in the admin dashboard) therefore end with a full page load (`window.location.assign`) to a destination the
+server chooses (`AFTER_SUCCESS_PATH` for customers, a checked `/admin/...` path for staff). **Re-checked in PLAT-0003 on the
+real stack**, Next 15.5.25 and React 19.3.0: these full loads passed in every run (at least five complete runs of each suite, with no
+navigation failure). The dashboard's other forms (status changes, payments, tracking,
+policies) update **in place** after the action using `revalidatePath`, and that also never failed in those runs, so the
+problem seems limited to navigating immediately after an action. This is a statement about the runs that were made, not a
+proof. It should be re-tested before the framework is upgraded or the workaround is simplified.
+
+A second, unrelated finding from the same work: React 19 **clears an uncontrolled form after every submit**, including
+after a validation error. A staff member who forgot one tick would have lost everything else they typed. The admin forms
+now get the typed text back from the server (never a code, password or confirmation word), and the account forms keep the
+email address in controlled inputs.
 
 ## 11. Not proven, and what remains before a real customer can sign in
 
-* **Not tested against real Supabase:** sign-up and sign-in, email delivery, the confirmation links in both formats,
-  the rate limits, the refresh-token behaviour, cookie size with a real session, the data API and column grants as
-  PostgREST applies them, `getClaims()` with the project's actual signing keys.
-* **Not built:** staff tools (issuing codes and recording payments are database functions only), password reset, MFA
-  for customers, account deletion, the quote-to-order path, a notification channel.
-* **Owner inputs still needed:** the deposit schedule (the policy is `unconfigured` and no order can be created until
-  it is set; see DEPOSIT_POLICY_AUDIT.md), the project's region and plan, a decision on sender address and email
-  templates, and approval to enable accounts anywhere beyond a preview.
+* **Not tested against a hosted Supabase project:** see section 9. Everything in section 9's table was run on the official
+  local stack, not on a hosted project.
+* **Built since PLAT-0002:** the staff tools (customers, claim codes, orders, tracking, payments, policies, audit; see
+  `STAFF_GATEWAY.md`) and password recovery. **Not built:** MFA for customers, account deletion, account merging, the
+  quote-to-order path, a notification channel.
+* **Owner inputs still needed:** the project's region and plan, a decision on sender address and email templates, approval
+  to enable accounts anywhere beyond a preview, and the policy decisions listed in `DEPOSIT_POLICY_AUDIT.md` (the deposit
+  schedule is now **confirmed**; refunds are not).
 * **A proposed open question (not recorded):** whether customers may create an account before they have an order, or
   only after M1 has issued a claim code or confirmed an order. The code supports both; the sign-up page is currently
   open to anyone while the flag is on.
@@ -216,13 +267,12 @@ This is the smallest set of steps. None of it has been done, and none of it is n
 1. **Create a separate development project** (not the one that will hold real customers). Choose its region, and
    confirm the plan is the free one with no paid add-ons. The region and plan are owner decisions that are not yet
    recorded.
-2. **Apply the migrations** in `supabase/migrations/` in filename order (thirteen files), through the SQL editor or the
+2. **Apply the migrations** in `supabase/migrations/` in filename order (fifteen files), through the SQL editor or the
    Supabase CLI. The last migration runs a security audit and fails loudly if anything is exposed.
 3. **Auth settings:** email sign-in on; **Confirm email ON**; anonymous sign-ins off; Site URL set to the preview
-   address; that address plus `/auth/confirm` in the redirect allow-list; the Confirm-signup and Magic-link email
-   templates switched to the `token_hash` form
-   (`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup`, and `type=magiclink` for the other); the
-   rate limits reviewed.
+   address; that address plus `/auth/confirm` in the redirect allow-list; the Confirm-signup, Magic-link and Recovery
+   email templates set to the token-hash form in `supabase/templates/` (they use the request's own redirect address, so
+   the redirect allow-list must list the preview address); the rate limits reviewed.
 4. **Vercel, Preview environment only** (never Production): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    (the publishable key), `CUSTOMER_ACCOUNTS_ENABLED=true`, `CUSTOMER_ACCOUNTS_SITE_URL` (the preview address) and
    optionally `CUSTOMER_ACCOUNTS_PREVIEW_LABEL`. **Do not set the service-role key** anywhere; this feature never needs it.
@@ -232,14 +282,12 @@ This is the smallest set of steps. None of it has been done, and none of it is n
 
 ## 14. Blockers before a real customer can sign in
 
-1. Nothing has been tried against a real Supabase project (section 11). Expect differences.
-2. **The deposit schedule is unset.** With the policy `unconfigured`, no order can be created or advanced. The owner
-   must supply the schedule (DEPOSIT_POLICY_AUDIT.md lists what the repository does and does not support).
-3. **There is no staff tool.** Orders, payments, tracking updates and claim codes are database functions that must be
-   reached from a staff interface through the gateway described in ADMIN_ACCESS_AND_LEDGER_PROCEDURES.md. That gateway
-   is documented, not built. Until it is, a customer would see an empty dashboard.
-4. **Production cannot enable accounts** by design (section 2). Going live needs a deliberate, approved code change and
-   a production Supabase project, with its own keys, backups and cost approval.
-5. **Decisions the owner has not made:** sender address and templates for the emails, whether sign-up is open to
-   anyone, the privacy and terms wording for collecting accounts, and the deposit schedule above.
-6. **Password reset, customer MFA and account deletion are not built.**
+1. Nothing has been tried against a **hosted** Supabase project (sections 9 and 11). The official local stack agreed with
+   the design and disproved two of the emulator's assumptions; a hosted project may differ again.
+2. **Refund policy is undecided** (whether deposits are refundable, and which payment methods qualify). Nothing in the code
+   assumes either.
+3. **Production cannot enable accounts or the admin area** by design (section 2). Going live needs a deliberate, approved
+   code change and a production Supabase project, with its own keys, backups and cost approval.
+4. **Decisions the owner has not made:** sender address and templates for the emails, whether sign-up is open to
+   anyone, and the privacy and terms wording for collecting accounts.
+5. **Customer MFA, account deletion and account merging are not built.**

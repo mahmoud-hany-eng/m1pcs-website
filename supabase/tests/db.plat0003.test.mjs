@@ -242,6 +242,16 @@ suite("PLAT-0003 database (real PostgreSQL)", () => {
       assert.ok(!/code(,|$)/.test(columns.replace("code_hash", "")), "no column holds the code itself");
     });
 
+    it("claiming is rate limited at five wrong tries in an hour: the sixth is refused even with the right code, which is not spent", () => {
+      const wrong = (n) => Array.from({ length: n }, () => `${AS.eve}select public.claim_customer_profile('AAAAA-AAAAA-AAAAA-AAAAA');`).join("\n");
+      // After five wrong tries the right code is refused...
+      const refused = db.ok(`${issue}${wrong(5)}\n${AS.eve}select public.claim_customer_profile(:'code') is null;${AS.superuser}select count(*) from private.customer_claim_codes where customer_id = :'custA' and used_at is null;`).split("\n").slice(-2);
+      assert.deepEqual(refused, ["t", "1"]);
+      // ...and after four it still works: the limit is exactly five.
+      const allowed = db.ok(`${issue}${wrong(4)}\n${AS.eve}select public.claim_customer_profile(:'code') is not null;`).split("\n").pop();
+      assert.equal(allowed, "t");
+    });
+
     it("claiming is audited with who, which record and how many records the account already had", () => {
       const out = db.ok(`${issue}${AS.bob}select public.claim_customer_profile(:'code') is not null;
         ${AS.superuser}select details ->> 'records_linked_before' || ':' || (details ->> 'user_id') from private.audit_log where action = 'customer.claim_code_used' order by id desc limit 1;`).split("\n").pop();
@@ -321,6 +331,17 @@ suite("PLAT-0003 database (real PostgreSQL)", () => {
       assert.equal(o.deposit_fixed, true);
       assert.equal(o.deposit_received, false);
       assert.equal(o.amount_paid_minor, 0);
+    });
+
+    it("a part-payment of the deposit is not a received deposit; the rest of it is", () => {
+      const read = (script) => JSON.parse(db.ok(`${CONFIRMED}${newOrder({ items: item(400000), into: "p0" })}${AS.olivia}select admin.transition_order(:'p0', 'awaiting_deposit');${script}select admin.get_order(:'p0');`).split("\n").pop());
+      const half = read("select admin.record_payment(:'p0', 'deposit', 50000, 'cash');");
+      assert.equal(half.deposit_required_minor, 100000);
+      assert.equal(half.deposit_received, false);
+      assert.equal(half.deposit_outstanding_minor, 50000);
+      const full = read("select admin.record_payment(:'p0', 'deposit', 50000, 'cash');select admin.record_payment(:'p0', 'deposit', 50000, 'fawran');");
+      assert.equal(full.deposit_received, true);
+      assert.equal(full.deposit_outstanding_minor, 0);
     });
 
     it("the order detail carries the deposit record, the next allowed statuses for THIS person, and payments only with payments.read", () => {

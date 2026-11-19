@@ -64,3 +64,41 @@ records who changed it, when and why, and keeps the previous value.
 
 The website text above is public and unchanged. If the owner's answers differ from it, the site copy needs a separate,
 approved change; this phase does not edit it.
+
+## PLAT-0003 update: the schedule is now confirmed by the owner
+
+After this audit the owner **confirmed** a tiered schedule. It is implemented as a versioned, configurable database policy
+(`orders.deposit`, version 3, `confirmed_by_owner`) that **replaces the unconfigured placeholder**. The withdrawn flat 50 %
+is **not** restored: it stays in the version history as version 1, and no screen, test or demonstration figure implies it
+any more (the preview data and the browser tests use the confirmed figures).
+
+| Order total (whole total, never marginal) | Deposit |
+| --- | --- |
+| up to and including QAR 3,000.00 | 15 % of the whole total |
+| above QAR 3,000.00, up to and including QAR 5,000.00 | 25 % of the whole total |
+| above QAR 5,000.00 | 35 % of the whole total |
+
+* **Whole total, not slices.** A QAR 6,000.00 order pays 35 % of QAR 6,000.00, not 15 % of the first QAR 3,000.00 plus the
+  next slice at 25 % and so on. Tested.
+* **Arithmetic.** Integer minor units only. `deposit = floor((total x rate_in_basis_points + 5000) / 10000)`: to the
+  nearest minor unit (the dirham, one hundredth of a riyal), a half rounds **up**. For example QAR 3,000.02 at 25 % is
+  QAR 750.005, which is QAR 750.01. A total too large for floating point is still exact. Tested at the boundaries
+  QAR 3,000.00 (15 %), 3,000.01 (25 %), 5,000.00 (25 %) and 5,000.01 (35 %), and at exact halves.
+* **Recorded at confirmation.** The deposit amount, the rate, the policy version, the rule's own words and the gate status
+  are written onto the order when it moves from "order received" to "awaiting deposit", and then frozen by a trigger. Before
+  that the figure on screen is labelled provisional. A later change to the schedule does not change an order whose deposit
+  is fixed (tested through the admin dashboard, in a browser, against the real database).
+* **A deposit is recorded as paid only after an authorised staff member records receipt of the payment.** Fixing the amount
+  is not receiving the money: the order screen shows "Deposit received (recorded by staff)" only when recorded payments
+  cover the fixed deposit (a bug where one field conflated the two was found by the real-stack tests and fixed).
+* **Changing the schedule** needs the permission `policies.manage`, a written reason, the tick "the owner has confirmed this
+  schedule" and the typed words `CHANGE DEPOSIT SCHEDULE`. It saves a **new version** (who, when, why) and an audit entry.
+* **Still undecided, and not inferred anywhere:** whether a deposit is refundable, and which payment methods are eligible
+  for a refund. The policies screen says so in words. Refunds do not exist in the staff tools.
+
+**Proposed record (NOT recorded: only a person may edit the decision register).** A person may wish to record, as a human
+decision, text along these lines: *"The deposit is 15 % of the whole order total for orders up to and including QAR 3,000.00,
+25 % above that up to and including QAR 5,000.00, and 35 % above QAR 5,000.00, rounded to the nearest dirham with a half
+rounding up, fixed when the order is confirmed and changed only by an authorised administrator with a reason. A deposit
+counts as paid only when an authorised staff member confirms receipt. Refund eligibility is undecided."* The owner's
+original wording and date belong in that record; this paragraph is a proposal.

@@ -1,9 +1,18 @@
 # Staff access from Next.js, ledger limits, and correction procedures (PLAT-0002)
 
-**Status: design and procedure. Nothing here is built except the database parts named as such.** It answers four
-questions the Phase 1 design left open, so the later admin phase does not have to improvise them.
+**Status: section 1 was a design (PLAT-0002) and is now built and reviewed: see `STAFF_GATEWAY.md` for what was built, the
+five weaknesses the review found in the proposal below, and the security analysis. Sections 2 to 4 (what the ledger
+protection does and does not do, and the reversal and tracking-correction procedures) are unchanged and are now reachable
+from the admin dashboard.** It answered four questions the Phase 1 design left open, so the admin phase did not have to
+improvise them.
 
-## 1. How staff functions will be called from Next.js
+## 1. How staff functions will be called from Next.js (the PLAT-0002 proposal; superseded where `STAFF_GATEWAY.md` says so)
+
+> **Superseded in two places.** Step 3 below said the gateway role "may only `set role authenticated`". It was built
+> **without** membership in any API role, with `EXECUTE` on the `admin` functions only, because membership in
+> `authenticated` would have made it a general impersonator. And the paragraph "the database accepts the claims the server
+> supplies" was strengthened: for a gateway connection the database verifies the claims against the auth service's own
+> `auth.sessions` row. See `STAFF_GATEWAY.md`, section 2.
 
 **The constraint.** The staff functions live in the `admin` schema. That schema is deliberately **not** exposed through
 the Supabase Data API (`supabase/config.toml` lists only `public`), so a browser holding the public key cannot name them.
@@ -56,8 +65,10 @@ action attributed to a named person in the audit log. What protects it:
   not grant;
 * every action is audited with the acting user.
 
-**What is not done in this phase.** The role needs a password, so it cannot be created by a migration (and the static
-checks forbid role creation in migrations). It is a manual, owner-approved step in the Supabase dashboard's SQL editor on
+**What was not done in the PLAT-0002 phase, and is now.** (Kept for the record; in PLAT-0003 the role is created by migration
+15 **without a login or a password**, the only role the static checks allow a migration to create, and `pg` was added as an
+exact-pinned dependency.) The role needs a password to log in, so that step cannot be in a migration (and the static
+checks forbid role creation in migrations other than this one). It is a manual, owner-approved step in the Supabase dashboard's SQL editor on
 a **development** project first. Using it also needs a Postgres client library, which is a new dependency and a separate
 approval. Connection-pooler details (session or transaction mode, prepared statements) must be checked against Supabase's
 current documentation when the admin phase starts. Nothing in `src/` opens a database connection today.

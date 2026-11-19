@@ -36,6 +36,20 @@ describe("the admin safety switch", { skip }, () => {
   });
 });
 
+describe("what a form hands back after an error", { skip }, () => {
+  test("keeps what was typed, and never a code, a password or a confirmation word", () => {
+    const echoed = state.echoValues(form({ full_name: "A B", amount: "10", code: "123456", typed_confirmation: "REVERSE", password: "x", confirm: "x" }));
+    assert.deepEqual(echoed, { full_name: "A B", amount: "10" });
+  });
+  test("skips files and very long text", () => {
+    const data = new FormData();
+    data.set("note", "y".repeat(1001));
+    data.set("short", "ok");
+    data.set("file", new Blob(["x"]), "x.txt");
+    assert.deepEqual(state.echoValues(data), { short: "ok" });
+  });
+});
+
 describe("the address a form may open next", { skip }, () => {
   test("accepts only internal admin paths", () => {
     assert.equal(state.safeAdminHref("/admin/orders/9b2c3b0e-0d3e-4b1a-9a53-5c1f4f0f3a11"), "/admin/orders/9b2c3b0e-0d3e-4b1a-9a53-5c1f4f0f3a11");

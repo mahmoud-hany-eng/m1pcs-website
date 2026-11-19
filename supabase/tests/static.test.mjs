@@ -38,9 +38,10 @@ const scanned = [
   ...walk("src/app/auth"),
   "src/middleware.ts",
   ".env.example",
-  ...walk("docs/project-memory/architecture", (p) => /SUPABASE|DEPOSIT_POLICY|ADMIN_ACCESS|CUSTOMER_ACCOUNTS/i.test(p)),
+  ...walk("docs/project-memory/architecture", (p) => /SUPABASE|DEPOSIT_POLICY|ADMIN_ACCESS|CUSTOMER_ACCOUNTS|STAFF_GATEWAY/i.test(p)),
   ...walk("docs/project-memory/runs/PLAT-0001"),
   ...walk("docs/project-memory/runs/PLAT-0002"),
+  ...walk("docs/project-memory/runs/PLAT-0003"),
 ].filter((p) => existsSync(join(ROOT, p)));
 
 describe("migrations are well formed", () => {
