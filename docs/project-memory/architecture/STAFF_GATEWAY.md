@@ -65,6 +65,7 @@ Verified by tests that connect as the role itself (`supabase/tests/real/real-sta
 | Threat | Result |
 | --- | --- |
 | The gateway password leaks | The attacker can run listed functions only if they also hold a live second-factor session id of an active staff member; they cannot read any table or run other SQL. **Rotate the password** (see §6). Residual risk: someone who both has the secret and can read a staff session id (for example from the server's memory) can act as that person until they sign out |
+| Someone on the network path between the site and the database | The gateway connection is always TLS with the server's certificate chain **and host name verified** against the pinned Supabase root CA (`gateway-tls.ts`, `supabase-root-ca.ts`). No setting in the connection string, no `PGSSLMODE` and no `NODE_TLS_REJECT_UNAUTHORIZED` can switch that off, a server that refuses TLS makes the connection fail before any user name is sent, and a parameter that would re-route the connection is refused (local tests with real handshakes; see section 7 for what is not proven against the hosted pooler) |
 | The Next.js server is compromised | It can act as any staff member who currently has a live second-factor session on it, within the listed functions. This is the same trust level as any server that holds a signed-in user's token. It cannot create a new second-factor session |
 | A customer tries to reach `/admin` | They receive the website's ordinary not-found page with a real 404 status, for every admin address including the second-step page (**browser-tested** to be identical to any missing page). The check is `admin.is_staff_member()`, which answers only about the caller |
 | A forged form or crafted request | Every Server Action starts with `requireStaff` (static test); input is validated again on the server; ids must be UUIDs; the browser never supplies an identity, a role, a total, a balance or a receipt number (static test) |
@@ -102,9 +103,10 @@ None of this has been done. Nothing is created automatically.
 1. Use a **development** Supabase project, never production. Apply the 15 migrations with the Supabase CLI.
 2. In the SQL editor, as the owner, give the gateway role a long random password: `alter role m1_staff_gateway login
    password '<random>'`. The migration deliberately creates the role without a login and without a password.
-3. In the hosting provider's **Preview** environment settings only, set `STAFF_GATEWAY_DATABASE_URL` (the role's connection
-   string, with `sslmode=require`), `STAFF_ADMIN_ENABLED=true` and `CUSTOMER_ACCOUNTS_ENABLED=true`, plus the project URL and
-   anon key. Never set them for Production (the code ignores the switches when `VERCEL_ENV` is `production`).
+3. In the hosting provider's **Preview** environment settings only, set `STAFF_GATEWAY_DATABASE_URL` as a **Sensitive**
+   value (the connection string described below), `STAFF_ADMIN_ENABLED=true` and `CUSTOMER_ACCOUNTS_ENABLED=true`, plus
+   the project URL and anon key. Never set them for Production (the code ignores the switches when `VERCEL_ENV` is
+   `production`).
 4. In the project's Auth settings: email confirmation on; redirect URLs listing the preview address; the email templates
    from `supabase/templates/` (token-hash links); TOTP enrolment and verification on.
 5. Create the first owner: sign up through `/auth/sign-up`, confirm the email, then in the SQL editor add the person to
@@ -113,8 +115,48 @@ None of this has been done. Nothing is created automatically.
 6. Sign in at `/auth/sign-in?next=/admin`, set up the authenticator app, and work through `supabase/tests/REAL_SUPABASE_CHECKS.md`.
 7. To rotate or revoke: `alter role m1_staff_gateway nologin password null`, then set a new password and update the host.
 
+### The connection string, and verified TLS
+
+The value of `STAFF_GATEWAY_DATABASE_URL` is the gateway role's **transaction pooler** address, with no TLS parameter:
+
+    postgresql://m1_staff_gateway.<project-ref>@<pooler-host>:6543/postgres
+
+with the role's password inserted after the user name, separated from it by a colon (the generated password is plain hex,
+so it needs no URL-encoding). It is never written in a file, a log or a chat; the hosting provider stores it as a
+Sensitive value.
+
+* Take the host and port from the dashboard (**Connect > Transaction pooler**). The direct connection is IPv6-only on the
+  Free plan, which the hosting provider cannot reach. The user name is the role, a dot and the project reference.
+* Do **not** add `sslmode`, `ssl` or a certificate path. They are removed and never obeyed. (Earlier versions of this
+  document said `sslmode=require`. With the pinned `pg` 8.23.1 that already meant "verify", and Supabase's certificates
+  cannot be verified without Supabase's own root CA, so it could not have worked.)
+* **What is enforced** (`src/lib/staff/gateway-tls.ts`): for every host except a literal loopback address
+  (`localhost`, `127.0.0.1`, `[::1]`, which is the local development stack and stays plain), the pool verifies the server's
+  certificate chain against the pinned **Supabase Root 2021 CA** and verifies the host name, TLS 1.2 or newer.
+  `rejectUnauthorized: true` is set explicitly, so the process-wide `NODE_TLS_REJECT_UNAUTHORIZED` switch and the
+  `PGSSLMODE` variable have no effect, and the default host-name check is never replaced. A server that answers the SSL
+  request with "no" ends the connection before any user name is sent.
+* **What is refused:** an unusable value (not a URL, not `postgres:`/`postgresql:`, no host) and any `host`, `hostaddr` or
+  `service` parameter, because a re-route could point a "loopback" URL at a remote server. The error carries a fixed
+  code, never the value.
+* **The certificate** is the public file the dashboard offers (Project Settings > Database > SSL Configuration). It lives in
+  `src/lib/staff/supabase-root-ca.ts` with its SHA-256, which a test pins a second time. It expires on 2031-04-26; the
+  test fails once it has expired. To rotate: replace the PEM with the dashboard's current file, update the fingerprint in
+  that file and in `supabase/tests/gateway-tls.test.mjs`, run `npm run gateway:tls:test`.
+* **Tests.** `npm run gateway:tls:test` runs real TLS handshakes with the repository's own `pg` driver against a throwaway
+  server and a private test CA created by `openssl` at run time (nothing is committed): the right CA connects; a wrong CA,
+  a self-signed certificate, an expired certificate, a wrong host name and an address the certificate does not list are
+  all refused; a server that refuses TLS, TLS parameters in the URL, `PGSSLMODE=disable` and
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` cannot downgrade it; the local loopback connection stays plain. These are **local
+  tests**. They do not contact Supabase.
+
 ## 7. Not proven, and what remains
 
+* **The hosted pooler's certificate chain has not been observed from the build or test environment** (it cannot reach the
+  pooler). Before the first hosted use, check it from any computer, with no password involved:
+  `openssl s_client -starttls postgres -connect <pooler-host>:6543 -CAfile prod-ca-2021.crt -verify_hostname <pooler-host>`
+  must end with `Verify return code: 0 (ok)`, where `prod-ca-2021.crt` is the dashboard's file. If it does not, the gateway
+  will refuse to connect (it fails closed); do not weaken the check.
 * The pooled connection of a hosted project (transaction mode, prepared statements) has not been exercised. The gateway
   uses only transaction-scoped settings and unnamed parameterised statements, which is what transaction pooling needs, but
   this must be confirmed on the hosted development project. A direct connection is the fallback.

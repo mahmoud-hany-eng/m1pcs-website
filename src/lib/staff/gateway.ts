@@ -21,6 +21,7 @@
  */
 import "server-only";
 import { Pool, type PoolClient } from "pg";
+import { gatewayConnection, GatewayConfigError } from "./gateway-tls";
 
 /** Who is acting. Built by the session guard from verified claims; never from request input. */
 export interface VerifiedStaff {
@@ -92,8 +93,16 @@ function getPool(): Pool {
   if (pool) return pool;
   const connectionString = process.env.STAFF_GATEWAY_DATABASE_URL;
   if (!connectionString) throw new StaffUnavailableError("The staff gateway is not configured.");
+  // The database connection is always TLS-verified unless it is a loopback address (see gateway-tls.ts).
+  let connection;
+  try {
+    connection = gatewayConnection(connectionString);
+  } catch (error) {
+    if (error instanceof GatewayConfigError) throw new StaffUnavailableError("The staff gateway is not configured correctly.");
+    throw error;
+  }
   pool = new Pool({
-    connectionString,
+    ...connection,
     max: 4,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
