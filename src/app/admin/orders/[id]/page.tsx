@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminMissing } from "@/components/admin/Missing";
@@ -167,7 +168,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           {can("payments.record") ? (
             <div className="mt-5 border-t border-border pt-5">
               <h3 className="mb-3 font-display text-base font-semibold text-white">Record a payment</h3>
-              <PaymentForm orderId={order.id} defaultPurpose={defaultPurpose} defaultAmount={defaultAmount} />
+              <PaymentForm orderId={order.id} defaultPurpose={defaultPurpose} defaultAmount={defaultAmount} idempotencyKey={randomUUID()} />
             </div>
           ) : null}
         </Section>

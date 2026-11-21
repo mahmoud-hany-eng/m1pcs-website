@@ -18,6 +18,7 @@
     "db:test:static": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/static.test.mjs supabase/tests/platform-lib.test.mjs supabase/tests/accounts-lib.test.mjs supabase/tests/staff-lib.test.mjs",
     "accounts:e2e": "node --disable-warning=ExperimentalWarning --test supabase/tests/accounts.e2e.test.mjs",
     "workflow:db:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/workflow.db.test.mjs",
+    "workflow:idempotency:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.db.test.mjs",
     "workflow:e2e": "node --disable-warning=ExperimentalWarning --test supabase/tests/workflow.customer.e2e.test.mjs",
     "accounts:preview": "node --disable-warning=ExperimentalWarning supabase/emulator/preview.mjs",
     "real:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test-concurrency=1 --test supabase/tests/real/real-stack.api.test.mjs supabase/tests/real/real-stack.staff.test.mjs",

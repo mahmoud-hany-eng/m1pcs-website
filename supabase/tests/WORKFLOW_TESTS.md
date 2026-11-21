@@ -2,7 +2,7 @@
 
 Automated tests of the whole M1 order workflow: quote → confirmed order → deposit → sourcing → build → ready → final payment →
 delivery → loyalty points, with the refusals, the repeats and the authorization boundaries. Written 2026-11-21 against
-`claude/plat-0003-admin-dashboard` at `f3e7677`. Every name and figure is synthetic. Nothing here touches a hosted project.
+`claude/plat-0003-admin-dashboard` at `f3e7677`, and updated for PLAT-0004 (`claude/plat-0004-order-hardening`). Every name and figure is synthetic. Nothing here touches a hosted project.
 
 ## What each layer proves, and what it does not
 
@@ -10,6 +10,7 @@ delivery → loyalty points, with the refusals, the repeats and the authorizatio
 | --- | --- | --- | --- | --- |
 | **A. Database** | `workflow.db.test.mjs` (`npm run workflow:db:test`) | A throw-away **PostgreSQL 16** cluster with the **real migrations**, the **real staff functions** (`admin.*`) and the **real row level security** | Order lifecycle, exact money, deposit tiers, loyalty rules, refusals, repeats and races, staff permissions, customer isolation | The website; Supabase Auth; the real second factor (the harness supplies the JWT claims, as every database test here does) |
 | **B. Customer website** | `workflow.customer.e2e.test.mjs` (`npm run workflow:e2e`) | A **production build** of the site in **Chromium** at **1280 × 900** and **390 × 844**, reading a local database through the **emulator** | What a customer actually sees after each staff step; exact amounts on screen; no sideways scroll on a phone; isolation in the browser and through the data API | Supabase Auth (the sign-in service is a mock with no MFA); the **staff screens** (they need a real second factor); a hosted deployment |
+| **C. Idempotency** | `idempotency.db.test.mjs` (`npm run workflow:idempotency:test`) | The same real PostgreSQL 16 server, **through the real `m1_staff_gateway` role**, executing the SQL text the website sends (read from `gateway.ts`) | A repeat or retry never creates a second payment, order or loyalty entry; conflicting reuse is refused; keys are per staff member and unreadable to every API role; **real parallel sessions**, a statement timeout, a killed client and a lost response | The staff screens in a browser (they need a real second factor) |
 
 The staff screens are therefore **not** browser-tested by these suites. Staff actions are performed by calling the real database
 functions, which is where every rule is enforced. A signed-in customer is checked to have no route into `/admin`.
@@ -66,20 +67,22 @@ These are current defaults. The tests record them so a change is noticed; they a
 
 ## Findings
 
-**Defects** (expected behaviour that does not hold; written as `todo` tests so the suite stays green and the report lists them):
+**Defects found by the first round of testing, and fixed in PLAT-0004** (both are now ordinary passing regression tests, not TODOs):
 
-| Id | Severity | Finding |
+| Id | Severity | Finding | Fix and regression coverage |
+| --- | --- | --- | --- |
+| DEFECT-1 | Low, customer-visible | A **Fawran** payment was shown to the customer as "**Other method**": the website's label list had no entry for it. | `fawran: "Fawran"` added in `src/lib/accounts/shared/view-models.ts`. Unit test (every method the database accepts has its own label, read from the typed list) and the browser regression in `workflow.customer.e2e.test.mjs`. |
+| DEFECT-2 | Low, defence in depth | `admin.transition_order` validated the move **before** it checked the permission, so a caller signed in to the database with no permission who knew an order id was told its current status in the error text. | New forward-only migration `20261121120000_transition_order_permission_first.sql` checks `orders.transition` first. Regression test in `workflow.db.test.mjs` (stranger, customer, inactive staff, owner at aal1, forged claims, visitor). |
+
+**Idempotency gaps found by the first round, and closed in PLAT-0004** (design: `docs/project-memory/architecture/IDEMPOTENCY.md`; proof: `idempotency.db.test.mjs`, `npm run workflow:idempotency:test`):
+
+| Id | Was | Now |
 | --- | --- | --- |
-| DEFECT-1 | Low, customer-visible | A **Fawran** payment is shown to the customer as "**Other method**". The database accepts `fawran`; the website's label list (`src/lib/accounts/shared/view-models.ts`) has no entry for it. |
-| DEFECT-2 | Low, defence in depth | `admin.transition_order` validates the move **before** it checks the permission, so a caller signed in to the database with no permission (stranger, customer, inactive staff, owner without a second factor) who knows an order id is told its **current status** in the error. All other staff functions were probed and check permission first. Not reachable through the public data API (`admin` is not an exposed schema) and needs a 128-bit order id. Fix: call `require_permission` first. |
+| GAP-1 | The same payment submitted twice recorded **two** payments. | A key is **required** through the gateway; an identical repeat returns the original payment and records nothing; the same key with different data is refused; races, timeouts, a killed client and a lost response record **exactly one**. |
+| GAP-2 | The same order created twice made two orders. | Same, for `admin.create_order`. |
+| GAP-3 | The same loyalty adjustment submitted twice made two entries. | Same, for `admin.adjust_loyalty` (no staff screen exists; the rule is the database's). |
 
-**Missing idempotency protections** (observed; the tests assert the current behaviour and say so):
-
-| Id | Finding |
-| --- | --- |
-| GAP-1 | Submitting the same payment twice (no receipt number) records **two** payments. Only the order-total cap limits the damage. The staff screen never sends a receipt number (it is generated server-side) and has no idempotency key; its only protection is a button disabled while the request runs. |
-| GAP-2 | Creating the same order twice makes two orders with different references. |
-| GAP-3 | Submitting the same loyalty adjustment twice records two entries. |
+A **key-less direct** database call (migrations, test harnesses, an owner at a SQL prompt) still behaves as before and is not deduplicated; the tests that say so are tagged `[PLAT-0004]`.
 
 **Protected** (tested and working): a repeated receipt number, a repeated status move, a repeated award (same entry returned, unique per order), a second reversal of a payment or of an award; concurrent payments (the order row is locked: exactly one of two full payments is recorded) and concurrent pay + deliver (exactly one award).
 

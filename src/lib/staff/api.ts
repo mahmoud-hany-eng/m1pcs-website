@@ -32,8 +32,9 @@ export function staffApi(staff: VerifiedStaff) {
     listOrders: (opts: { status?: string | null; search?: string | null; limit?: number; offset?: number } = {}) =>
       call<OrderListRow[]>("list_orders", [opts.status ?? null, opts.search ?? null, opts.limit ?? 50, opts.offset ?? 0]),
     getOrder: (id: string) => call<OrderDetail>("get_order", [id]),
-    createOrder: (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null) =>
-      call<string>("create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress]),
+    // The idempotency key is chosen once per intended action and reused by every retry of it: a repeat returns the same order.
+    createOrder: (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string) =>
+      call<string>("create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]),
     transitionOrder: (orderId: string, toStatus: string, reason: string | null) => call<string>("transition_order", [orderId, toStatus, reason]),
     publishTracking: (orderId: string, title: string, message: string | null, statusCode: string | null) =>
       call<string>("publish_tracking_event", [orderId, title, message, statusCode]),
@@ -41,9 +42,10 @@ export function staffApi(staff: VerifiedStaff) {
 
     // The business accepts cash and Fawran. The database also knows older methods for historical records; the website
     // records only the two that are in use, so a crafted request cannot record another.
-    recordPayment: async (orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null) => {
+    // A repeat with the same idempotency key records nothing and returns the payment that was already recorded.
+    recordPayment: async (orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null, idempotencyKey: string) => {
       if (method !== "cash" && method !== "fawran") throw new StaffOperationError("Payments are recorded as cash or Fawran.");
-      return call<string>("record_payment", [orderId, purpose, amountMinor, method, reference, notes]);
+      return call<string>("record_payment", [orderId, purpose, amountMinor, method, reference, notes, idempotencyKey]);
     },
     reversePayment: (paymentId: string, reason: string) => call<string>("reverse_payment", [paymentId, reason]),
     listPayments: (limit = 100, offset = 0) => call<PaymentListRow[]>("list_payments", [limit, offset]),

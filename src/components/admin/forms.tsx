@@ -22,7 +22,7 @@ import {
 } from "@/lib/staff/actions";
 import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
-import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS } from "@/lib/staff/validation";
+import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS, chooseIdempotencyKey, freshIdempotencyKey, idempotencyKeyIsSpent } from "@/lib/staff/validation";
 import { Notice } from "@/components/account/ui";
 
 type Action = (previous: StaffFormState, formData: FormData) => Promise<StaffFormState>;
@@ -39,6 +39,39 @@ function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => 
     if (href) window.location.assign(href);
   }, [href]);
   return [state, formAction, pending];
+}
+
+/**
+ * The idempotency key of ONE intended action (this payment, this order). The server page chooses the first key, so the form is
+ * complete even before the browser script runs. The key is then kept in sessionStorage under `scope`: a retry after a timeout,
+ * a second click, or a reload after a lost response all send the SAME key, so the database returns the original record instead of
+ * making another. The key is replaced only when the action succeeded, or when the database says the key already belongs to
+ * a different request, so the next, different action gets a new one.
+ */
+function useIdempotencyKey(scope: string, initial: string, state: StaffFormState): string {
+  const storageKey = `m1-idem:${scope}`;
+  const [key, setKey] = useState(initial);
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(storageKey);
+      const chosen = chooseIdempotencyKey(saved, initial);
+      if (chosen !== saved) window.sessionStorage.setItem(storageKey, chosen);
+      setKey(chosen);
+    } catch {
+      /* storage unavailable (private window): the page's own key still protects against a double click */
+    }
+  }, [storageKey, initial]);
+  useEffect(() => {
+    if (!idempotencyKeyIsSpent(state)) return;
+    const next = freshIdempotencyKey();
+    try {
+      window.sessionStorage.setItem(storageKey, next);
+    } catch {
+      /* see above */
+    }
+    setKey(next);
+  }, [state, storageKey]);
+  return key;
 }
 
 const errorOf = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.fieldErrors?.[name] : undefined);
@@ -238,8 +271,9 @@ function lineMinor(row: Row): number | null {
   return (row.kind === "discount" ? -Math.abs(minor) : minor) * quantity;
 }
 
-export function OrderForm({ customerId, customerName }: { customerId: string; customerName: string }) {
+export function OrderForm({ customerId, customerName, idempotencyKey }: { customerId: string; customerName: string; idempotencyKey: string }) {
   const [state, action, pending] = useStaffForm(createOrderAction);
+  const key = useIdempotencyKey(`order:${customerId}`, idempotencyKey, state);
   const [rows, setRows] = useState<Row[]>([{ id: 1, kind: "component", description: "", quantity: "1", price: "" }]);
   const [nextId, setNextId] = useState(2);
   const [preview, setPreview] = useState<string | null>(null);
@@ -264,6 +298,7 @@ export function OrderForm({ customerId, customerName }: { customerId: string; cu
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="customer_id" value={customerId} />
+      <input type="hidden" name="idempotency_key" value={key} />
       <Feedback state={state} />
       {errorOf(state, "items") ? <Notice tone="error">{errorOf(state, "items")}</Notice> : null}
       <p className="text-sm text-text-secondary">
@@ -451,11 +486,13 @@ export function RetractTrackingForm({ orderId, eventId }: { orderId: string; eve
 // Payments
 // ---------------------------------------------------------------------------------------------------------------
 
-export function PaymentForm({ orderId, defaultPurpose, defaultAmount }: { orderId: string; defaultPurpose: "deposit" | "balance"; defaultAmount: string }) {
+export function PaymentForm({ orderId, defaultPurpose, defaultAmount, idempotencyKey }: { orderId: string; defaultPurpose: "deposit" | "balance"; defaultAmount: string; idempotencyKey: string }) {
   const [state, action, pending] = useStaffForm(recordPaymentAction);
+  const key = useIdempotencyKey(`payment:${orderId}`, idempotencyKey, state);
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="order_id" value={orderId} />
+      <input type="hidden" name="idempotency_key" value={key} />
       <Feedback state={state} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field id="p-purpose" label="For" error={errorOf(state, "purpose")}>

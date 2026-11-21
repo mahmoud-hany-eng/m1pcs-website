@@ -13,6 +13,8 @@
 // Tests tagged [ASSUMPTION OQ-xxxx] pin a CURRENT DEFAULT that the owner has not confirmed (status wording OQ-0005,
 // the payment/loyalty trigger OQ-0006, the loyalty base and rounding OQ-0007). They record behaviour; they do not
 // decide it. Tests tagged [OBSERVED] record behaviour that may need a business decision; see WORKFLOW_TESTS.md.
+// Tests tagged [PLAT-0004] record how the duplicate-protection work changed what a KEY-LESS direct call does (nothing); the
+// protection itself is proved in idempotency.db.test.mjs.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -442,11 +444,11 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
 
   // =================================================================================================================
   describe("repeated operations: duplicates, idempotency, and races (a REAL second session for the races)", () => {
-    it("[OBSERVED, GAP-1] submitting the SAME payment twice (no receipt number) records TWO payments: only the total cap protects the order", () => {
+    it("[PLAT-0004, GAP-1] a key-LESS direct database call is still not deduplicated (by design: the gateway, the only production path, REQUIRES a key; see idempotency.db.test.mjs)", () => {
       const id = make(one(200000), { customer: CUST_C });
       move(id, "awaiting_deposit");
       pay(id, 20000);
-      pay(id, 20000); // a double click on "Record payment"
+      pay(id, 20000); // two identical direct calls with no key, as an owner at a SQL prompt could make
       assert.deepEqual(paymentsOf(id), ["20000:cash:deposit", "20000:cash:deposit"]);
       assert.equal(orderRow(id), "200000|30000|1500|3|t|40000|160000|awaiting_deposit");
     });
@@ -459,22 +461,23 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       assert.deepEqual(paymentsOf(id), ["20000:cash:deposit"]);
     });
 
-    it("[OBSERVED, GAP-2] creating the same order twice makes TWO orders with different references: there is no idempotency key", () => {
+    it("[PLAT-0004, GAP-2] creating the same order twice WITHOUT a key (a direct call) still makes two orders; with a key it makes one (see idempotency.db.test.mjs)", () => {
       const a = make(one(150000), { customer: CUST_C });
       const b = make(one(150000), { customer: CUST_C });
       assert.notEqual(a, b);
       assert.notEqual(read(`select order_ref from public.orders where id = '${a}'`), read(`select order_ref from public.orders where id = '${b}'`));
     });
 
-    it("[OBSERVED, GAP-1/GAP-2] the staff screens' only protection against a double submit is a disabled button while the request runs; no idempotency key is sent, and the receipt number is always generated server-side", () => {
+    it("[PLAT-0004] the staff screens now send an idempotency key with every payment and order (chosen by the page, kept across retries), and the receipt number is still generated server-side", () => {
       const forms = readFileSync(join(ROOT, "src/components/admin/forms.tsx"), "utf8");
       const actions = readFileSync(join(ROOT, "src/lib/staff/actions.ts"), "utf8");
-      assert.match(forms, /<button type="submit" disabled=\{pending\}/, "the submit button is disabled while the action is pending");
+      assert.match(forms, /<button type="submit" disabled=\{pending\}/, "the submit button is still disabled while the action is pending (the first, cosmetic layer)");
+      assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 2, "the payment form and the order form each carry the key");
       const record = actions.slice(actions.indexOf("export async function recordPaymentAction"), actions.indexOf("export async function reversePaymentAction"));
-      assert.doesNotMatch(record, /idempot|request_?id|nonce|token/i, "no idempotency key is part of recording a payment");
-      assert.match(record, /api\.recordPayment\(orderId, purpose, amountMinor, method, reference, notes\)/, "the screen passes an internal reference, never a receipt number");
+      assert.match(record, /parseIdempotencyKey\(formData\)/, "recording a payment requires a key");
+      assert.match(record, /api\.recordPayment\(orderId, purpose, amountMinor, method, reference, notes, idempotencyKey\)/, "the screen passes an internal reference and the key, never a receipt number");
       const create = actions.slice(actions.indexOf("export async function createOrderAction"), actions.indexOf("export async function", actions.indexOf("export async function createOrderAction") + 10));
-      assert.doesNotMatch(create, /idempot|request_?id|nonce/i, "no idempotency key is part of creating an order");
+      assert.match(create, /parseIdempotencyKey\(formData\)/, "creating an order requires a key");
     });
 
     it("repeating a status move is refused (safe), and confirming twice cannot re-fix or change the deposit", () => {
@@ -578,12 +581,10 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       assert.equal(read(`select count(*) from admin.my_permissions()`, AS.sam), "10");
     });
 
-    // DEFECT-2 (low): admin.transition_order validates the move BEFORE it checks the permission, so a caller who is signed in to the
-    // database but has no permission (a stranger, a customer, inactive staff, an owner without a second factor) and who knows an
-    // order's id is told its current status in the error text. Every other staff function was probed and checks permission first.
-    // It is not reachable through the public data API (the admin schema is not exposed); it needs a direct database role and a
-    // 128-bit order id. Written as the DESIRED behaviour and marked TODO so the suite stays green while the report lists it.
-    it("DEFECT-2: a caller without permission learns nothing about an order from a refused move: the permission error comes first", { todo: "admin.transition_order checks the move before the permission, so the error text names the order's current status" }, () => {
+    // REGRESSION (DEFECT-2, fixed by migration 20261121120000): admin.transition_order used to validate the move BEFORE it checked the
+    // permission, so a caller signed in to the database with no permission (a stranger, a customer, inactive staff, an owner
+    // without a second factor) who knew an order id was told its current status in the error text. Authorization now comes first.
+    it("REGRESSION (DEFECT-2): a caller without permission learns nothing about an order from a refused move: the permission error comes first", () => {
       // 'delivered' is an INVALID move from awaiting_deposit; a caller with no permission must still be told only "permission denied".
       const probe = `select admin.transition_order('${id}', 'delivered')`;
       for (const [who, name] of [[AS.eve, "a signed-in stranger"], [AS.alice, "a customer"], [AS.oliviaAal1, "the owner without a second factor"], [AS.dana, "inactive staff"], [AS.forgedAdmin, "forged admin claims"]]) {
@@ -712,7 +713,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
   describe("repeated loyalty operations, and the balance floor [ASSUMPTION OQ-0010: a balance may not go negative]", () => {
     const balanceOf = (customer) => Number(read(`select coalesce(sum(points), 0) from public.loyalty_ledger where customer_id = '${customer}'`));
 
-    it("[OBSERVED, GAP-3] the same manual adjustment submitted twice records TWO entries: there is no idempotency key on adjustments", () => {
+    it("[PLAT-0004, GAP-3] the same manual adjustment submitted twice WITHOUT a key (a direct call) still records two entries; with a key it records one (see idempotency.db.test.mjs)", () => {
       const before = balanceOf(CUST_C);
       act(AS.olivia, `select admin.adjust_loyalty('${CUST_C}', 40, 'goodwill adjustment');`);
       act(AS.olivia, `select admin.adjust_loyalty('${CUST_C}', 40, 'goodwill adjustment');`);

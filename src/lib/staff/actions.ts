@@ -23,10 +23,12 @@ import {
   isUuid,
   parseCustomer,
   parseDepositSchedule,
+  parseIdempotencyKey,
   parseOrder,
   parsePayment,
   parseReason,
   parseTracking,
+  STALE_FORM_MESSAGE,
 } from "./validation";
 
 const DENIED = "You do not have permission to do that.";
@@ -107,8 +109,11 @@ export async function createOrderAction(_previous: StaffFormState, formData: For
     if (!isUuid(customerId)) return { status: "error", fieldErrors: { customer_id: "Choose the customer first." } };
     const parsed = parseOrder(formData, customerId);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-    // The order's total is worked out by the database from these lines; the form never supplies it.
-    const id = await api.createOrder(parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress);
+    const idempotencyKey = parseIdempotencyKey(formData);
+    if (!idempotencyKey) return { status: "error", message: STALE_FORM_MESSAGE };
+    // The order's total is worked out by the database from these lines; the form never supplies it. A repeat with the
+    // same key (a double click, a retry after a timeout) returns the order that was already created.
+    const id = await api.createOrder(parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey);
     revalidatePath("/admin/orders");
     return { status: "success", message: "Order created. The deposit is fixed when you confirm it.", href: `/admin/orders/${id}` };
   });
@@ -166,7 +171,10 @@ export async function recordPaymentAction(_previous: StaffFormState, formData: F
     const parsed = parsePayment(formData);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
     const { purpose, amountMinor, method, reference, notes } = parsed.value;
-    await api.recordPayment(orderId, purpose, amountMinor, method, reference, notes);
+    const idempotencyKey = parseIdempotencyKey(formData);
+    if (!idempotencyKey) return { status: "error", message: STALE_FORM_MESSAGE };
+    // A repeat with the same key records nothing and returns the payment that was already recorded.
+    await api.recordPayment(orderId, purpose, amountMinor, method, reference, notes, idempotencyKey);
     revalidatePath(`/admin/orders/${orderId}`);
     revalidatePath("/admin/payments");
     revalidatePath("/admin");

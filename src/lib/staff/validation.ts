@@ -114,6 +114,35 @@ export interface PaymentInput {
   notes: string | null;
 }
 
+/**
+ * The idempotency key of one intended action (record this payment, create this order). The page chooses it, the form carries
+ * it, and every retry of the same action sends the same one; the database makes a repeat harmless. The shape is the one the
+ * database enforces. A form without a valid key is stale or tampered with, so the action refuses it before any call.
+ */
+export const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,100}$/;
+export function parseIdempotencyKey(form: FormData): string | null {
+  const value = form.get("idempotency_key");
+  return typeof value === "string" && IDEMPOTENCY_KEY_PATTERN.test(value.trim()) ? value.trim() : null;
+}
+export const STALE_FORM_MESSAGE = "This form is out of date. Reload the page and try again. Nothing was changed.";
+
+/** A new key for the NEXT action. Keys only need to be unique per staff member, so a page without crypto.randomUUID still gets one. */
+export function freshIdempotencyKey(): string {
+  try {
+    return globalThis.crypto.randomUUID();
+  } catch {
+    return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
+/** The key a form should carry: the one saved for this action (so a reload or retry reuses it), else the page's own. */
+export function chooseIdempotencyKey(saved: string | null | undefined, initial: string): string {
+  return typeof saved === "string" && IDEMPOTENCY_KEY_PATTERN.test(saved) ? saved : initial;
+}
+/** True when a key has done its job and the next action needs a new one: the action succeeded, or the key was rejected as belonging to a different request. */
+export function idempotencyKeyIsSpent(state: { status: string; message?: string }): boolean {
+  return state.status === "success" || (state.status === "error" && /different request/.test(state.message ?? ""));
+}
+
 /** A payment is recorded by a person confirming receipt: the form says so, and the person must tick it. */
 export function parsePayment(form: FormData): Parsed<PaymentInput> {
   const errors: StaffFieldErrors = {};

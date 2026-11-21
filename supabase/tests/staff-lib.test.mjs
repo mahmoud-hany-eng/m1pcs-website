@@ -189,3 +189,55 @@ describe("deposit schedule form", { skip }, () => {
     assert.ok(unconfirmed.errors.confirmed_by_owner);
   });
 });
+
+describe("idempotency keys (PLAT-0004): one key per intended action, kept across retries, replaced only when spent", { skip }, () => {
+  const good = "3f2b8c1e-9d4a-4b7e-8a61-2c5d7e9f0a1b";
+
+  test("a form must carry a key of exactly the shape the database accepts, and nothing else is passed on", () => {
+    assert.equal(v.parseIdempotencyKey(form({ idempotency_key: good })), good);
+    assert.equal(v.parseIdempotencyKey(form({ idempotency_key: `  ${good}  ` })), good, "surrounding spaces are trimmed");
+    for (const bad of ["", "short", "x".repeat(101), "has space in it", "semi;colon-key-12345", "quote'key-1234567", "slash/key-1234567", "ünïcode-key-12345"]) {
+      assert.equal(v.parseIdempotencyKey(form({ idempotency_key: bad })), null, JSON.stringify(bad));
+    }
+    assert.equal(v.parseIdempotencyKey(form({})), null, "a missing key is refused, never invented");
+    assert.equal(v.parseIdempotencyKey(form({ idempotency_key: "a".repeat(8) })), "a".repeat(8));
+    assert.equal(v.parseIdempotencyKey(form({ idempotency_key: "a".repeat(100) })), "a".repeat(100));
+  });
+
+  test("the pattern is the SAME as the database's check, so the two can never drift apart", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync(new URL("../migrations/20261121120100_idempotency_keys.sql", import.meta.url), "utf8");
+    const quoted = [...sql.matchAll(/'(\^\[A-Za-z0-9\._:-\]\{8,100\}\$)'/g)].map((m) => m[1]);
+    assert.ok(quoted.length >= 2, "the migration states the pattern in its table check and in the helper");
+    for (const pattern of quoted) assert.equal(pattern, v.IDEMPOTENCY_KEY_PATTERN.source);
+  });
+
+  test("a fresh key is valid, and two fresh keys differ", () => {
+    const a = v.freshIdempotencyKey();
+    const b = v.freshIdempotencyKey();
+    assert.match(a, v.IDEMPOTENCY_KEY_PATTERN);
+    assert.notEqual(a, b);
+  });
+
+  test("a retry or a reload keeps the saved key; a missing or damaged one falls back to the page's own", () => {
+    assert.equal(v.chooseIdempotencyKey(good, "page-key-00000001"), good, "the saved key wins: a retry reuses it");
+    assert.equal(v.chooseIdempotencyKey(null, "page-key-00000001"), "page-key-00000001");
+    assert.equal(v.chooseIdempotencyKey(undefined, "page-key-00000001"), "page-key-00000001");
+    assert.equal(v.chooseIdempotencyKey("tampered key!", "page-key-00000001"), "page-key-00000001", "a malformed saved value is ignored");
+  });
+
+  test("the key is replaced only when it is spent: after a success, or when it was rejected as belonging to a different request", () => {
+    assert.equal(v.idempotencyKeyIsSpent({ status: "success", message: "Payment recorded." }), true);
+    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "this idempotency key was already used for a different request; nothing was changed" }), true);
+    // A validation error, a business-rule refusal or a network failure must KEEP the key, so the retry is the same request.
+    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "this payment would exceed the order total" }), false);
+    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "Something went wrong. Nothing was changed." }), false);
+    assert.equal(v.idempotencyKeyIsSpent({ status: "error" }), false);
+    assert.equal(v.idempotencyKeyIsSpent({ status: "idle" }), false);
+  });
+
+  test("a stale form is told to reload, in plain words, and nothing was changed", () => {
+    assert.match(v.STALE_FORM_MESSAGE, /Reload the page/);
+    assert.match(v.STALE_FORM_MESSAGE, /Nothing was changed/);
+  });
+});

@@ -266,10 +266,15 @@ describe("M1 order workflow: the customer website at desktop and phone widths (p
     });
   });
 
-  describe("known defects, recorded as expected behaviour that does not hold yet (reported as TODO; they do not fail the suite)", () => {
-    it("DEFECT-1: a Fawran payment is shown to the customer as Fawran, not as \"Other method\"", { todo: "the website's payment-method label list has no entry for fawran (src/lib/accounts/shared/view-models.ts); the database accepts it since the gateway migration" }, async () => {
+  describe("regression: defects found by the first round of testing", () => {
+    it("REGRESSION (DEFECT-1): a Fawran payment is shown to the customer as Fawran, not as \"Other method\"", async () => {
       const payments = await both("/account/payments");
-      each(payments, (body) => assert.match(body, /Fawran/i, "the Fawran payment of QAR 587.64 is labelled with its method"));
+      each(payments, (body) => {
+        assert.match(body, /Fawran/i, "the Fawran payment of QAR 587.64 is labelled with its method");
+        assert.doesNotMatch(body, /Other method/, "no payment in this scenario uses an unknown method");
+      });
+      const detail = await both(`/account/orders/${S.ref}`);
+      each(detail, (body) => assert.match(body, /Fawran/i, "the order page labels it too"));
     });
   });
 
@@ -318,6 +323,30 @@ describe("M1 order workflow: the customer website at desktop and phone widths (p
       });
       const overview = await both("/account");
       each(overview, (body) => assert.match(body, /635/));
+    });
+  });
+
+  describe("S2 continued: [OBSERVED, owner decision pending] a payment reversed AFTER the points were awarded", () => {
+    it("the customer owes the balance again and the order stays delivered, but the 200 points stay (see PROPOSAL_PAYMENT_REVERSAL_AND_LOYALTY.md; nothing here is a decision)", async () => {
+      const payId = lines(db().ok(`select id from public.payments where order_id = '${T.id}' and amount_minor = 170000;`)).pop().trim();
+      olivia(`select admin.reverse_payment('${payId}', 'bank returned the payment');`);
+      const detail = await both(`/account/orders/${T.ref}`);
+      each(detail, (body) => {
+        assert.match(body, /Remaining balance\s+QAR 1,700\.00/);
+        assert.doesNotMatch(body, /Paid in full/);
+        assert.match(body, new RegExp(label("delivered")), "the order stays delivered");
+      });
+      const loyalty = await both("/account/loyalty");
+      each(loyalty, (body) => {
+        assert.match(body, new RegExp(`Points earned on order ${T.ref}`), "the award is still listed");
+        assert.match(body, /\+200/);
+        assert.match(body, /635/, "the balance still counts the 200 points");
+      });
+      const payments = await both("/account/payments");
+      each(payments, (body) => {
+        assert.match(body, /reversed/i, "the reversal is listed");
+        assert.match(body, owedEntry(T.ref), "the order is owed again");
+      });
     });
   });
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminMissing } from "@/components/admin/Missing";
@@ -27,7 +28,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
     return (
       <AdminShell {...shell} title="New order" description="Add the items with the prices you have verified. The total is worked out from them.">
         <Section title="Order items">
-          <OrderForm customerId={customer.id} customerName={customer.full_name} />
+          <OrderForm customerId={customer.id} customerName={customer.full_name} idempotencyKey={randomUUID()} />
         </Section>
       </AdminShell>
     );
