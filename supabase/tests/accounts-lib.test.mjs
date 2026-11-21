@@ -1,6 +1,7 @@
 // Unit tests for the customer-account logic that needs no server, no database and no network: the feature flag, the
 // redirect sanitiser, validation, error mapping, cookie hardening, the email-link address and the dashboard view models.
 // These are LOCAL tests with plain inputs. They say nothing about a real Supabase project.
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { register } from "node:module";
 import { describe, test } from "node:test";
@@ -458,6 +459,18 @@ describe("dashboard view models", { skip }, () => {
     assert.deepEqual([list[0].reducesPaid, list[1].reducesPaid], [false, true]);
     assert.equal(list[0].receipt, "RCPT-1");
     assert.equal(list[0].method, "Bank transfer");
+  });
+
+  test("REGRESSION (DEFECT-1): a Fawran payment is shown as Fawran, and every method the database accepts has a label of its own", () => {
+    const row = (method) => ({ id: `p-${method}`, order_id: "o1", entry_type: "payment", purpose: "deposit", amount_minor: 58764, currency: "QAR", method, receipt_number: "R-2611-00002", received_at: "2026-11-10T10:00:00Z", reverses_payment_id: null, created_at: "2026-11-10T10:00:00Z" });
+    assert.equal(views.buildPayments([row("fawran")])[0].method, "Fawran");
+    // Read the accepted methods from the typed list, so a method added to the database without a label here fails this test.
+    const typed = readFileSync(new URL("../../src/lib/platform/database.types.ts", import.meta.url), "utf8").match(/export type PaymentMethod = ([^;]+);/);
+    assert.ok(typed, "the typed list of payment methods was found");
+    const methods = [...typed[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    assert.ok(methods.includes("fawran") && methods.includes("cash"));
+    for (const method of methods.filter((m) => m !== "other")) assert.notEqual(views.buildPayments([row(method)])[0].method, "Other method", `${method} must not be shown as "Other method"`);
+    assert.equal(views.buildPayments([row("something_new")])[0].method, "Other method", "an unknown method still falls back safely");
   });
 
   test("the ledger check agrees with the order only when the entries add up", () => {

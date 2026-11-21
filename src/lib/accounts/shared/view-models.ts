@@ -162,7 +162,7 @@ export function buildTimeline(events: readonly OrderTrackingEventRow[], statuses
 // ----- payments -------------------------------------------------------------------------------------------------
 
 const PAYMENT_PURPOSE: Record<string, string> = { deposit: "Deposit", balance: "Balance", other: "Payment" };
-const PAYMENT_METHOD: Record<string, string> = { cash: "Cash", bank_transfer: "Bank transfer", card: "Card", other: "Other method" };
+const PAYMENT_METHOD: Record<string, string> = { cash: "Cash", fawran: "Fawran", bank_transfer: "Bank transfer", card: "Card", other: "Other method" };
 const ENTRY_TYPE: Record<string, string> = { payment: "Received", reversal: "Reversed", refund: "Refunded" };
 
 export interface PaymentView {
