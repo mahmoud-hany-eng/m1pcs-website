@@ -28,13 +28,16 @@ const parseAnswer = (out) => {
 };
 
 /** Creates the fixture people used by every idempotency suite (a third customer, a second owner, aal2 session rows, two probe helpers). */
-export function seedIdempotencyFixtures(db) {
+export function seedIdempotencyFixtures(db, { probes = true } = {}) {
   db.commit(`insert into public.customers (id, full_name, phone, email, source) values ('${CUST_C}', 'Carol Test (walk-in)', '+97455550003', 'carol@example.test', 'walk_in');`);
   db.commit(`insert into auth.users (id, email) values ('${PAT}', 'pat@example.test');
       insert into private.staff_members (user_id, role_code, display_name, is_active) values ('${PAT}', 'owner', 'Second owner (test)', true);
       insert into auth.sessions (id, user_id, aal) values ('${SESSION.olivia}', '${ID.olivia}', 'aal2'), ('${SESSION.sam}', '${ID.sam}', 'aal2'), ('${SESSION.pat}', '${PAT}', 'aal2');`);
+  if (!probes) return; // the release tests apply the platform's own security audit inside the migration, so they must not add test functions to schema public first
   db.commit(`create function public.zz_attempt(stmt text) returns text language plpgsql as $f$
       begin execute stmt; return 'OK'; exception when others then return 'REFUSED: ' || sqlerrm; end $f$;`);
+  db.commit(`create function public.zz_state(stmt text) returns text language plpgsql as $f$
+      begin execute stmt; return 'OK'; exception when others then return sqlstate; end $f$;`);
   db.commit(`create function public.zz_count(stmt text) returns text language plpgsql as $f$
       declare n bigint; begin execute stmt into n; return n::text; exception when others then return 'DENIED'; end $f$;`);
 }
@@ -76,8 +79,9 @@ export function makeHelpers(db) {
 
   /** Runs one production call in its own transaction. Returns { ok, id, replayed, err }. */
   const viaGateway = (who, name, params, sql) => {
-    const r = db.cluster.psql(`begin;\n${gatewayCall(who, name, params, sql)}commit;`);
-    return { ok: r.ok, ...(r.ok ? parseAnswer(r.out) : { id: null, replayed: false }), err: r.err };
+    // VERBOSITY verbose makes psql print the SQLSTATE after "ERROR:", so a test can check the code the website's error mapping reads.
+    const r = db.cluster.psql(`\\set VERBOSITY verbose\nbegin;\n${gatewayCall(who, name, params, sql)}commit;`);
+    return { ok: r.ok, ...(r.ok ? parseAnswer(r.out) : { id: null, replayed: false }), err: r.err, code: /ERROR:\s+([0-9A-Z]{5}):/.exec(r.err ?? "")?.[1] ?? null };
   };
 
   // A client re-sends the SAME form on a retry, so the amount it saw (the expected paid amount) is the same too. The first call with a
@@ -105,7 +109,7 @@ export function makeHelpers(db) {
   // adjust_loyalty is not one of the website's fixed gateway statements (the staff screens have no loyalty form); the same gateway role
   // and verified claims are used to prove the rule is the database's, so a future screen inherits it.
   const adjustViaGateway = (who, customer, points, reason, key) => {
-    const r = db.cluster.psql(`begin;\n${gatewayPrefix(who.sub, who.sid)}prepare q as select admin.adjust_loyalty($1::uuid, $2::integer, $3::text, $4::text) as r;\nexecute q(${[customer, points, reason, key].map(lit).join(", ")});\ncommit;`);
+    const r = db.cluster.psql(`begin;\n${gatewayPrefix(who.sub, who.sid)}prepare q as with c as materialized (select admin.adjust_loyalty($1::uuid, $2::integer, $3::text, $4::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c;\nexecute q(${[customer, points, reason, key].map(lit).join(", ")});\ncommit;`);
     return { ok: r.ok, ...(r.ok ? parseAnswer(r.out) : { id: null, replayed: false }), err: r.err };
   };
 
@@ -133,6 +137,11 @@ export function makeHelpers(db) {
       update private.idempotency_keys set created_at = now() - interval '${interval}' where idempotency_key = '${key}';
       alter table private.idempotency_keys enable trigger idempotency_keys_append_only;`);
 
+  /** The SQLSTATE a statement fails with when run as `who` ("OK" if it succeeds). */
+  const stateOf = (who, sql) => lines(db.ok(`select public.zz_state('${sql.replaceAll("'", "''")}');`, who)).pop();
+  /** Makes an order look `interval` old (triggers are bypassed for this one test-only statement: superuser, disposable database). */
+  const ageOrder = (orderId, interval) =>
+    db.commit(`set local session_replication_role = replica; update public.orders set created_at = now() - interval '${interval}' where id = '${orderId}';`);
   const reverse = (orderId, paymentId) => db.commit(`${AS.olivia}select admin.reverse_payment('${paymentId}', 'test reversal');`);
   const cancel = (orderId) => {
     db.commit(`${AS.sam}select admin.transition_order('${orderId}', 'on_hold', 'test');`);
@@ -141,6 +150,6 @@ export function makeHelpers(db) {
 
   return {
     read, scalar, attempt, rowsSeen, refused, make, confirmed, count, paymentsOf, paidOf, keyRows, gatewayPrefix, productionSql, gatewayCall,
-    OLIVIA, SAM, PATRICK, viaGateway, expectedOf, payParams, pay, createOrder, similar, adjustViaGateway, asyncPsql, parallel, ageKey, reverse, cancel,
+    OLIVIA, SAM, PATRICK, viaGateway, expectedOf, payParams, pay, createOrder, similar, adjustViaGateway, asyncPsql, parallel, ageKey, ageOrder, stateOf, reverse, cancel,
   };
 }

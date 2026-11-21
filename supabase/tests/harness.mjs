@@ -90,18 +90,22 @@ export function startCluster({ database = "m1test" } = {}) {
   return { dir, port, bin, database, psql, stop };
 }
 
-export function migrationFiles() {
+export function migrationFiles({ before = null } = {}) {
   return readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
+    .filter((f) => f.endsWith(".sql") && (before === null || f < before))
     .sort()
     .map((f) => ({ name: f, path: join(MIGRATIONS_DIR, f), sql: readFileSync(join(MIGRATIONS_DIR, f), "utf8") }));
 }
 
-/** Applies the shim, then every migration in order, each in its own transaction. Throws with the SQL error text. */
-export function applyShimAndMigrations(cluster) {
+/**
+ * Applies the shim, then every migration in order, each in its own transaction. Throws with the SQL error text.
+ * `before` (a migration file name) stops before that file: the release tests use it to build the database exactly as it is deployed,
+ * i.e. without the migrations of the release under test.
+ */
+export function applyShimAndMigrations(cluster, { before = null } = {}) {
   const shim = cluster.psql(readFileSync(SHIM_FILE, "utf8"));
   if (!shim.ok) throw new Error(`shim failed: ${shim.err}`);
-  for (const file of migrationFiles()) {
+  for (const file of migrationFiles({ before })) {
     const result = cluster.psql(`begin;\n${file.sql}\ncommit;`);
     if (!result.ok) throw new Error(`migration ${file.name} failed: ${result.err}`);
   }
