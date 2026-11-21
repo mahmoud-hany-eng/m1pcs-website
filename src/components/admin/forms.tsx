@@ -22,7 +22,9 @@ import {
 } from "@/lib/staff/actions";
 import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
-import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS, chooseIdempotencyKey, freshIdempotencyKey, idempotencyKeyIsSpent } from "@/lib/staff/validation";
+import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS } from "@/lib/staff/validation";
+import { ageText } from "@/lib/staff/format";
+import { useIdempotencyKey } from "./use-idempotency-key";
 import { Notice } from "@/components/account/ui";
 
 type Action = (previous: StaffFormState, formData: FormData) => Promise<StaffFormState>;
@@ -39,39 +41,6 @@ function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => 
     if (href) window.location.assign(href);
   }, [href]);
   return [state, formAction, pending];
-}
-
-/**
- * The idempotency key of ONE intended action (this payment, this order). The server page chooses the first key, so the form is
- * complete even before the browser script runs. The key is then kept in sessionStorage under `scope`: a retry after a timeout,
- * a second click, or a reload after a lost response all send the SAME key, so the database returns the original record instead of
- * making another. The key is replaced only when the action succeeded, or when the database says the key already belongs to
- * a different request, so the next, different action gets a new one.
- */
-function useIdempotencyKey(scope: string, initial: string, state: StaffFormState): string {
-  const storageKey = `m1-idem:${scope}`;
-  const [key, setKey] = useState(initial);
-  useEffect(() => {
-    try {
-      const saved = window.sessionStorage.getItem(storageKey);
-      const chosen = chooseIdempotencyKey(saved, initial);
-      if (chosen !== saved) window.sessionStorage.setItem(storageKey, chosen);
-      setKey(chosen);
-    } catch {
-      /* storage unavailable (private window): the page's own key still protects against a double click */
-    }
-  }, [storageKey, initial]);
-  useEffect(() => {
-    if (!idempotencyKeyIsSpent(state)) return;
-    const next = freshIdempotencyKey();
-    try {
-      window.sessionStorage.setItem(storageKey, next);
-    } catch {
-      /* see above */
-    }
-    setKey(next);
-  }, [state, storageKey]);
-  return key;
 }
 
 const errorOf = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.fieldErrors?.[name] : undefined);
@@ -138,10 +107,10 @@ function Check({ state, name, id, children }: { state: StaffFormState; name: str
   );
 }
 
-function Submit({ pending, children, tone = "red", pendingLabel = "Saving…" }: { pending: boolean; children: ReactNode; tone?: "red" | "glass" | "danger"; pendingLabel?: string }) {
+function Submit({ pending, children, tone = "red", pendingLabel = "Saving…", disabled = false }: { pending: boolean; children: ReactNode; tone?: "red" | "glass" | "danger"; pendingLabel?: string; disabled?: boolean }) {
   const style = tone === "red" ? "btn-red" : tone === "danger" ? "btn-glass !border-error/50 !text-error" : "btn-glass";
   return (
-    <button type="submit" disabled={pending} aria-busy={pending} className={`btn-sheen ${style} inline-flex min-h-[2.75rem] items-center justify-center rounded-full px-6 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}>
+    <button type="submit" disabled={pending || disabled} aria-busy={pending} className={`btn-sheen ${style} inline-flex min-h-[2.75rem] items-center justify-center rounded-full px-6 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}>
       {pending ? pendingLabel : children}
     </button>
   );
@@ -271,9 +240,44 @@ function lineMinor(row: Row): number | null {
   return (row.kind === "discount" ? -Math.abs(minor) : minor) * quantity;
 }
 
+/**
+ * The duplicate-order warning: evidence plus an override. Nothing was created. A customer can legitimately buy the same thing
+ * twice, so ticking the box and sending the form again always creates the order.
+ */
+function DuplicateOrderWarning({ state }: { state: StaffFormState }) {
+  const duplicates = state.status === "error" ? (state.duplicates ?? []) : [];
+  return (
+    <div className="flex flex-col gap-3 rounded-glass-sm border border-warning/40 bg-warning/5 p-3" data-testid="duplicate-warning">
+      <ul className="flex flex-col gap-1 text-sm text-text-secondary">
+        {duplicates.map((d) => {
+          const href = safeAdminHref(`/admin/orders/${d.id}`);
+          return (
+            <li key={d.id}>
+              {href ? (
+                <a href={href} className="font-semibold text-white underline" target="_blank" rel="noopener noreferrer">
+                  {d.ref}
+                </a>
+              ) : (
+                <span className="font-semibold text-white">{d.ref}</span>
+              )}{" "}
+              · {formatQar(d.totalMinor)} · {d.status.replaceAll("_", " ")} · created {ageText(d.createdAt)}
+            </li>
+          );
+        })}
+      </ul>
+      <Check state={state} name="confirm_duplicate" id="o-confirm-duplicate">
+        This customer really wants another order with these items. Create it anyway.
+      </Check>
+    </div>
+  );
+}
+
 export function OrderForm({ customerId, customerName, idempotencyKey }: { customerId: string; customerName: string; idempotencyKey: string }) {
   const [state, action, pending] = useStaffForm(createOrderAction);
-  const key = useIdempotencyKey(`order:${customerId}`, idempotencyKey, state);
+  // An order has no balance to bind the key to: the customer is part of the scope, and the items are part of the request.
+  const key = useIdempotencyKey(`order:${customerId}`, idempotencyKey, "", state);
+  // After the order was created the form is locked until the browser opens it: nothing may be sent twice in that moment.
+  const created = state.status === "success";
   const [rows, setRows] = useState<Row[]>([{ id: 1, kind: "component", description: "", quantity: "1", price: "" }]);
   const [nextId, setNextId] = useState(2);
   const [preview, setPreview] = useState<string | null>(null);
@@ -296,7 +300,8 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
   };
 
   return (
-    <form action={action} className="flex flex-col gap-5" noValidate>
+    <form action={action} className="flex flex-col gap-5" noValidate data-created={created ? "yes" : undefined}>
+      <fieldset disabled={created} className="contents">
       <input type="hidden" name="customer_id" value={customerId} />
       <input type="hidden" name="idempotency_key" value={key} />
       <Feedback state={state} />
@@ -401,11 +406,13 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
       <Check state={state} name="prices_verified" id="o-verified">
         I have checked every price against the current supplier price and the customer&apos;s agreed quotation.
       </Check>
+      {state.status === "error" && state.duplicates?.length ? <DuplicateOrderWarning state={state} /> : null}
       <div>
-        <Submit pending={pending} pendingLabel="Creating…">
-          Create order
+        <Submit pending={pending} disabled={created} pendingLabel="Creating…">
+          {created ? "Order created" : "Create order"}
         </Submit>
       </div>
+      </fieldset>
     </form>
   );
 }
@@ -486,13 +493,16 @@ export function RetractTrackingForm({ orderId, eventId }: { orderId: string; eve
 // Payments
 // ---------------------------------------------------------------------------------------------------------------
 
-export function PaymentForm({ orderId, defaultPurpose, defaultAmount, idempotencyKey }: { orderId: string; defaultPurpose: "deposit" | "balance"; defaultAmount: string; idempotencyKey: string }) {
+export function PaymentForm({ orderId, defaultPurpose, defaultAmount, idempotencyKey, expectedPaidMinor }: { orderId: string; defaultPurpose: "deposit" | "balance"; defaultAmount: string; idempotencyKey: string; expectedPaidMinor: number }) {
   const [state, action, pending] = useStaffForm(recordPaymentAction);
-  const key = useIdempotencyKey(`payment:${orderId}`, idempotencyKey, state);
+  // The key is bound to the amount already paid that this page shows: if the balance moves, the person is looking at a new
+  // decision and gets a new key, so a deliberate second payment can never be mistaken for a repeat of the first.
+  const key = useIdempotencyKey(`payment:${orderId}`, idempotencyKey, String(expectedPaidMinor), state);
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="order_id" value={orderId} />
       <input type="hidden" name="idempotency_key" value={key} />
+      <input type="hidden" name="expected_paid_minor" value={String(expectedPaidMinor)} />
       <Feedback state={state} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field id="p-purpose" label="For" error={errorOf(state, "purpose")}>

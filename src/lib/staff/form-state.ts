@@ -1,11 +1,29 @@
 /** What an admin form's server action hands back. Messages are fixed text or a business-rule message written for staff. */
 export type StaffFieldErrors = Record<string, string>;
 
+/** What the duplicate-order warning shows about one earlier order. */
+export interface DuplicateOrderEvidence {
+  id: string;
+  ref: string;
+  status: string;
+  totalMinor: number;
+  createdAt: string;
+}
+
 export type StaffFormState =
   | { status: "idle" }
   // `values` hands back what was typed (never a code, a password or a confirmation word) because React clears an
   // uncontrolled form after every submit, which would otherwise wipe a long form on a validation error.
-  | { status: "error"; message?: string; fieldErrors?: StaffFieldErrors; values?: Record<string, string> }
+  | {
+      status: "error";
+      message?: string;
+      fieldErrors?: StaffFieldErrors;
+      values?: Record<string, string>;
+      /** True when the request's idempotency key already belongs to a finished or different request: the form must take a new one. */
+      keyRetired?: boolean;
+      /** Recent orders for the same customer with the same items. A warning only: the person may confirm and create the order anyway. */
+      duplicates?: DuplicateOrderEvidence[];
+    }
   | {
       status: "success";
       message: string;

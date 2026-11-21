@@ -134,13 +134,16 @@ export function freshIdempotencyKey(): string {
     return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
   }
 }
-/** The key a form should carry: the one saved for this action (so a reload or retry reuses it), else the page's own. */
-export function chooseIdempotencyKey(saved: string | null | undefined, initial: string): string {
-  return typeof saved === "string" && IDEMPOTENCY_KEY_PATTERN.test(saved) ? saved : initial;
-}
-/** True when a key has done its job and the next action needs a new one: the action succeeded, or the key was rejected as belonging to a different request. */
-export function idempotencyKeyIsSpent(state: { status: string; message?: string }): boolean {
-  return state.status === "success" || (state.status === "error" && /different request/.test(state.message ?? ""));
+
+/**
+ * The amount already paid on the order, in minor units, that the person was looking at when they filled in the payment form.
+ * The database compares it with the order's real balance in the same transaction as the insert and refuses the payment if
+ * they differ. A form without a valid value is stale or tampered with, so the action refuses it before any call.
+ */
+export function parseExpectedPaid(form: FormData): number | null {
+  const value = form.get("expected_paid_minor");
+  if (typeof value !== "string" || !/^[0-9]{1,12}$/.test(value.trim())) return null;
+  return Number(value.trim());
 }
 
 /** A payment is recorded by a person confirming receipt: the form says so, and the person must tick it. */

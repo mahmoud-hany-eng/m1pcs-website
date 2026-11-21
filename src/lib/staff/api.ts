@@ -1,6 +1,6 @@
 /** Typed wrappers over the gateway's fixed call list, bound to one verified person. Server only. */
 import "server-only";
-import { StaffOperationError, staffCall, type VerifiedStaff } from "./gateway";
+import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } from "./gateway";
 import type {
   AuditRow, ClaimCodeRow, CustomerDetail, CustomerListRow, DashboardSummary, DepositPreview, LoyaltyOverview, OrderDetail,
   OrderListRow, PaymentListRow, PolicyRow, PolicyVersionRow,
@@ -11,6 +11,20 @@ export interface NewOrderItem {
   description: string;
   quantity: number;
   unit_price_minor: number;
+}
+
+/** One of the customer's recent orders with the same items as the one being created: evidence for a warning, never a block. */
+export interface SimilarOrder {
+  order_id: string;
+  order_ref: string;
+  status: string;
+  total_minor: number;
+  created_at: string;
+}
+/** A keyed write's answer: the record's id, and whether this was a REPEAT of an earlier request (so nothing new was saved). */
+export interface KeyedResult {
+  id: string;
+  replayed: boolean;
 }
 
 export function staffApi(staff: VerifiedStaff) {
@@ -33,8 +47,13 @@ export function staffApi(staff: VerifiedStaff) {
       call<OrderListRow[]>("list_orders", [opts.status ?? null, opts.search ?? null, opts.limit ?? 50, opts.offset ?? 0]),
     getOrder: (id: string) => call<OrderDetail>("get_order", [id]),
     // The idempotency key is chosen once per intended action and reused by every retry of it: a repeat returns the same order.
-    createOrder: (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string) =>
-      call<string>("create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]),
+    createOrder: async (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]);
+      return { id: value, replayed };
+    },
+    // Read-only evidence for the duplicate-order warning. The order this key already created is never listed.
+    similarOrders: (customerId: string, items: readonly NewOrderItem[], idempotencyKey: string) =>
+      call<SimilarOrder[]>("similar_orders", [customerId, JSON.stringify(items), idempotencyKey]),
     transitionOrder: (orderId: string, toStatus: string, reason: string | null) => call<string>("transition_order", [orderId, toStatus, reason]),
     publishTracking: (orderId: string, title: string, message: string | null, statusCode: string | null) =>
       call<string>("publish_tracking_event", [orderId, title, message, statusCode]),
@@ -42,10 +61,16 @@ export function staffApi(staff: VerifiedStaff) {
 
     // The business accepts cash and Fawran. The database also knows older methods for historical records; the website
     // records only the two that are in use, so a crafted request cannot record another.
-    // A repeat with the same idempotency key records nothing and returns the payment that was already recorded.
-    recordPayment: async (orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null, idempotencyKey: string) => {
+    // A repeat with the same idempotency key records nothing and returns the payment that was already recorded, as long as that
+    // payment still stands. `expectedPaidMinor` is the amount already paid that the person was looking at: the database refuses
+    // the payment if the order's real balance is different (someone else paid, or a payment was reversed, in the meantime).
+    recordPayment: async (
+      orderId: string, purpose: string, amountMinor: number, method: string, reference: string | null, notes: string | null,
+      idempotencyKey: string, expectedPaidMinor: number,
+    ): Promise<KeyedResult> => {
       if (method !== "cash" && method !== "fawran") throw new StaffOperationError("Payments are recorded as cash or Fawran.");
-      return call<string>("record_payment", [orderId, purpose, amountMinor, method, reference, notes, idempotencyKey]);
+      const { value, replayed } = await staffCallMeta<string>(staff, "record_payment", [orderId, purpose, amountMinor, method, reference, notes, idempotencyKey, expectedPaidMinor]);
+      return { id: value, replayed };
     },
     reversePayment: (paymentId: string, reason: string) => call<string>("reverse_payment", [paymentId, reason]),
     listPayments: (limit = 100, offset = 0) => call<PaymentListRow[]>("list_payments", [limit, offset]),

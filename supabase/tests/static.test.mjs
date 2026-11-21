@@ -292,7 +292,7 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const text = read(p);
       if (!/^\s*["']use client["']/.test(text)) continue;
       seen += 1;
-      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client)/, `${p}: a client component may import only the staff form helpers and server actions`);
       assert.doesNotMatch(text, /from\s+["']pg["']/, p);
     }
     assert.ok(seen >= 8);

@@ -60,3 +60,14 @@ export function plainAmount(minor: number): string {
   const whole = Math.floor(minor / 100);
   return `${whole}.${String(minor % 100).padStart(2, "0")}`;
 }
+
+/** "12 minutes ago", "3 hours ago": how long before `now` something happened. An unreadable timestamp says "recently". */
+export function ageText(createdAt: string, now: Date = new Date()): string {
+  const then = new Date(createdAt).getTime();
+  if (Number.isNaN(then)) return "recently";
+  const minutes = Math.max(0, Math.round((now.getTime() - then) / 60000));
+  if (minutes < 1) return "less than a minute ago";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+}

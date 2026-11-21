@@ -38,13 +38,39 @@ export class StaffPermissionError extends Error {
     this.name = "StaffPermissionError";
   }
 }
-/** A refusal that carries a message written for staff (a business rule, a validation). Safe to show. */
+/**
+ * A refusal that carries a message written for staff (a business rule, a validation). Safe to show.
+ * `retireKey` is true when the request's idempotency key already belongs to a finished or different request, so the form
+ * must take a new key before it is sent again.
+ */
 export class StaffOperationError extends Error {
-  constructor(message: string) {
+  readonly retireKey: boolean;
+  constructor(message: string, options: { retireKey?: boolean } = {}) {
     super(message);
     this.name = "StaffOperationError";
+    this.retireKey = options.retireKey === true;
   }
 }
+/**
+ * The ONE case in which this module cannot say whether a change was saved: the COMMIT was sent and the connection failed
+ * before the answer came back. Every other failure is either reported by the database (the transaction was rolled back) or
+ * happened before COMMIT was sent (the transaction can only be rolled back), so "nothing was changed" is true for them.
+ */
+export class StaffOutcomeUnknownError extends Error {
+  readonly repeatIsSafe: boolean;
+  constructor(repeatIsSafe: boolean) {
+    super(repeatIsSafe ? OUTCOME_UNKNOWN_REPEAT_SAFE : OUTCOME_UNKNOWN);
+    this.name = "StaffOutcomeUnknownError";
+    this.repeatIsSafe = repeatIsSafe;
+  }
+}
+export const OUTCOME_UNKNOWN =
+  "The connection was lost before we could confirm the result, so this may or may not have been saved. Reload the page and check before trying again.";
+export const OUTCOME_UNKNOWN_REPEAT_SAFE =
+  "The connection was lost before we could confirm the result, so this may or may not have been saved. Reload the page and check first. If you send the same form again within the hour, it will not be saved twice.";
+export const UNAVAILABLE_NOTHING_CHANGED = "The staff service is not available right now. Nothing was changed. Try again in a moment.";
+export const TOO_SLOW = "This took too long and was cancelled. Nothing was changed. Try again in a moment.";
+export const UNEXPECTED = "Something went wrong. Nothing was changed.";
 /** The gateway is not configured or the database could not be reached. */
 export class StaffUnavailableError extends Error {
   constructor(message = "The staff service is not available.") {
@@ -67,11 +93,14 @@ const CALLS = {
   list_claim_codes: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.list_claim_codes($1::uuid) t",
   list_orders: "select admin.list_orders($1::text, $2::text, $3::integer, $4::integer) as r",
   get_order: "select admin.get_order($1::uuid) as r",
-  create_order: "select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text) as r",
+  // The three keyed calls also report whether the answer is a REPEAT of an earlier request (the database sets the
+  // transaction-local flag m1.replayed), so the screen can say "already recorded" instead of "recorded".
+  create_order: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  similar_orders: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.similar_orders($1::uuid, $2::jsonb, $3::text) t",
   transition_order: "select admin.transition_order($1::uuid, $2::text, $3::text)::text as r",
   publish_tracking_event: "select admin.publish_tracking_event($1::uuid, $2::text, $3::text, $4::text) as r",
   retract_tracking_event: "select admin.retract_tracking_event($1::uuid, $2::text)::text as r",
-  record_payment: "select admin.record_payment($1::uuid, $2::text, $3::bigint, $4::text, null::timestamptz, null::text, $5::text, $6::text, $7::text) as r",
+  record_payment: "with c as materialized (select admin.record_payment($1::uuid, $2::text, $3::bigint, $4::text, null::timestamptz, null::text, $5::text, $6::text, $7::text, $8::bigint) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
   reverse_payment: "select admin.reverse_payment($1::uuid, $2::text) as r",
   list_payments: "select admin.list_payments($1::integer, $2::integer) as r",
   list_loyalty: "select admin.list_loyalty($1::uuid, $2::integer) as r",
@@ -82,6 +111,15 @@ const CALLS = {
 } as const;
 
 export type StaffCallName = keyof typeof CALLS;
+
+/** The calls that change data. For these, "nothing was changed" must be TRUE whenever the screen says it. */
+const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
+  "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "transition_order", "publish_tracking_event",
+  "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
+]);
+/** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
+const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "record_payment"]);
+export const isWriteCall = (name: StaffCallName): boolean => WRITE_CALLS.has(name);
 
 let pool: Pool | null = null;
 
@@ -122,49 +160,67 @@ function getPool(): Pool {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The database's own messages for the business rules are written for staff; an unexpected error shows nothing. */
-function mapError(error: unknown): Error {
-  const e = error as { code?: string; message?: string };
+type Stage = "connect" | "call" | "commit";
+
+/**
+ * Turns a failure into a message that is TRUE. The database's own messages for the business rules are written for staff; an
+ * unknown error shows nothing about its cause. Where the message says "nothing was changed" it is because the failure came
+ * from the database (which rolled the transaction back) or happened before COMMIT was sent (so the transaction can only
+ * roll back). The one exception, a COMMIT whose answer never arrived, gets its own error that says so.
+ */
+function mapError(error: unknown, name: StaffCallName, stage: Stage): Error {
+  const e = error as { code?: string; message?: string; severity?: string };
   const message = typeof e?.message === "string" ? e.message : "";
-  switch (e?.code) {
-    case "42501":
-      return new StaffPermissionError();
-    case "P0002": // not found
-    case "22023": // invalid parameter value (our validations)
-    case "55000": // object not in the right state (our business rules)
-    case "54000": // a limit
-      // These are raised by our own functions with a message written for staff.
-      return new StaffOperationError(message.replace(/^.*?ERROR:\s*/, ""));
-    case "23505": // a unique index (a receipt reference already used, a second reversal)
-      // The driver's text would name an index; the screen gets a fixed sentence instead.
-      return new StaffOperationError("That value has already been used. Nothing was changed.");
-    case "23514": // a check constraint
-    case "23502": // a missing value
-    case "23503": // a record that does not exist
-      return new StaffOperationError("That change is not allowed. Nothing was changed.");
-    case "ECONNREFUSED":
-    case "ENOTFOUND":
-    case "ETIMEDOUT":
-    case "57P03":
-    case "08006":
-    case "08001":
-      logStaffDiagnostic(classifyGatewayFailure(error));
-      return new StaffUnavailableError();
-    default:
-      // Never echo an unknown error to a screen: it could name a table or a column. The code goes to the server log.
-      logStaffDiagnostic(classifyGatewayFailure(error));
-      return new StaffUnavailableError("Something went wrong. Nothing was changed.");
+  const write = WRITE_CALLS.has(name);
+  // Only an ordinary, non-fatal error report comes from the database answering us. A FATAL one, a reset socket or a
+  // timeout means the connection itself failed.
+  const reportedByDatabase = e?.severity === "ERROR" && stage !== "connect";
+  if (reportedByDatabase) {
+    switch (e?.code) {
+      case "42501":
+        return new StaffPermissionError();
+      case "M1K01": // the key was used for a different request
+      case "M1K02": // the key was used, and the original can no longer be confirmed (expired, reversed, cancelled)
+        return new StaffOperationError(message.replace(/^.*?ERROR:\s*/, ""), { retireKey: true });
+      case "M1K03": // the paid amount is not the one the person saw (the key was not used: the claim rolled back)
+      case "P0002": // not found
+      case "22023": // invalid parameter value (our validations)
+      case "55000": // object not in the right state (our business rules)
+      case "54000": // a limit
+        // These are raised by our own functions with a message written for staff.
+        return new StaffOperationError(message.replace(/^.*?ERROR:\s*/, ""));
+      case "23505": // a unique index (a receipt reference already used, a second reversal)
+        // The driver's text would name an index; the screen gets a fixed sentence instead.
+        return new StaffOperationError("That value has already been used. Nothing was changed.");
+      case "23514": // a check constraint
+      case "23502": // a missing value
+      case "23503": // a record that does not exist
+        return new StaffOperationError("That change is not allowed. Nothing was changed.");
+      case "57014": // statement_timeout: the database cancelled it and rolled back
+        return new StaffUnavailableError(TOO_SLOW);
+      default:
+        // Never echo an unknown error to a screen: it could name a table or a column. The code goes to the server log.
+        logStaffDiagnostic(classifyGatewayFailure(error));
+        return new StaffUnavailableError(UNEXPECTED);
+    }
   }
+  logStaffDiagnostic(classifyGatewayFailure(error));
+  // The connection failed. If COMMIT was already sent, the change may or may not have been saved.
+  if (write && stage === "commit") return new StaffOutcomeUnknownError(KEYED_CALLS.has(name));
+  // Before COMMIT was sent nothing can have been committed: the open transaction is rolled back when the connection ends.
+  return new StaffUnavailableError(write ? UNAVAILABLE_NOTHING_CHANGED : "The staff service is not available right now. Try again in a moment.");
 }
 
 /**
- * Runs one listed staff function as the verified person, in one transaction. Returns the function's single result.
- * Nothing is committed unless the function succeeds.
+ * Runs one listed staff function as the verified person, in one transaction. Returns the function's single result and
+ * whether it was a repeat of an earlier request. Nothing is committed unless the function succeeds.
  */
-export async function staffCall<T>(staff: VerifiedStaff, name: StaffCallName, params: readonly unknown[] = []): Promise<T> {
+export async function staffCallMeta<T>(staff: VerifiedStaff, name: StaffCallName, params: readonly unknown[] = []): Promise<{ value: T; replayed: boolean }> {
   if (!UUID.test(staff.userId) || !UUID.test(staff.sessionId)) throw new StaffPermissionError();
   const sql = CALLS[name];
   let client: PoolClient | null = null;
+  let stage: Stage = "connect";
+  let broken = false;
   try {
     client = await getPool().connect();
     await client.query("begin");
@@ -173,15 +229,24 @@ export async function staffCall<T>(staff: VerifiedStaff, name: StaffCallName, pa
     // server verified, and the sign-in session the database will check against the auth service's own record.
     const claims = JSON.stringify({ sub: staff.userId, role: "authenticated", aal: "aal2", session_id: staff.sessionId, email: staff.email ?? undefined });
     await client.query("select set_config('request.jwt.claims', $1, true)", [claims]);
+    stage = "call";
     const result = await client.query(sql, [...params]);
+    stage = "commit";
     await client.query("commit");
-    return result.rows[0]?.r as T;
+    const row = result.rows[0] as { r?: unknown; replayed?: unknown } | undefined;
+    return { value: row?.r as T, replayed: row?.replayed === true };
   } catch (error) {
+    broken = (error as { severity?: string } | null)?.severity !== "ERROR";
     if (client) await client.query("rollback").catch(() => {});
-    throw error instanceof StaffUnavailableError ? error : mapError(error);
+    throw error instanceof StaffUnavailableError ? error : mapError(error, name, stage);
   } finally {
-    client?.release();
+    client?.release(broken ? true : undefined);
   }
+}
+
+/** As staffCallMeta, for the many calls where "was it a repeat" does not matter. */
+export async function staffCall<T>(staff: VerifiedStaff, name: StaffCallName, params: readonly unknown[] = []): Promise<T> {
+  return (await staffCallMeta<T>(staff, name, params)).value;
 }
 
 /** Closes the pool (used by tests and on shutdown). */

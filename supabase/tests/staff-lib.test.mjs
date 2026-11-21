@@ -13,11 +13,15 @@ try {
     flag: await import("../../src/lib/staff/flag.ts"),
     v: await import("../../src/lib/staff/validation.ts"),
     state: await import("../../src/lib/staff/form-state.ts"),
+    client: await import("../../src/lib/staff/idempotency-client.ts"),
+    outcomes: await import("../../src/lib/staff/outcomes.ts"),
+    gateway: await import("../../src/lib/staff/gateway.ts"),
+    format: await import("../../src/lib/staff/format.ts"),
   };
 } catch (error) {
   skip = `this Node version cannot import TypeScript directly (${error.code ?? error.message}); use Node 22.18 or newer`;
 }
-const { flag, v, state } = load ?? {};
+const { flag, v, state, client, outcomes, gateway, format } = load ?? {};
 
 const form = (fields) => {
   const data = new FormData();
@@ -206,7 +210,7 @@ describe("idempotency keys (PLAT-0004): one key per intended action, kept across
 
   test("the pattern is the SAME as the database's check, so the two can never drift apart", async () => {
     const { readFileSync } = await import("node:fs");
-    const sql = readFileSync(new URL("../migrations/20261121120100_idempotency_keys.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../migrations/20261121120100_idempotency_expand.sql", import.meta.url), "utf8");
     const quoted = [...sql.matchAll(/'(\^\[A-Za-z0-9\._:-\]\{8,100\}\$)'/g)].map((m) => m[1]);
     assert.ok(quoted.length >= 2, "the migration states the pattern in its table check and in the helper");
     for (const pattern of quoted) assert.equal(pattern, v.IDEMPOTENCY_KEY_PATTERN.source);
@@ -219,25 +223,159 @@ describe("idempotency keys (PLAT-0004): one key per intended action, kept across
     assert.notEqual(a, b);
   });
 
-  test("a retry or a reload keeps the saved key; a missing or damaged one falls back to the page's own", () => {
-    assert.equal(v.chooseIdempotencyKey(good, "page-key-00000001"), good, "the saved key wins: a retry reuses it");
-    assert.equal(v.chooseIdempotencyKey(null, "page-key-00000001"), "page-key-00000001");
-    assert.equal(v.chooseIdempotencyKey(undefined, "page-key-00000001"), "page-key-00000001");
-    assert.equal(v.chooseIdempotencyKey("tampered key!", "page-key-00000001"), "page-key-00000001", "a malformed saved value is ignored");
-  });
-
-  test("the key is replaced only when it is spent: after a success, or when it was rejected as belonging to a different request", () => {
-    assert.equal(v.idempotencyKeyIsSpent({ status: "success", message: "Payment recorded." }), true);
-    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "this idempotency key was already used for a different request; nothing was changed" }), true);
-    // A validation error, a business-rule refusal or a network failure must KEEP the key, so the retry is the same request.
-    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "this payment would exceed the order total" }), false);
-    assert.equal(v.idempotencyKeyIsSpent({ status: "error", message: "Something went wrong. Nothing was changed." }), false);
-    assert.equal(v.idempotencyKeyIsSpent({ status: "error" }), false);
-    assert.equal(v.idempotencyKeyIsSpent({ status: "idle" }), false);
+  test("the expected paid amount must be a whole number of minor units, and a missing or malformed one is refused (never invented)", () => {
+    assert.equal(v.parseExpectedPaid(form({ expected_paid_minor: "0" })), 0);
+    assert.equal(v.parseExpectedPaid(form({ expected_paid_minor: " 125000 " })), 125000);
+    assert.equal(v.parseExpectedPaid(form({ expected_paid_minor: "999999999999" })), 999999999999);
+    for (const bad of ["", "-1", "1.5", "1e3", "abc", "0x10", "1 000", "9999999999999", "١٢٣"]) {
+      assert.equal(v.parseExpectedPaid(form({ expected_paid_minor: bad })), null, JSON.stringify(bad));
+    }
+    assert.equal(v.parseExpectedPaid(form({})), null);
   });
 
   test("a stale form is told to reload, in plain words, and nothing was changed", () => {
     assert.match(v.STALE_FORM_MESSAGE, /Reload the page/);
     assert.match(v.STALE_FORM_MESSAGE, /Nothing was changed/);
+  });
+});
+
+// A stand-in for sessionStorage: what the key store needs, nothing else.
+const memoryStore = (initial = {}) => {
+  const data = new Map(Object.entries(initial));
+  return { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, value) => void data.set(k, String(value)), data };
+};
+
+describe("the browser's key store (PLAT-0004): a key is kept across retries and reloads, replaced when spent or when the page's decision changed", { skip }, () => {
+  const PAGE = "page-key-00000001";
+
+  test("the first visit saves the page's own key; a reload or a retry keeps it", () => {
+    const store = memoryStore();
+    assert.equal(client.chooseKey(store, "payment:o1", "0", PAGE), PAGE);
+    assert.equal(client.chooseKey(store, "payment:o1", "0", "page-key-00000002"), PAGE, "a second page render (a reload) still carries the first key");
+  });
+
+  test("the key is bound to the balance the page showed: when the balance moved it is a NEW decision and gets the page's new key", () => {
+    const store = memoryStore();
+    assert.equal(client.chooseKey(store, "payment:o1", "0", PAGE), PAGE);
+    // The payment went through but the response was lost; the reloaded page shows the new balance.
+    assert.equal(client.chooseKey(store, "payment:o1", "30000", "page-key-00000002"), "page-key-00000002");
+    // ...and that new key is now the saved one for the new balance.
+    assert.equal(client.chooseKey(store, "payment:o1", "30000", "page-key-00000003"), "page-key-00000002");
+  });
+
+  test("scopes do not share keys: another order, another customer, another form", () => {
+    const store = memoryStore();
+    assert.equal(client.chooseKey(store, "payment:o1", "0", PAGE), PAGE);
+    assert.equal(client.chooseKey(store, "payment:o2", "0", "page-key-00000002"), "page-key-00000002");
+    assert.equal(client.chooseKey(store, "order:c1", "", "page-key-00000003"), "page-key-00000003");
+    assert.equal(client.chooseKey(store, "payment:o1", "0", "page-key-00000004"), PAGE);
+  });
+
+  test("damaged, foreign or old-format saved values are ignored and replaced; storage that throws or is missing falls back to the page's key", () => {
+    for (const bad of ["not json", "{}", "null", JSON.stringify({ key: "bad key!", binding: "0" }), JSON.stringify({ key: PAGE }), JSON.stringify({ key: PAGE, binding: 0 }), "plain-old-key-00000009"]) {
+      const store = memoryStore({ "m1-idem:payment:o1": bad });
+      assert.equal(client.chooseKey(store, "payment:o1", "0", PAGE), PAGE, bad);
+    }
+    const throwing = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    assert.equal(client.chooseKey(throwing, "payment:o1", "0", PAGE), PAGE);
+    assert.equal(client.rotateKey(throwing, "payment:o1", "0", "page-key-00000009"), "page-key-00000009");
+    assert.equal(client.chooseKey(null, "payment:o1", "0", PAGE), PAGE);
+    assert.match(client.rotateKey(null, "payment:o1", "0"), v.IDEMPOTENCY_KEY_PATTERN);
+  });
+
+  test("rotating saves the new key under the same scope, so a reload keeps it", () => {
+    const store = memoryStore();
+    client.chooseKey(store, "payment:o1", "0", PAGE);
+    const next = client.rotateKey(store, "payment:o1", "0");
+    assert.notEqual(next, PAGE);
+    assert.match(next, v.IDEMPOTENCY_KEY_PATTERN);
+    assert.equal(client.chooseKey(store, "payment:o1", "0", "page-key-00000002"), next);
+  });
+
+  test("a key is spent after a success or when the database retired it, and NOT after any other failure or an unknown outcome", () => {
+    assert.equal(client.keyIsSpent({ status: "success", message: "Payment recorded." }), true);
+    assert.equal(client.keyIsSpent({ status: "error", message: "x", keyRetired: true }), true);
+    for (const message of ["this payment would exceed the order total", outcomes.failureState(new gateway.StaffOutcomeUnknownError(true)).message, "Something went wrong. Nothing was changed."]) {
+      assert.equal(client.keyIsSpent({ status: "error", message }), false, message);
+    }
+    assert.equal(client.keyIsSpent({ status: "error", message: "this idempotency key was already used for a different request" }), false, "the wording alone no longer decides: the database's flag does");
+    assert.equal(client.keyIsSpent({ status: "error" }), false);
+    assert.equal(client.keyIsSpent({ status: "idle" }), false);
+  });
+});
+
+describe("what the screen says (PLAT-0004): every sentence is true for the situation that produces it", { skip }, () => {
+  const { StaffOperationError, StaffOutcomeUnknownError, StaffPermissionError, StaffUnavailableError } = gateway ?? {};
+
+  test("a repeat is described as a repeat, a first save as a first save", () => {
+    assert.equal(outcomes.paymentSuccessMessage(false), outcomes.PAYMENT_RECORDED);
+    assert.equal(outcomes.paymentSuccessMessage(true), outcomes.PAYMENT_ALREADY_RECORDED);
+    assert.match(outcomes.PAYMENT_ALREADY_RECORDED, /already recorded/);
+    assert.match(outcomes.PAYMENT_ALREADY_RECORDED, /nothing new was recorded/);
+    assert.equal(outcomes.orderSuccessMessage(false), outcomes.ORDER_CREATED);
+    assert.equal(outcomes.orderSuccessMessage(true), outcomes.ORDER_ALREADY_CREATED);
+    assert.match(outcomes.ORDER_ALREADY_CREATED, /no second order was made/);
+  });
+
+  test("a refusal that retires the key tells the form so; an ordinary refusal does not", () => {
+    assert.deepEqual(outcomes.failureState(new StaffOperationError("this payment was recorded and has since been reversed", { retireKey: true })), {
+      status: "error", message: "this payment was recorded and has since been reversed", keyRetired: true,
+    });
+    assert.deepEqual(outcomes.failureState(new StaffOperationError("this payment would exceed the order total")), { status: "error", message: "this payment would exceed the order total" });
+  });
+
+  test("permission, unavailable and unexpected failures use fixed, honest sentences", () => {
+    assert.equal(outcomes.failureState(new StaffPermissionError()).message, outcomes.DENIED);
+    assert.equal(outcomes.failureState(new StaffUnavailableError(gateway.UNAVAILABLE_NOTHING_CHANGED)).message, gateway.UNAVAILABLE_NOTHING_CHANGED);
+    assert.equal(outcomes.failureState(new Error("select * from private.secrets")).message, gateway.UNEXPECTED);
+    assert.doesNotMatch(outcomes.failureState(new Error("password=hunter2 host=db.internal")).message, /hunter2|internal|password/);
+  });
+
+  test("a lost commit never claims that nothing was changed, and never invites a blind retry of a non-keyed action", () => {
+    const keyed = outcomes.failureState(new StaffOutcomeUnknownError(true));
+    const plain = outcomes.failureState(new StaffOutcomeUnknownError(false));
+    for (const s of [keyed, plain]) {
+      assert.equal(s.status, "error");
+      assert.doesNotMatch(s.message, /nothing was changed/i);
+      assert.match(s.message, /may or may not have been saved/);
+      assert.match(s.message, /Reload the page and check/);
+      assert.equal(s.keyRetired, undefined, "the key is KEPT so that sending the form again is a repeat");
+    }
+    assert.match(keyed.message, /will not be saved twice/);
+    assert.doesNotMatch(plain.message, /will not be saved twice/);
+  });
+
+  test("the duplicate-order warning creates nothing, shows evidence, never calls the order invalid, and tells the person how to proceed", () => {
+    const now = new Date("2026-11-21T12:00:00Z");
+    const warning = outcomes.duplicateWarning([
+      { order_id: "11111111-1111-4111-8111-111111111111", order_ref: "O-2026-0001", status: "pending_confirmation", total_minor: 400000, created_at: "2026-11-21T11:48:00Z" },
+    ], now);
+    assert.equal(warning.status, "error");
+    assert.equal(warning.keyRetired, undefined);
+    assert.match(warning.message, /Nothing was created yet/);
+    assert.match(warning.message, /O-2026-0001/);
+    assert.match(warning.message, /12 minutes ago/);
+    assert.match(warning.message, /QAR 4,000\.00/);
+    assert.match(warning.message, /tick the box below/);
+    assert.doesNotMatch(warning.message, /invalid|rejected|not allowed/i);
+    assert.deepEqual(warning.duplicates, [{ id: "11111111-1111-4111-8111-111111111111", ref: "O-2026-0001", status: "pending_confirmation", totalMinor: 400000, createdAt: "2026-11-21T11:48:00Z" }]);
+    const two = outcomes.duplicateWarning([
+      { order_id: "11111111-1111-4111-8111-111111111111", order_ref: "O-1", status: "pending_confirmation", total_minor: 100, created_at: "2026-11-21T11:59:40Z" },
+      { order_id: "22222222-2222-4222-8222-222222222222", order_ref: "O-2", status: "awaiting_deposit", total_minor: 200, created_at: "2026-11-20T12:30:00Z" },
+    ], now);
+    assert.match(two.message, /2 orders/);
+    assert.match(two.message, /less than a minute ago/);
+    assert.match(two.message, /24 hours ago/, "23.5 hours rounds to 24");
+  });
+
+  test("ages read naturally and an unreadable time never shows 'Invalid Date' or NaN", () => {
+    const now = new Date("2026-11-21T12:00:00Z");
+    assert.equal(format.ageText("2026-11-21T11:59:59Z", now), "less than a minute ago");
+    assert.equal(format.ageText("2026-11-21T11:59:00Z", now), "1 minute ago");
+    assert.equal(format.ageText("2026-11-21T11:30:00Z", now), "30 minutes ago");
+    assert.equal(format.ageText("2026-11-21T11:00:00Z", now), "1 hour ago");
+    assert.equal(format.ageText("2026-11-21T09:00:00Z", now), "3 hours ago");
+    assert.equal(format.ageText("2026-11-21T12:05:00Z", now), "less than a minute ago", "a clock a little ahead is not a negative age");
+    assert.equal(format.ageText("garbage", now), "recently");
   });
 });

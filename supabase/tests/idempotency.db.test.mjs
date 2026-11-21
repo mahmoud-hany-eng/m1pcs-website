@@ -1,5 +1,9 @@
 // PLAT-0004: durable idempotency of the three operations that create money or ledger records (record a payment, create an
 // order, adjust loyalty points), proved against a REAL PostgreSQL 16 server with the REAL migrations and the REAL staff gateway role.
+// This suite runs on the database in its EXPAND state (every migration applied, the contract step NOT applied): the state the first
+// release leaves behind. supabase/tests/release.db.test.mjs proves the expand/contract sequence itself, and
+// supabase/tests/idempotency.window.db.test.mjs proves the replay window, reversed payments, the expected paid amount, two-person
+// and multi-tab behaviour and the security ordering.
 //
 // What is exercised, and how:
 //   * the PRODUCTION statements: the SQL text for create_order and record_payment is read out of src/lib/staff/gateway.ts and
@@ -14,154 +18,104 @@
 //
 // It says nothing about the website screens (they need a real second factor; see WORKFLOW_TESTS.md) or about Supabase Auth.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { findPgBin } from "./harness.mjs";
-import { AS, ID, newOrder, startDatabase } from "./fixtures.mjs";
+import { AS, ID, startDatabase } from "./fixtures.mjs";
 import { ROOT } from "./support/browser.mjs";
+import { CUST_C, ONE, PAT, SESSION, UUID, lines, lit, makeHelpers, newKey, seedIdempotencyFixtures, sleep } from "./support/idempotency-helpers.mjs";
 
 const haveServer = Boolean(findPgBin());
 if (!haveServer && process.env.M1_REQUIRE_PG === "1") throw new Error("M1_REQUIRE_PG=1 but no PostgreSQL server programs were found (set PG_BIN)");
 const suite = haveServer ? describe : describe.skip;
 
-const CUST_C = "00000000-0000-4000-8000-0000000000c9";
-const PAT = "00000000-0000-4000-8000-0000000000f1"; // a second owner, to prove keys are scoped to the person
-const SESSION = { olivia: "00000000-0000-4000-8000-0000000000e1", sam: "00000000-0000-4000-8000-0000000000e2", pat: "00000000-0000-4000-8000-0000000000e3" };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const GATEWAY_SOURCE = readFileSync(join(ROOT, "src/lib/staff/gateway.ts"), "utf8");
-
-const lines = (out) => out.split("\n").filter((l) => l !== "");
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const lit = (v) => (v === null ? "null" : typeof v === "number" ? String(v) : `'${String(v).replaceAll("'", "''")}'`);
-let counter = 0;
-const newKey = (label = "key") => `${label}-${Date.now().toString(36)}-${counter++}`;
-const ONE = (price, qty = 1) => [{ kind: "component", description: "Test item", quantity: qty, unit_price_minor: price }];
-
 suite("idempotency (PLAT-0004): a repeated or retried request never creates a second payment, order or loyalty entry", () => {
   let db;
+  let h = {};
+  // Late-bound shortcuts to the shared helpers (the database exists only once `before` has run).
+  const read = (...a) => h.read(...a);
+  const scalar = (...a) => h.scalar(...a);
+  const attempt = (...a) => h.attempt(...a);
+  const rowsSeen = (...a) => h.rowsSeen(...a);
+  const refused = (...a) => h.refused(...a);
+  const confirmed = (...a) => h.confirmed(...a);
+  const count = (...a) => h.count(...a);
+  const paymentsOf = (...a) => h.paymentsOf(...a);
+  const keyRows = (...a) => h.keyRows(...a);
+  const gatewayPrefix = (...a) => h.gatewayPrefix(...a);
+  const productionSql = (...a) => h.productionSql(...a);
+  const gatewayCall = (...a) => h.gatewayCall(...a);
+  const viaGateway = (...a) => h.viaGateway(...a);
+  const payParams = (...a) => h.payParams(...a);
+  const pay = (...a) => h.pay(...a);
+  const createOrder = (...a) => h.createOrder(...a);
+  const adjustViaGateway = (...a) => h.adjustViaGateway(...a);
+  const asyncPsql = (...a) => h.asyncPsql(...a);
+  const parallel = (...a) => h.parallel(...a);
+  let OLIVIA;
+  let SAM;
+  let PATRICK;
 
   before(() => {
     db = startDatabase({ schedule: "confirmed" });
-    db.commit(`insert into public.customers (id, full_name, phone, email, source) values ('${CUST_C}', 'Carol Test (walk-in)', '+97455550003', 'carol@example.test', 'walk_in');`);
-    db.commit(`insert into auth.users (id, email) values ('${PAT}', 'pat@example.test');
-      insert into private.staff_members (user_id, role_code, display_name, is_active) values ('${PAT}', 'owner', 'Second owner (test)', true);
-      insert into auth.sessions (id, user_id, aal) values ('${SESSION.olivia}', '${ID.olivia}', 'aal2'), ('${SESSION.sam}', '${ID.sam}', 'aal2'), ('${SESSION.pat}', '${PAT}', 'aal2');`);
-    db.commit(`create function public.zz_attempt(stmt text) returns text language plpgsql as $f$
-      begin execute stmt; return 'OK'; exception when others then return 'REFUSED: ' || sqlerrm; end $f$;`);
-    db.commit(`create function public.zz_count(stmt text) returns text language plpgsql as $f$
-      declare n bigint; begin execute stmt into n; return n::text; exception when others then return 'DENIED'; end $f$;`);
+    seedIdempotencyFixtures(db);
+    h = makeHelpers(db);
+    ({ OLIVIA, SAM, PATRICK } = h);
   });
   after(() => db?.stop());
 
-  // ---- helpers ---------------------------------------------------------------------------------------------------
-  const read = (sql, who = "") => db.ok(/;\s*$/.test(sql) ? sql : `${sql};`, who);
-  const scalar = (sql, who = "") => lines(read(sql, who)).pop() ?? "";
-  const attempt = (who, sql) => lines(db.ok(`select public.zz_attempt('${sql.replaceAll("'", "''")}');`, who)).pop();
-  const rowsSeen = (who, sql) => lines(db.ok(`select public.zz_count('${sql.replaceAll("'", "''")}');`, who)).pop();
-  const refused = (result, pattern, label = "") => {
-    assert.match(result, /^REFUSED: /, `${label} should have been refused but got: ${result}`);
-    assert.match(result, pattern, label);
-  };
-  const make = (items, customer = ID.custA) => lines(db.commit(`${newOrder({ customer, items, into: "o", who: AS.sam })}select :'o';`)).pop().trim();
-  const confirmed = (total = 100000, customer = CUST_C) => {
-    const id = make(ONE(total), customer);
-    db.commit(`${AS.sam}select admin.transition_order('${id}', 'awaiting_deposit');`);
-    return id;
-  };
-  const count = (sql) => Number(scalar(sql));
-  const paymentsOf = (id) => count(`select count(*) from public.payments where order_id = '${id}'`);
-  const keyRows = (key) => count(`select count(*) from private.idempotency_keys where idempotency_key = '${key}'`);
-
-  // The staff gateway, exactly as the website uses it: the gateway database role, the person's verified claims, and the SQL
-  // text the website sends (read from gateway.ts), prepared and executed with the same parameter order.
-  const gatewayPrefix = (sub, sid) =>
-    `reset role;\nreset session authorization;\nset session authorization m1_staff_gateway;\nselect set_config('request.jwt.claims', '${JSON.stringify({ sub, role: "authenticated", aal: "aal2", session_id: sid })}', true);\n`;
-  const productionSql = (name) => {
-    const match = new RegExp(`^\\s*${name}: "(.+)",$`, "m").exec(GATEWAY_SOURCE);
-    assert.ok(match, `the gateway statement ${name} was found in gateway.ts`);
-    return match[1];
-  };
-  const gatewayCall = (who, name, params, sql = productionSql(name)) =>
-    `${gatewayPrefix(who.sub, who.sid)}prepare q as ${sql};\nexecute q(${params.map(lit).join(", ")});\n`;
-  const OLIVIA = { sub: ID.olivia, sid: SESSION.olivia };
-  const SAM = { sub: ID.sam, sid: SESSION.sam };
-  const PATRICK = { sub: PAT, sid: SESSION.pat };
-  /** Runs one production call in its own transaction. Returns { ok, id (the last line), err }. */
-  const viaGateway = (who, name, params, sql) => {
-    const r = db.cluster.psql(`begin;\n${gatewayCall(who, name, params, sql)}commit;`);
-    return { ok: r.ok, id: r.ok ? lines(r.out).pop().trim() : null, err: r.err };
-  };
-  const pay = (who, orderId, amount, key, { method = "cash", purpose = "deposit", reference = null, notes = null } = {}) =>
-    viaGateway(who, "record_payment", [orderId, purpose, amount, method, reference, notes, key]);
-  const createOrder = (who, customer, items, key, { method = null, address = null } = {}) =>
-    viaGateway(who, "create_order", [customer, JSON.stringify(items), method, address, key]);
-  // adjust_loyalty is not one of the website's fixed gateway statements (the staff screens have no loyalty form); the same gateway role
-  // and verified claims are used to prove the rule is the database's, so a future screen inherits it.
-  const adjustViaGateway = (who, customer, points, reason, key) => {
-    const r = db.cluster.psql(`begin;\n${gatewayPrefix(who.sub, who.sid)}prepare q as select admin.adjust_loyalty($1::uuid, $2::integer, $3::text, $4::text) as r;\nexecute q(${[customer, points, reason, key].map(lit).join(", ")});\ncommit;`);
-    return { ok: r.ok, id: r.ok ? lines(r.out).pop().trim() : null, err: r.err };
-  };
-
-  /** A separate, concurrent psql session (the SAME database), so two sessions really overlap. */
-  const asyncPsql = (sql, { killAfterMs = null } = {}) =>
-    new Promise((resolve) => {
-      const c = db.cluster;
-      const args = ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", c.dir, "-p", String(c.port), "-U", "postgres", "-t", "-A", "-F", "|", "-d", c.database, "-f", "-"];
-      const child = spawn(join(c.bin, "psql"), args);
-      let out = "";
-      let err = "";
-      child.stdout.on("data", (d) => (out += d));
-      child.stderr.on("data", (d) => (err += d));
-      child.on("close", (code, signal) => resolve({ ok: code === 0, out: out.trim(), err: err.trim(), killed: signal === "SIGKILL", id: code === 0 ? lines(out).pop()?.trim() : null }));
-      child.stdin.end(sql);
-      if (killAfterMs !== null) setTimeout(() => child.kill("SIGKILL"), killAfterMs);
-    });
-  /** The production call as one concurrent session, optionally holding its transaction open for `holdSeconds` after the call. */
-  const parallel = (who, name, params, { holdSeconds = 0, timeoutMs = null } = {}) =>
-    asyncPsql(`begin;\n${timeoutMs ? `set local statement_timeout = ${timeoutMs};\n` : ""}${gatewayCall(who, name, params)}${holdSeconds ? `select pg_sleep(${holdSeconds});\n` : ""}commit;`);
-
   // =================================================================================================================
   describe("the production path: the gateway REQUIRES a key, and the website's own statements carry one", () => {
-    it("the website's record_payment and create_order statements are the key-carrying ones, and they work end to end under the gateway role", () => {
+    it("the website's record_payment and create_order statements carry the key (and the expected paid amount), report whether the answer is a repeat, and work end to end under the gateway role", () => {
       const sql = productionSql("record_payment");
-      assert.match(sql, /\$7::text\) as r$/, "record_payment passes the key as its 7th parameter");
-      assert.match(productionSql("create_order"), /\$5::text\) as r$/, "create_order passes the key as its 5th parameter");
+      assert.match(sql, /\$7::text, \$8::bigint\) as r\) select r, coalesce\(current_setting\('m1\.replayed', true\), ''\) = 'true' as replayed from c$/, "record_payment passes the key as its 7th parameter and the expected paid amount as its 8th");
+      assert.match(productionSql("create_order"), /\$5::text\) as r\) select r, coalesce\(current_setting\('m1\.replayed', true\), ''\) = 'true' as replayed from c$/, "create_order passes the key as its 5th parameter");
+      assert.match(productionSql("similar_orders"), /admin\.similar_orders\(\$1::uuid, \$2::jsonb, \$3::text\)/);
       const order = confirmed(200000);
-      const p = pay(OLIVIA, order, 30000, newKey("pay"));
+      const key = newKey("pay");
+      const p = pay(OLIVIA, order, 30000, key);
       assert.ok(p.ok, p.err);
       assert.match(p.id, UUID);
+      assert.equal(p.replayed, false, "a first answer is not a repeat");
       assert.equal(paymentsOf(order), 1);
+      const again = pay(OLIVIA, order, 30000, key);
+      assert.equal(again.id, p.id);
+      assert.equal(again.replayed, true, "the repeat says it is one, so the screen can say 'already recorded'");
       const o = createOrder(SAM, ID.custA, ONE(50000), newKey("ord"));
       assert.ok(o.ok, o.err);
       assert.match(o.id, UUID);
+      assert.equal(o.replayed, false);
     });
 
-    it("a request WITHOUT a key is refused through the gateway: the new statements with a null key, and the OLD website's key-less statements (fail closed)", () => {
+    it("a request WITHOUT a key or WITHOUT the expected paid amount is refused through the gateway (the new statements fail closed); nothing is recorded or created", () => {
       const order = confirmed();
       const before = count(`select count(*) from public.payments`);
       const orders = count(`select count(*) from public.orders`);
-      for (const [name, params, label] of [
-        ["record_payment", [order, "deposit", 15000, "cash", null, null, null], "null key"],
-        ["create_order", [CUST_C, JSON.stringify(ONE(1000)), null, null, null], "null key"],
-      ]) {
-        const r = viaGateway(OLIVIA, name, params);
-        assert.equal(r.ok, false, `${name}: ${label}`);
-        assert.match(r.err, /an idempotency key is required/, `${name}: ${label}`);
-      }
-      // What the website sent BEFORE this change (no key at all): still callable by the old signatures, but the gateway is refused.
-      const oldPayment = viaGateway(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null], "select admin.record_payment($1::uuid, $2::text, $3::bigint, $4::text, now(), null, $5::text, $6::text) as r");
-      assert.equal(oldPayment.ok, false);
-      assert.match(oldPayment.err, /an idempotency key is required/);
-      const oldOrder = viaGateway(SAM, "create_order", [CUST_C, JSON.stringify(ONE(1000)), null, null], "select admin.create_order($1::uuid, $2::jsonb, null, 'admin', $3::text, $4::text) as r");
-      assert.equal(oldOrder.ok, false);
-      assert.match(oldOrder.err, /an idempotency key is required/);
+      const noKey = viaGateway(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null, null, 0]);
+      assert.equal(noKey.ok, false);
+      assert.match(noKey.err, /an idempotency key is required/);
+      const noExpected = viaGateway(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null, newKey("pay"), null]);
+      assert.equal(noExpected.ok, false);
+      assert.match(noExpected.err, /the amount already paid on the order must be supplied/);
+      const noOrderKey = viaGateway(OLIVIA, "create_order", [CUST_C, JSON.stringify(ONE(1000)), null, null, null]);
+      assert.equal(noOrderKey.ok, false);
+      assert.match(noOrderKey.err, /an idempotency key is required/);
       const noLoyalty = adjustViaGateway(OLIVIA, CUST_C, 5, "goodwill adjustment", null);
       assert.equal(noLoyalty.ok, false);
       assert.match(noLoyalty.err, /an idempotency key is required/);
       assert.equal(count(`select count(*) from public.payments`), before, "nothing was recorded");
       assert.equal(count(`select count(*) from public.orders`), orders, "nothing was created");
+    });
+
+    it("EXPAND state: the deployed PLAT-0003 website's key-less statements still work through the gateway, exactly as before (the contract step, not this one, closes them)", () => {
+      const order = confirmed();
+      const oldPayment = viaGateway(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null], "select admin.record_payment($1::uuid, $2::text, $3::bigint, $4::text, now(), null, $5::text, $6::text) as r");
+      assert.ok(oldPayment.ok, oldPayment.err);
+      assert.equal(paymentsOf(order), 1);
+      const oldOrder = viaGateway(SAM, "create_order", [CUST_C, JSON.stringify(ONE(1000)), null, null], "select admin.create_order($1::uuid, $2::jsonb, null, 'admin', $3::text, $4::text) as r");
+      assert.ok(oldOrder.ok, oldOrder.err);
+      assert.match(oldOrder.id, UUID);
     });
 
     it("a malformed key is refused before anything is touched", () => {
@@ -231,6 +185,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
         [order, 10000, { method: "fawran" }, "method"],
         [order, 10000, { reference: "other-ref" }, "reference"],
         [order, 10000, { notes: "a different note" }, "note"],
+        [order, 10000, { expected: 5 }, "expected paid amount"],
       ];
       for (const [orderId, amount, extra, label] of variants) {
         const r = pay(OLIVIA, orderId, amount, key, extra);
@@ -282,7 +237,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("RACE: eight parallel sessions submit the SAME payment: all succeed with the SAME id, exactly one payment exists", async () => {
       const order = confirmed(100000);
       const key = newKey("race");
-      const params = [order, "deposit", 15000, "cash", null, null, key];
+      const params = [order, "deposit", 15000, "cash", null, null, key, 0];
       const first = parallel(OLIVIA, "record_payment", params, { holdSeconds: 1.2 }); // holds the claim while the others arrive
       await sleep(300);
       const rest = Array.from({ length: 7 }, () => parallel(OLIVIA, "record_payment", params));
@@ -297,9 +252,9 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("RACE: parallel sessions with the SAME key but DIFFERENT amounts: exactly one is recorded, the rest are refused as a different request", async () => {
       const order = confirmed(100000);
       const key = newKey("race");
-      const slow = parallel(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null, key], { holdSeconds: 1.2 });
+      const slow = parallel(OLIVIA, "record_payment", [order, "deposit", 15000, "cash", null, null, key, 0], { holdSeconds: 1.2 });
       await sleep(300);
-      const others = [15001, 15002, 15003].map((amount) => parallel(OLIVIA, "record_payment", [order, "deposit", amount, "cash", null, null, key]));
+      const others = [15001, 15002, 15003].map((amount) => parallel(OLIVIA, "record_payment", [order, "deposit", amount, "cash", null, null, key, 0]));
       const [winner, ...losers] = await Promise.all([slow, ...others]);
       assert.ok(winner.ok, winner.err);
       for (const r of losers) {
@@ -313,9 +268,9 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("RACE: parallel sessions with DIFFERENT keys that together exceed the total: the order row lock still lets exactly the fitting ones through", async () => {
       const order = confirmed(100000);
       const keys = Array.from({ length: 4 }, () => newKey("race"));
-      const slow = parallel(OLIVIA, "record_payment", [order, "deposit", 60000, "cash", null, null, keys[0]], { holdSeconds: 1.2 });
+      const slow = parallel(OLIVIA, "record_payment", [order, "deposit", 60000, "cash", null, null, keys[0], 0], { holdSeconds: 1.2 });
       await sleep(300);
-      const rest = keys.slice(1).map((k) => parallel(OLIVIA, "record_payment", [order, "deposit", 60000, "cash", null, null, k]));
+      const rest = keys.slice(1).map((k) => parallel(OLIVIA, "record_payment", [order, "deposit", 60000, "cash", null, null, k, 0]));
       const results = await Promise.all([slow, ...rest]);
       assert.equal(results.filter((r) => r.ok).length, 1, "only one 60 000 fits in 100 000");
       assert.equal(paymentsOf(order), 1);
@@ -327,7 +282,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("TIMEOUT: a call that exceeds its statement timeout rolls back completely (no payment, no claim); retrying with the same key then records exactly one", async () => {
       const order = confirmed(100000);
       const key = newKey("timeout");
-      const params = [order, "deposit", 15000, "cash", null, null, key];
+      const params = [order, "deposit", 15000, "cash", null, null, key, 0];
       const timedOut = await parallel(OLIVIA, "record_payment", params, { holdSeconds: 2, timeoutMs: 600 });
       assert.equal(timedOut.ok, false);
       assert.match(timedOut.err, /statement timeout/);
@@ -341,7 +296,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("NETWORK LOSS: the client is killed mid-transaction; the immediate retry waits for the dead session, then records exactly one payment", async () => {
       const order = confirmed(100000);
       const key = newKey("netloss");
-      const params = [order, "deposit", 15000, "cash", null, null, key];
+      const params = [order, "deposit", 15000, "cash", null, null, key, 0];
       // Kill the client process while its transaction is open (the database only sees the connection drop).
       const killed = asyncPsql(`begin;\n${gatewayCall(OLIVIA, "record_payment", params)}select pg_sleep(2);\ncommit;`, { killAfterMs: 500 });
       await sleep(700);
@@ -542,7 +497,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     it("customers, strangers, inactive staff, forged claims and the owner without a second factor cannot use the key operations at all, and leave no key behind", () => {
       const order = confirmed(300000);
       const key = newKey("deny");
-      const call = `select admin.record_payment('${order}'::uuid, 'deposit'::text, 100::bigint, 'cash'::text, null::timestamptz, null::text, null::text, null::text, '${key}'::text)`;
+      const call = `select admin.record_payment('${order}'::uuid, 'deposit'::text, 100::bigint, 'cash'::text, null::timestamptz, null::text, null::text, null::text, '${key}'::text, 0::bigint)`;
       for (const [who, name] of [[AS.alice, "a customer"], [AS.eve, "a stranger"], [AS.dana, "inactive staff"], [AS.forgedAdmin, "forged claims"], [AS.oliviaAal1, "the owner at aal1"], [AS.sam, "ordinary staff (no payments.record)"], [AS.anon, "a visitor"]]) {
         refused(attempt(who, call), /permission denied/, name);
       }
@@ -639,38 +594,58 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
   });
 
   // =================================================================================================================
-  describe("the website side (static checks of the source; the staff screens themselves need a real second factor)", () => {
+  describe("the website side (static checks of the source; the browser behaviour is tested in idempotency.hook.browser.test.mjs)", () => {
     const forms = readFileSync(join(ROOT, "src/components/admin/forms.tsx"), "utf8");
+    const hook = readFileSync(join(ROOT, "src/components/admin/use-idempotency-key.ts"), "utf8");
     const actions = readFileSync(join(ROOT, "src/lib/staff/actions.ts"), "utf8");
     const api = readFileSync(join(ROOT, "src/lib/staff/api.ts"), "utf8");
 
-    it("both forms carry a hidden idempotency_key, kept stable across retries and replaced only when spent", () => {
-      assert.match(forms, /<input type="hidden" name="idempotency_key" value=\{key\} \/>/g);
+    it("both forms carry a hidden idempotency_key through the shared hook; the payment form also carries the balance it showed", () => {
       assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 2, "the payment form and the order form");
-      assert.match(forms, /useIdempotencyKey\(`payment:\$\{orderId\}`, idempotencyKey, state\)/);
-      assert.match(forms, /useIdempotencyKey\(`order:\$\{customerId\}`, idempotencyKey, state\)/);
-      assert.match(forms, /sessionStorage/);
-      assert.match(forms, /<button type="submit" disabled=\{pending\}/, "the disabled button is kept as the first, cosmetic layer");
+      assert.match(forms, /useIdempotencyKey\(`payment:\$\{orderId\}`, idempotencyKey, String\(expectedPaidMinor\), state\)/);
+      assert.match(forms, /useIdempotencyKey\(`order:\$\{customerId\}`, idempotencyKey, "", state\)/);
+      assert.match(forms, /<input type="hidden" name="expected_paid_minor" value=\{String\(expectedPaidMinor\)\} \/>/);
+      assert.match(forms, /disabled=\{pending \|\| disabled\}/, "the disabled button is kept as the first, cosmetic layer");
+      assert.match(hook, /chooseKey\(/);
+      assert.match(hook, /rotateKey\(/);
     });
 
-    it("the pages choose the first key on the server, per render", () => {
+    it("the order form is locked after the order was created, and the duplicate warning offers an explicit override", () => {
+      assert.match(forms, /<fieldset disabled=\{created\}/);
+      assert.match(forms, /name="confirm_duplicate"/);
+      assert.match(forms, /disabled=\{created\}/);
+    });
+
+    it("the pages choose the first key on the server, per render, and the payment page passes the balance it shows", () => {
       for (const file of ["src/app/admin/orders/[id]/page.tsx", "src/app/admin/orders/new/page.tsx"]) {
         const source = readFileSync(join(ROOT, file), "utf8");
         assert.match(source, /import \{ randomUUID \} from "node:crypto"/, file);
         assert.match(source, /idempotencyKey=\{randomUUID\(\)\}/, file);
       }
+      assert.match(readFileSync(join(ROOT, "src/app/admin/orders/[id]/page.tsx"), "utf8"), /expectedPaidMinor=\{order\.amount_paid_minor\}/);
     });
 
-    it("the actions refuse a form without a valid key before any database call, and pass the key on", () => {
+    it("the actions refuse a form without a valid key (and, for payments, a valid expected amount) before any database call, and pass both on", () => {
       for (const name of ["createOrderAction", "recordPaymentAction"]) {
         const start = actions.indexOf(`export async function ${name}`);
         const body = actions.slice(start, actions.indexOf("\nexport async function", start + 10));
         assert.match(body, /parseIdempotencyKey\(formData\)/, name);
         assert.match(body, /STALE_FORM_MESSAGE/, name);
-        assert.match(body, /idempotencyKey\)/, `${name} passes the key to the API`);
+        assert.match(body, /idempotencyKey/, `${name} passes the key to the API`);
       }
-      assert.match(api, /recordPayment: async \(.*idempotencyKey: string\)/);
-      assert.match(api, /createOrder: \(.*idempotencyKey: string\)/);
+      const payment = actions.slice(actions.indexOf("export async function recordPaymentAction"), actions.indexOf("export async function reversePaymentAction"));
+      assert.match(payment, /parseExpectedPaid\(formData\)/);
+      assert.match(payment, /idempotencyKey, expectedPaid\)/);
+      assert.match(api, /recordPayment: async \([\s\S]*idempotencyKey: string, expectedPaidMinor: number/);
+      assert.match(api, /createOrder: async \(.*idempotencyKey: string\)/);
+    });
+
+    it("the duplicate check only warns: the action returns the warning before creating, never blocks a confirmed order, and an advisory failure does not stop an order", () => {
+      const order = actions.slice(actions.indexOf("export async function createOrderAction"), actions.indexOf("export async function transitionOrderAction"));
+      assert.match(order, /confirm_duplicate/);
+      assert.match(order, /return duplicateWarning\(similar\)/);
+      assert.match(order, /catch \(error\) \{\s*if \(error instanceof StaffPermissionError\) throw error;/, "only a permission failure stops the order; the advice failing does not");
+      assert.ok(order.indexOf("duplicateWarning") < order.indexOf("api.createOrder("), "the warning comes before the create");
     });
   });
 });
