@@ -357,6 +357,25 @@ suite("idempotency window, expected paid amount, duplicate evidence and security
       }
     });
 
+    it("loyalty adjustments: an unpermitted caller gets 'permission denied' before any validation or lookup (a zero amount, a made-up customer, no reason)", () => {
+      const probes = [
+        `select admin.adjust_loyalty('${ZERO}'::uuid, 5, 'a perfectly good reason'::text, '${newKey("probe")}'::text)`, // made-up customer
+        `select admin.adjust_loyalty('${CUST_C}'::uuid, 0, 'a perfectly good reason'::text, '${newKey("probe")}'::text)`, // zero points
+        `select admin.adjust_loyalty('${CUST_C}'::uuid, 5, ''::text, '${newKey("probe")}'::text)`, // no reason
+        `select admin.adjust_loyalty('${CUST_C}'::uuid, 5, 'a perfectly good reason'::text, 'x'::text)`, // malformed key
+      ];
+      for (const sql of probes) for (const [who, name] of [[AS.sam, "ordinary staff"], [AS.alice, "a customer"], [AS.eve, "a stranger"], [AS.anon, "a visitor"]]) h.refused(h.attempt(who, sql), /permission denied/, `${name}: ${sql.slice(0, 70)}`);
+    });
+
+    it("order creation: an unpermitted caller learns nothing about customers or quotations either (made-up customer, malformed items, malformed key)", () => {
+      const probes = [
+        `select admin.create_order('${ZERO}'::uuid, '[]'::jsonb, null::uuid, 'admin'::text, null::text, null::text, '${newKey("probe")}'::text)`,
+        `select admin.create_order('${CUST_C}'::uuid, '{}'::jsonb, null::uuid, 'admin'::text, null::text, null::text, 'x'::text)`,
+        `select admin.create_order('${CUST_C}'::uuid, '[{"kind":"component","description":"x","quantity":1,"unit_price_minor":1}]'::jsonb, '${ZERO}'::uuid, 'admin'::text, null::text, null::text, '${newKey("probe")}'::text)`,
+      ];
+      for (const sql of probes) for (const [who, name] of [[AS.alice, "a customer"], [AS.eve, "a stranger"], [AS.anon, "a visitor"]]) h.refused(h.attempt(who, sql), /permission denied/, `${name}: ${sql.slice(0, 70)}`);
+    });
+
     it("a replay is NOT a way around revoked access: once the person is deactivated or lacks the second factor, the same key gets 'permission denied', never the original id", () => {
       const order = h.confirmed(100000);
       const key = newKey("revoked");

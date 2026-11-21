@@ -44,7 +44,7 @@ function runAsServerUser(prefix, command, args, options = {}) {
  * Starts a throwaway cluster and returns a handle. The data directory is created under the system temporary
  * directory because the server user must be able to enter it.
  */
-export function startCluster({ database = "m1test" } = {}) {
+export function startCluster({ database = "m1test", tcp = false } = {}) {
   const bin = findPgBin();
   if (!bin) throw new Error("PostgreSQL programs (initdb, pg_ctl, psql) were not found; set PG_BIN to their directory");
   const { prefix, owner } = serverUserPrefix();
@@ -56,7 +56,8 @@ export function startCluster({ database = "m1test" } = {}) {
 
   runAsServerUser(prefix, join(bin, "initdb"), ["-D", data, "-U", "postgres", "-A", "trust", "-E", "UTF8", "--locale=C", "--no-sync"]);
   const options = [
-    "-c listen_addresses=''",
+    // Unix socket only, unless a test needs a real TCP connection (the gateway tests drive the website's own `pg` code over loopback).
+    `-c listen_addresses='${tcp ? "127.0.0.1" : ""}'`,
     `-c unix_socket_directories=${dir}`,
     `-c port=${port}`,
     "-c fsync=off",
@@ -87,7 +88,7 @@ export function startCluster({ database = "m1test" } = {}) {
     stop();
     throw new Error(`could not create the test database: ${created.err}`);
   }
-  return { dir, port, bin, database, psql, stop };
+  return { dir, port, bin, database, psql, stop, tcp };
 }
 
 export function migrationFiles({ before = null } = {}) {

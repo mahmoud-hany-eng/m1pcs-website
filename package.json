@@ -24,7 +24,9 @@
     "real:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test-concurrency=1 --test supabase/tests/real/real-stack.api.test.mjs supabase/tests/real/real-stack.staff.test.mjs",
     "real:e2e": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test-concurrency=1 --test supabase/tests/real/real-stack.customer.e2e.test.mjs supabase/tests/real/real-stack.admin.e2e.test.mjs",
     "workflow:window:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.window.db.test.mjs",
-    "release:db:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/release.db.test.mjs"
+    "release:db:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/release.db.test.mjs",
+    "gateway:outcomes:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/gateway-outcomes.db.test.mjs",
+    "workflow:hook:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.hook.browser.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",

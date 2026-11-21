@@ -221,8 +221,13 @@ export async function staffCallMeta<T>(staff: VerifiedStaff, name: StaffCallName
   let client: PoolClient | null = null;
   let stage: Stage = "connect";
   let broken = false;
+  // A connection that dies while a request is using it makes the driver emit an 'error' event on the checked-out client. With no
+  // listener Node treats that as an uncaught exception and the whole server process goes down. The failure itself reaches us as the
+  // rejected query below, so the event only needs to be absorbed.
+  const absorb = () => {};
   try {
     client = await getPool().connect();
+    client.on("error", absorb);
     await client.query("begin");
     await client.query("set local statement_timeout = '10s'");
     // The claims the staff functions read through auth.uid() and auth.jwt(): the person, the assurance level the
@@ -240,6 +245,7 @@ export async function staffCallMeta<T>(staff: VerifiedStaff, name: StaffCallName
     if (client) await client.query("rollback").catch(() => {});
     throw error instanceof StaffUnavailableError ? error : mapError(error, name, stage);
   } finally {
+    client?.removeListener("error", absorb);
     client?.release(broken ? true : undefined);
   }
 }

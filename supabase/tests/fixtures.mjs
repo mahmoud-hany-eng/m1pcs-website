@@ -60,8 +60,8 @@ export function newOrder({ customer = ID.custA, items = itemsA, into = "oid", wh
  * default, an arbitrary labelled flat 50 percent for the mechanics tests) or "confirmed" (the owner-confirmed tiers that
  * the migrations ship, used by the preview data and the browser tests).
  */
-export function startDatabase({ schedule = "example", before = null } = {}) {
-  const cluster = startCluster();
+export function startDatabase({ schedule = "example", before = null, tcp = false } = {}) {
+  const cluster = startCluster({ tcp });
   try {
     applyShimAndMigrations(cluster, { before });
   } catch (error) {
