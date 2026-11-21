@@ -21,6 +21,7 @@ import { signInUrl } from "@/lib/accounts/shared/redirect";
 import { staffAdminGate } from "./flag";
 import { isGatewayConfigured, StaffUnavailableError, type VerifiedStaff } from "./gateway";
 import { staffApi, type StaffApi } from "./api";
+import { logStaffDiagnostic } from "./diagnostics";
 
 export type StaffState =
   | { state: "disabled" }
@@ -41,13 +42,19 @@ async function readIdentity(): Promise<
   const session = await getSession();
   if (session.state === "signed_out") return { ok: false, state: "signed_out" };
   if (session.state === "expired") return { ok: false, state: "expired" };
-  if (session.state !== "signed_in") return { ok: false, state: "unavailable" };
+  if (session.state !== "signed_in") {
+    logStaffDiagnostic({ stage: "auth", reason: session.state });
+    return { ok: false, state: "unavailable" };
+  }
 
   // The claims of the verified token: the assurance level and the session id. getClaims verifies the signature.
   const { data, error } = await session.supabase.auth.getClaims();
   const claims = data?.claims as { sub?: string; aal?: string; session_id?: string } | undefined;
   if (error || !claims || claims.sub !== session.user.id || !claims.session_id) return { ok: false, state: "expired" };
-  if (!isGatewayConfigured()) return { ok: false, state: "unavailable" };
+  if (!isGatewayConfigured()) {
+    logStaffDiagnostic({ stage: "config", reason: "env_missing" });
+    return { ok: false, state: "unavailable" };
+  }
   return {
     ok: true,
     supabase: session.supabase,
@@ -72,6 +79,7 @@ export const getStaffState = cache(async (): Promise<StaffState> => {
     if (error instanceof StaffUnavailableError) return { state: "unavailable" };
     // A permission refusal here means the database did not accept this session as an active, second-factor staff
     // session. It is the same answer as "not staff".
+    logStaffDiagnostic({ stage: "authz", reason: "permission_refused" });
     return { state: "not_staff" };
   }
 });
@@ -99,6 +107,7 @@ export async function requireStaffCandidate(nextPath: string): Promise<{ supabas
     isStaff = await staffApi(identity.staff).isStaffMember();
   } catch (error) {
     if (error instanceof StaffUnavailableError) throw new AccountsUnavailableError("unavailable");
+    logStaffDiagnostic({ stage: "authz", reason: "permission_refused" });
   }
   if (!isStaff) return notFound();
   return identity;

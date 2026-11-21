@@ -22,6 +22,7 @@
 import "server-only";
 import { Pool, type PoolClient } from "pg";
 import { gatewayConnection, GatewayConfigError } from "./gateway-tls";
+import { classifyGatewayFailure, logStaffDiagnostic } from "./diagnostics";
 
 /** Who is acting. Built by the session guard from verified claims; never from request input. */
 export interface VerifiedStaff {
@@ -92,13 +93,19 @@ export function isGatewayConfigured(env: Readonly<Record<string, string | undefi
 function getPool(): Pool {
   if (pool) return pool;
   const connectionString = process.env.STAFF_GATEWAY_DATABASE_URL;
-  if (!connectionString) throw new StaffUnavailableError("The staff gateway is not configured.");
+  if (!connectionString) {
+    logStaffDiagnostic({ stage: "config", reason: "env_missing" });
+    throw new StaffUnavailableError("The staff gateway is not configured.");
+  }
   // The database connection is always TLS-verified unless it is a loopback address (see gateway-tls.ts).
   let connection;
   try {
     connection = gatewayConnection(connectionString);
   } catch (error) {
-    if (error instanceof GatewayConfigError) throw new StaffUnavailableError("The staff gateway is not configured correctly.");
+    if (error instanceof GatewayConfigError) {
+      logStaffDiagnostic({ stage: "config", reason: error.problem });
+      throw new StaffUnavailableError("The staff gateway is not configured correctly.");
+    }
     throw error;
   }
   pool = new Pool({
@@ -141,10 +148,11 @@ function mapError(error: unknown): Error {
     case "57P03":
     case "08006":
     case "08001":
+      logStaffDiagnostic(classifyGatewayFailure(error));
       return new StaffUnavailableError();
     default:
       // Never echo an unknown error to a screen: it could name a table or a column. The code goes to the server log.
-      console.error(`[staff] unexpected database error (${e?.code ?? "no code"})`);
+      logStaffDiagnostic(classifyGatewayFailure(error));
       return new StaffUnavailableError("Something went wrong. Nothing was changed.");
   }
 }
