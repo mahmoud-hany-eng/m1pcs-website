@@ -17,7 +17,6 @@ const RELEASE = "supabase/tests/release.db.test.mjs";
 const OUTCOMES = "supabase/tests/gateway-outcomes.db.test.mjs";
 const HOOK = "supabase/tests/idempotency.hook.browser.test.mjs";
 const UNIT = "supabase/tests/staff-lib.test.mjs";
-const STATIC = "supabase/tests/static.test.mjs";
 
 /** [id, what the mutation breaks, file, text to find (must occur exactly once), replacement, the suites that must catch it] */
 const MUTATIONS = [

@@ -8,15 +8,15 @@ import { MANDATORY_CHECK_IDS, buildEvidenceDocument, buildGithubCi, expectations
 import { RESULTS, evaluateDecision } from "../lib/decision-gate.mjs";
 import { validate } from "../lib/json-schema.mjs";
 import { deriveCi } from "../lib/review-packet.mjs";
-import { ROOT, loadPolicy, readJson } from "./helpers.mjs";
+import { ROOT, frozenPolicy, frozenWorkflowText, readJson } from "./helpers.mjs";
 import { cleanupTmp, goodDecision, makeWorld, writeDecision } from "./review-fixture.mjs";
 
 const HEAD = "50a46ca88a682095b07422152136a747d12bddd3";
 const F = path.join(ROOT, "ops", "tests", "fixtures", "ci", "real-run-44082419253");
 const json = (name) => JSON.parse(fs.readFileSync(`${F}.${name}.json`, "utf8"));
 const log = fs.readFileSync(`${F}.job.log.excerpt.txt`, "utf8");
-const policy = loadPolicy();
-const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+const policy = frozenPolicy();
+const workflow = frozenWorkflowText();
 const expected = expectationsFromWorkflow(workflow, policy, { repository: "mahmoud-hany-eng/m1pcs-website", headSha: HEAD, branch: "claude/ops-0003-trusted-ci" });
 const rebuild = (over = {}) => buildGithubCi({ run: over.run ?? json("run"), jobs: over.jobs ?? json("jobs"), checkRuns: over.checks ?? json("check-runs"), jobLog: over.log ?? log, expected });
 

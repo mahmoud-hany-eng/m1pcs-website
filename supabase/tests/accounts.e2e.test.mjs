@@ -18,6 +18,7 @@ import { findPgBin } from "./harness.mjs";
 
 const playwright = loadPlaywright();
 const skip = !playwright ? "Playwright is not installed" : !findPgBin() ? "PostgreSQL server programs were not found" : false;
+if (skip && process.env.M1_REQUIRE_PG === "1") throw new Error(`M1_REQUIRE_PG=1 but ${skip}`);
 const SHOTS = process.env.ACCOUNTS_E2E_SHOTS || null;
 
 const PRIVATE_STRINGS = [SENTINEL.note, SENTINEL.supplier, SENTINEL.reference, SENTINEL.reason, SENTINEL.cost, "internal payment note", "internal reference that must not reach a customer", "cost note"];

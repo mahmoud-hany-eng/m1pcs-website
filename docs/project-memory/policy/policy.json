@@ -202,6 +202,11 @@
       "npx tsc --noEmit",
       "npm run ops:validate",
       "npm run ops:test",
+      "npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0",
+      "npx playwright install --with-deps chromium",
+      "sudo apt-get install -y --no-install-recommends postgresql-16",
+      "npm run test:db",
+      "npm run test:browser",
       "npm run build"
     ]
   },

@@ -469,3 +469,32 @@ describe("supporting files exist", () => {
     }
   });
 });
+
+describe("CI runs every regression suite (PLAT-0004 corrections, C7)", () => {
+  const pkg = JSON.parse(read("package.json"));
+  const ci = read(".github/workflows/ci.yml");
+  const files = readdirSync(join(ROOT, "supabase/tests")).filter((f) => f.endsWith(".test.mjs")).sort();
+
+  it("every test file under supabase/tests is run by `npm run test:db` or `npm run test:browser`, so a new suite cannot be forgotten", () => {
+    const covered = `${pkg.scripts["test:db"]} ${pkg.scripts["test:browser"]}`;
+    assert.ok(files.length >= 14, `expected the full set of suites, found ${files.length}`);
+    for (const f of files) assert.ok(covered.includes(`supabase/tests/${f}`), `${f} is not part of test:db or test:browser, so CI would never run it`);
+  });
+
+  it("the CI workflow runs both aggregated scripts, and they FAIL (never skip) when PostgreSQL or Playwright is missing", () => {
+    assert.match(ci, /run: npm run test:db$/m);
+    assert.match(ci, /run: npm run test:browser$/m);
+    assert.match(pkg.scripts["test:db"], /^M1_REQUIRE_PG=1 /);
+    assert.match(pkg.scripts["test:browser"], /^M1_REQUIRE_PG=1 M1_REQUIRE_PLAYWRIGHT=1 /);
+  });
+
+  it("the browser tool is installed for the job only, at one exact version, and is not a project dependency", () => {
+    assert.match(ci, /run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@\d+\.\d+\.\d+$/m);
+    assert.equal(pkg.dependencies?.playwright ?? pkg.devDependencies?.playwright ?? null, null);
+  });
+
+  it("the CI runs the same disposable-PostgreSQL suites a developer runs: no hosted database, no secret, no service container", () => {
+    const code = ci.replace(/^\s*#.*$/gm, "");
+    assert.doesNotMatch(code, /secrets\.|SUPABASE_|DATABASE_URL|services:|container:/);
+  });
+});

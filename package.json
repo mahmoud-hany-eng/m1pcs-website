@@ -26,7 +26,9 @@
     "workflow:window:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.window.db.test.mjs",
     "release:db:test": "node --disable-warning=ExperimentalWarning --test supabase/tests/release.db.test.mjs",
     "gateway:outcomes:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/gateway-outcomes.db.test.mjs",
-    "workflow:hook:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.hook.browser.test.mjs"
+    "workflow:hook:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test supabase/tests/idempotency.hook.browser.test.mjs",
+    "test:db": "M1_REQUIRE_PG=1 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test-concurrency=2 --test supabase/tests/static.test.mjs supabase/tests/platform-lib.test.mjs supabase/tests/accounts-lib.test.mjs supabase/tests/staff-lib.test.mjs supabase/tests/gateway-tls.test.mjs supabase/tests/gateway-diagnostics.test.mjs supabase/tests/db.test.mjs supabase/tests/db.plat0003.test.mjs supabase/tests/workflow.db.test.mjs supabase/tests/idempotency.db.test.mjs supabase/tests/idempotency.window.db.test.mjs supabase/tests/release.db.test.mjs supabase/tests/gateway-outcomes.db.test.mjs",
+    "test:browser": "M1_REQUIRE_PG=1 M1_REQUIRE_PLAYWRIGHT=1 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test-concurrency=1 --test supabase/tests/accounts.e2e.test.mjs supabase/tests/workflow.customer.e2e.test.mjs supabase/tests/idempotency.hook.browser.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",

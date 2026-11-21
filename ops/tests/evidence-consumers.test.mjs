@@ -11,7 +11,7 @@ import { after, test } from "node:test";
 import { MANDATORY_CHECK_IDS, buildEvidenceDocument, buildGithubCi, expectationsFromWorkflow } from "../lib/ci-evidence.mjs";
 import { RESULTS, evaluateDecision } from "../lib/decision-gate.mjs";
 import { PacketError, buildPacket, deriveCi, trustedExpectations, verifyPacket } from "../lib/review-packet.mjs";
-import { ROOT, loadPolicy } from "./helpers.mjs";
+import { ROOT, frozenPolicy, frozenWorkflowText } from "./helpers.mjs";
 import { TASK_ID, cleanupTmp, collectEvidence, copyPacket, editManifest, forge, goodDecision, makeWorld, readPacketJson, tmp, writeDecision } from "./review-fixture.mjs";
 
 const worlds = [];
@@ -27,8 +27,8 @@ after(() => {
 
 const LIVE_SHA = "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75";
 const RUNS = "docs/project-memory/runs/**";
-const policy = loadPolicy();
-const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+const policy = frozenPolicy();
+const workflow = frozenWorkflowText();
 const liveRaw = (name) => fs.readFileSync(path.join(ROOT, "ops", "tests", "fixtures", "ci", `live-run-43995081483.${name}`), "utf8");
 const clone = (x) => structuredClone(x);
 const codes = (r) => r.reasons.map((x) => x.code);

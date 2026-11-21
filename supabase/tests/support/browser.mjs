@@ -2,7 +2,7 @@
 // stop the website, and pick free ports. Playwright is NOT a project dependency (the tests skip without it); this finds
 // the copy that is installed on the machine.
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
@@ -24,6 +24,8 @@ export function loadPlaywright() {
       // try the next place
     }
   }
+  // CI sets M1_REQUIRE_PLAYWRIGHT=1: a missing browser must FAIL the run there, never silently skip the browser suites.
+  if (process.env.M1_REQUIRE_PLAYWRIGHT === "1") throw new Error("M1_REQUIRE_PLAYWRIGHT=1 but Playwright could not be loaded");
   return null;
 }
 
@@ -53,12 +55,20 @@ function newestMtime(dir, skip = new Set()) {
 /** The synthetic values the build needs so the quotation journey can build a WhatsApp link. Not a real number. */
 export const BUILD_ENV = { NEXT_PUBLIC_WHATSAPP_NUMBER: "97455550000", NEXT_PUBLIC_SITE_URL: "https://example.test", NEXT_TELEMETRY_DISABLED: "1" };
 
-/** Builds the website unless a build newer than every source file already exists. */
+/**
+ * Builds the website unless a build made by THIS function and newer than every source file already exists. A build made any other way
+ * (a plain `npm run build`, as CI and developers do) lacks the synthetic public values these tests need, so it is never reused:
+ * the marker file records which environment the reusable build was made with.
+ */
 export function ensureBuild({ force = false } = {}) {
   const marker = join(ROOT, ".next", "BUILD_ID");
+  const stamp = join(ROOT, ".next", "m1-test-build-env.json");
+  const wanted = JSON.stringify(BUILD_ENV);
   const sourceTime = Math.max(newestMtime(join(ROOT, "src")), statSync(join(ROOT, "package.json")).mtimeMs, statSync(join(ROOT, "next.config.ts")).mtimeMs);
-  if (!force && existsSync(marker) && statSync(marker).mtimeMs > sourceTime) return false;
+  const reusable = !force && existsSync(marker) && statSync(marker).mtimeMs > sourceTime && existsSync(stamp) && readFileSync(stamp, "utf8") === wanted;
+  if (reusable) return false;
   execFileSync("npm", ["run", "build"], { cwd: ROOT, env: { ...process.env, ...BUILD_ENV }, stdio: "ignore", timeout: 600_000 });
+  writeFileSync(stamp, wanted);
   return true;
 }
 

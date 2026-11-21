@@ -27,7 +27,7 @@ const cjs = (file) => readFileSync(join(NM, file), "utf8");
 
 /** Wraps a CommonJS React build as an ES module. `requires` maps require() names to the URLs of the modules that provide them. */
 function esmWrapper(source, requires, namedExports) {
-  const imports = Object.entries(requires).map(([name, url], i) => `import dep${i} from "${url}";`).join("\n");
+  const imports = Object.values(requires).map((url, i) => `import dep${i} from "${url}";`).join("\n");
   const table = Object.keys(requires).map((name, i) => `${JSON.stringify(name)}: dep${i}`).join(", ");
   return `${imports}
 const module = { exports: {} };

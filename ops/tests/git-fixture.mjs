@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ROOT } from "./helpers.mjs";
+import { FROZEN_POLICY_PATH, FROZEN_WORKFLOW_PATH, ROOT } from "./helpers.mjs";
 
 const GIT_ENV = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: os.devNull, GIT_TERMINAL_PROMPT: "0" };
 for (const k of Object.keys(GIT_ENV)) if (/^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)) delete GIT_ENV[k];
@@ -20,6 +20,9 @@ export function makeRepo() {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
     fs.writeFileSync(path.join(dir, rel), content);
   };
+  // The fixture repository holds the CI definition the recorded real runs executed, not the live one (fixtures/frozen/README.md).
+  put(".github/workflows/ci.yml", fs.readFileSync(FROZEN_WORKFLOW_PATH, "utf8"));
+  put("docs/project-memory/policy/policy.json", fs.readFileSync(FROZEN_POLICY_PATH, "utf8"));
   put("src/app/page.tsx", "export default function Page() { return null; }\n");
   put("public/logo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]));
   put("public/builds/example.jpg", Buffer.from([0xff, 0xd8, 0xff, 1, 2, 3]));

@@ -22,7 +22,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,5 +45,15 @@ jobs:
         run: npm run ops:validate
       - name: Run the operations tests
         run: npm run ops:test
+      - name: Install the pinned browser test tool for this job only (not saved to package.json or the lockfile)
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0
+      - name: Install the browser and its system libraries
+        run: npx playwright install --with-deps chromium
+      - name: Make sure the PostgreSQL server programs the database tests start for themselves are present
+        run: sudo apt-get install -y --no-install-recommends postgresql-16
+      - name: Database, gateway and accounting regression suites (disposable local PostgreSQL, no hosted service)
+        run: npm run test:db
+      - name: Browser regression suites (real browser, local emulator)
+        run: npm run test:browser
       - name: Build
         run: npm run build

@@ -24,6 +24,15 @@ export function loadPolicy(root = ROOT) {
   return readJson(POLICY_PATH, root);
 }
 
+/**
+ * The CI workflow and policy as they were when the recorded real runs were executed (see fixtures/frozen/README.md). The tests that
+ * replay those recordings use this copy, so changing the live CI never rewrites history.
+ */
+export const FROZEN_WORKFLOW_PATH = path.join(ROOT, "ops", "tests", "fixtures", "frozen", "ci.yml");
+export const FROZEN_POLICY_PATH = path.join(ROOT, "ops", "tests", "fixtures", "frozen", "policy.json");
+export const frozenWorkflowText = () => fs.readFileSync(FROZEN_WORKFLOW_PATH, "utf8");
+export const frozenPolicy = () => JSON.parse(fs.readFileSync(FROZEN_POLICY_PATH, "utf8"));
+
 export function fixture(rel) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, "ops", "tests", "fixtures", rel), "utf8"));
 }

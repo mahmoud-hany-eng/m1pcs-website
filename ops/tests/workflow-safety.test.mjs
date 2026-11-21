@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { checkWorkflowFiles, checkWorkflowText } from "../lib/workflow-safety.mjs";
-import { ROOT, cleanup, copyTree, describeFindings, editJson, loadPolicy, write } from "./helpers.mjs";
+import { ROOT, cleanup, copyTree, describeFindings, editJson, frozenPolicy, frozenWorkflowText, loadPolicy, write } from "./helpers.mjs";
 
 const policy = loadPolicy();
 const WORKFLOW = ".github/workflows/ci.yml";
@@ -33,6 +33,30 @@ function expectRejected(source, code, fragment, p = policy) {
 test("the real CI workflow matches the approved shape", () => {
   const issues = checkWorkflowText(REAL, policy);
   assert.deepEqual(issues, [], show(issues));
+});
+
+test("the frozen CI definition used to replay the recorded real runs still satisfies the checker under its own policy, and the live CI still contains every one of its commands, in order", () => {
+  const frozen = frozenPolicy();
+  const issues = checkWorkflowText(frozenWorkflowText(), frozen);
+  assert.deepEqual(issues, [], show(issues));
+  const live = policy.workflow_policy.required_commands;
+  let at = -1;
+  for (const command of frozen.workflow_policy.required_commands) {
+    const found = live.indexOf(command, at + 1);
+    assert.ok(found > at, `the live policy dropped or reordered the command ${JSON.stringify(command)}`);
+    at = found;
+  }
+});
+
+test("the live CI runs the database and browser regression suites (PLAT-0004 corrections), after the operations checks and before the build", () => {
+  const commands = policy.workflow_policy.required_commands;
+  const idx = (c) => commands.indexOf(c);
+  for (const c of ["npm run test:db", "npm run test:browser"]) assert.ok(idx(c) > idx("npm run ops:test") && idx(c) < idx("npm run build"), c);
+  assert.ok(idx("npm run test:db") < idx("npm run test:browser"));
+  assert.ok(idx("npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0") < idx("npx playwright install --with-deps chromium"));
+  assert.ok(idx("npx playwright install --with-deps chromium") < idx("npm run test:browser"));
+  assert.ok(REAL.includes("run: npm run test:db") && REAL.includes("run: npm run test:browser"));
+  assert.ok(policy.workflow_policy.max_timeout_minutes >= 20 && REAL.includes("timeout-minutes: 20"));
 });
 
 test("the real repository passes the file-level check", () => {
@@ -119,7 +143,7 @@ test("token permissions", async (t) => {
     expectRejected(change(REAL, "  contents: read\n\nconcurrency", "  contents: read\n  id-token: write\n\nconcurrency"), "WF-PERMISSIONS", 'the permission "id-token" is not allowed');
   });
   await t.test("a job that raises its own permissions is rejected", () => {
-    expectRejected(change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    permissions:\n      contents: write\n"), "WF-KEYS", "permissions");
+    expectRejected(change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    permissions:\n      contents: write\n"), "WF-KEYS", "permissions");
   });
 });
 
@@ -128,7 +152,7 @@ test("secrets and credentials", async (t) => {
     expectRejected(change(REAL, "          persist-credentials: false\n", "          persist-credentials: false\n          token: ${{ secrets.DEPLOY_TOKEN }}\n"), "WF-SECRETS", "credential");
   });
   await t.test("environment variables carrying a token are rejected", () => {
-    const src = change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    env:\n      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n");
+    const src = change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    env:\n      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n");
     expectRejected(src, "WF-SECRETS", "credential");
     expectRejected(src, "WF-KEYS", "env");
   });
@@ -136,7 +160,7 @@ test("secrets and credentials", async (t) => {
     expectRejected(change(REAL, "          package-manager-cache: false\n", "          package-manager-cache: false\n          claude_code_oauth_token: abc\n"), "WF-SECRETS", "credential");
   });
   await t.test("a database credential name is rejected", () => {
-    expectRejected(change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    env:\n      SUPABASE_SERVICE_ROLE_KEY: x\n"), "WF-SECRETS", "credential");
+    expectRejected(change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    env:\n      SUPABASE_SERVICE_ROLE_KEY: x\n"), "WF-SECRETS", "credential");
   });
   await t.test("the workflow token referenced by name is rejected", () => {
     expectRejected(change(REAL, "      - name: Build\n        run: npm run build\n", "      - name: Build\n        run: npm run build\n      - name: Leak\n        run: echo $GITHUB_TOKEN\n"), "WF-SECRETS", "credential");
@@ -148,7 +172,7 @@ test("secrets and credentials", async (t) => {
 
 test("deployment and production", async (t) => {
   await t.test("an environment is rejected", () => {
-    const src = change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    environment: production\n");
+    const src = change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    environment: production\n");
     expectRejected(src, "WF-KEYS", "environment");
     expectRejected(src, "WF-DEPLOY", "production");
   });
@@ -273,17 +297,17 @@ test("expressions can not carry event data into a command", async (t) => {
 test("runner, timeout, concurrency and structure", async (t) => {
   await t.test("a self-hosted runner is rejected", () => expectRejected(change(REAL, "runs-on: ubuntu-24.04", "runs-on: self-hosted"), "WF-RUNNER", "self-hosted"));
   await t.test("a floating runner label that the policy does not list is rejected", () => expectRejected(change(REAL, "runs-on: ubuntu-24.04", "runs-on: ubuntu-latest"), "WF-RUNNER", "not approved"));
-  await t.test("a missing timeout is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 15\n", ""), "WF-TIMEOUT", "timeout-minutes"));
-  await t.test("an excessive timeout is rejected", () => expectRejected(change(REAL, "timeout-minutes: 15", "timeout-minutes: 360"), "WF-TIMEOUT", "from 1 to"));
-  await t.test("a non-numeric timeout is rejected", () => expectRejected(change(REAL, "timeout-minutes: 15", "timeout-minutes: 0x10"), "WF-TIMEOUT", "from 1 to"));
+  await t.test("a missing timeout is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 20\n", ""), "WF-TIMEOUT", "timeout-minutes"));
+  await t.test("an excessive timeout is rejected", () => expectRejected(change(REAL, "timeout-minutes: 20", "timeout-minutes: 360"), "WF-TIMEOUT", "from 1 to"));
+  await t.test("a non-numeric timeout is rejected", () => expectRejected(change(REAL, "timeout-minutes: 20", "timeout-minutes: 0x10"), "WF-TIMEOUT", "from 1 to"));
   await t.test("missing concurrency is rejected", () => expectRejected(change(REAL, "concurrency:\n  group: ci-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n\n", ""), "WF-CONCURRENCY", "no \"concurrency:\""));
   await t.test("cancel-in-progress false is rejected", () => expectRejected(change(REAL, "cancel-in-progress: true", "cancel-in-progress: false"), "WF-CONCURRENCY", "must be true"));
   await t.test("a second job is rejected", () => {
     expectRejected(`${REAL}\n  second:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    steps:\n      - run: npm run lint\n`, "WF-JOBS", "exactly one job");
   });
   await t.test("a top-level env block is rejected", () => expectRejected(change(REAL, "permissions:\n", "env:\n  A: b\n\npermissions:\n"), "WF-KEYS", "env"));
-  await t.test("a job container is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    container: node:22\n"), "WF-KEYS", "container"));
-  await t.test("a job needing another job is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 15\n", "    timeout-minutes: 15\n    needs: other\n"), "WF-KEYS", "needs"));
+  await t.test("a job container is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    container: node:22\n"), "WF-KEYS", "container"));
+  await t.test("a job needing another job is rejected", () => expectRejected(change(REAL, "    timeout-minutes: 20\n", "    timeout-minutes: 20\n    needs: other\n"), "WF-KEYS", "needs"));
   await t.test("a step working directory is rejected", () => expectRejected(change(REAL, "        run: npm run lint\n", "        run: npm run lint\n        working-directory: ops\n"), "WF-KEYS", "working-directory"));
 });
 

@@ -12,7 +12,7 @@ import {
 import { validate } from "../lib/json-schema.mjs";
 import { trustedBaseCheck } from "../lib/trusted-base.mjs";
 import { makeRepo } from "./git-fixture.mjs";
-import { ROOT, loadPolicy, readJson, sink } from "./helpers.mjs";
+import { FROZEN_POLICY_PATH, FROZEN_WORKFLOW_PATH, ROOT, frozenPolicy, frozenWorkflowText, readJson, sink } from "./helpers.mjs";
 
 const LIVE_SHA = "0aba5e8f2c5f4971b3b7280e0a4cd23e4a5a9b75";
 const REPOSITORY = "mahmoud-hany-eng/m1pcs-website";
@@ -20,8 +20,8 @@ const BRANCH = "claude/ops-0002-ci-baseline";
 const FIX = path.join(ROOT, "ops", "tests", "fixtures", "ci");
 const raw = (name) => fs.readFileSync(path.join(FIX, `live-run-43995081483.${name}`), "utf8");
 const schema = readJson("docs/project-memory/schemas/ci-evidence.schema.json");
-const policy = loadPolicy();
-const workflowText = fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+const policy = frozenPolicy();
+const workflowText = frozenWorkflowText();
 const COLLECTOR = { tool: "ops/ci-evidence.mjs", tool_source: "working_tree", role: "human" };
 const NOW = new Date("2026-01-02T03:04:05Z");
 
@@ -465,7 +465,7 @@ test("command line: base check plus the live run data gives a complete document"
     assert.equal(JSON.parse(wrong.out).verdict.ci_passed, false);
 
     // without a base, the trusted files must be named, and a green run alone still needs a human
-    const noBase = run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", path.join(dir, files.run), "--jobs", path.join(dir, files.jobs), "--workflow-file", path.join(ROOT, ".github/workflows/ci.yml"), "--policy-file", path.join(ROOT, "docs/project-memory/policy/policy.json")]);
+    const noBase = run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", path.join(dir, files.run), "--jobs", path.join(dir, files.jobs), "--workflow-file", FROZEN_WORKFLOW_PATH, "--policy-file", FROZEN_POLICY_PATH]);
     assert.equal(noBase.code, 3, noBase.err);
     assert.equal(JSON.parse(noBase.out).verdict.ci_trust_basis, "base_unchecked");
     assert.equal(run(["--repository", REPOSITORY, "--head", LIVE_SHA, "--run", path.join(dir, files.run), "--jobs", path.join(dir, files.jobs)]).code, 2);
@@ -502,7 +502,7 @@ test("command line: bad usage and bad input are refused with exit code 2, and a 
     fs.writeFileSync(good, raw("run.json"));
     const jobs = path.join(dir, "jobs.json");
     fs.writeFileSync(jobs, raw("jobs.json"));
-    const trusted = ["--workflow-file", path.join(ROOT, ".github/workflows/ci.yml"), "--policy-file", path.join(ROOT, "docs/project-memory/policy/policy.json")];
+    const trusted = ["--workflow-file", FROZEN_WORKFLOW_PATH, "--policy-file", FROZEN_POLICY_PATH];
     assert.equal(run(["--help"]).code, 0);
     assert.equal(run([]).code, 2);
     assert.equal(run(["--repository", REPOSITORY]).code, 2);

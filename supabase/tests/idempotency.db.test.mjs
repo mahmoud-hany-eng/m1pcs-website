@@ -47,7 +47,6 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
   const productionSql = (...a) => h.productionSql(...a);
   const gatewayCall = (...a) => h.gatewayCall(...a);
   const viaGateway = (...a) => h.viaGateway(...a);
-  const payParams = (...a) => h.payParams(...a);
   const pay = (...a) => h.pay(...a);
   const createOrder = (...a) => h.createOrder(...a);
   const adjustViaGateway = (...a) => h.adjustViaGateway(...a);
