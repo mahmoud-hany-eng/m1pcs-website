@@ -48,7 +48,7 @@ test("the frozen CI definition used to replay the recorded real runs still satis
   }
 });
 
-test("the live CI runs the database and browser regression suites (PLAT-0004 corrections), after the operations checks and before the build, with no unlocked install and no apt step", () => {
+test("the live CI runs the database and browser regression suites (PLAT-0004 corrections), after the operations checks and before the build, with no unlocked npm install and no workflow step of our own that runs apt or downloads anything", () => {
   const commands = policy.workflow_policy.required_commands;
   const idx = (c) => commands.indexOf(c);
   for (const c of ["npm run test:db", "npm run test:browser"]) assert.ok(idx(c) > idx("npm run ops:test") && idx(c) < idx("npm run build"), c);
@@ -56,7 +56,9 @@ test("the live CI runs the database and browser regression suites (PLAT-0004 cor
   assert.ok(idx("npx playwright install --with-deps chromium") > idx("npm run ops:test") && idx("npx playwright install --with-deps chromium") < idx("npm run test:browser"));
   assert.ok(REAL.includes("run: npm run test:db") && REAL.includes("run: npm run test:browser"));
   assert.ok(policy.workflow_policy.max_timeout_minutes >= 20 && REAL.includes("timeout-minutes: 20"));
-  // The only installs: `npm ci` from the lockfile, and Playwright's own browser installer. Nothing is fetched outside the lockfile.
+  // The only installs: `npm ci` from the lockfile, and Playwright's own browser installer. The installer is the one thing that fetches outside the lockfile
+  // (the Chromium build from Playwright's download host, whose revision is fixed by the locked playwright-core version but is not hash-checked) and, with
+  // --with-deps, runs `apt-get` for the browser's system libraries on the throw-away runner. The workflow has no step of its own that does either.
   for (const c of commands) assert.ok(!/^npm (install|i|add)\b/.test(c) && !/\bapt(-get)?\b/.test(c) && !/\b(curl|wget|pip|bash|sh)\b/.test(c), `an unlocked or privileged command is approved: ${c}`);
   assert.match(REAL, /run: npm ci --ignore-scripts --no-audit --no-fund$/m);
 });

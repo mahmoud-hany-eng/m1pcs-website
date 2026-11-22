@@ -488,7 +488,7 @@ describe("CI runs every regression suite (PLAT-0004 corrections, C7)", () => {
     assert.match(pkg.scripts["test:browser"], /^M1_REQUIRE_PG=1 M1_REQUIRE_PLAYWRIGHT=1 /);
   });
 
-  it("Playwright is a LOCKED, exactly pinned dev dependency (integrity hashes in the lockfile), and CI fetches nothing outside the lockfile", () => {
+  it("Playwright is a LOCKED, exactly pinned dev dependency (integrity hashes in the lockfile), and the workflow has no unlocked or privileged install step of its own", () => {
     const version = pkg.devDependencies?.playwright;
     assert.match(version ?? "", /^\d+\.\d+\.\d+$/, "an exact version, not a range");
     const lock = JSON.parse(read("package-lock.json"));
@@ -500,7 +500,8 @@ describe("CI runs every regression suite (PLAT-0004 corrections, C7)", () => {
       assert.equal(entry.dev, true, `${name} is a dev dependency only`);
     }
     const code = ci.replace(/^\s*#.*$/gm, "");
-    assert.doesNotMatch(code, /npm (install|i|add)\b|apt(-get)?\b|\bsudo\b|curl|wget|pip /, "no unlocked or privileged install in the workflow itself");
+    assert.doesNotMatch(code, /npm (install|i|add)\b|apt(-get)?\b|\bsudo\b|curl|wget|pip /, "no unlocked or privileged install step in the workflow itself");
+    // Not claimed: Playwright's own installer downloads the browser from its download host (revision fixed by the locked version, not hash-checked) and, with --with-deps, runs apt-get.
     assert.match(code, /run: npx playwright install --with-deps chromium$/m, "the browser comes from Playwright's own installer, at the locked version");
   });
 
