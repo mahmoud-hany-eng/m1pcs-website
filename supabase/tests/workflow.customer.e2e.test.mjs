@@ -128,7 +128,8 @@ describe("M1 order workflow: the customer website at desktop and phone widths (p
 
   before(async () => {
     ensureBuild();
-    emu = await startEmulator({ seed: false }); // no demonstration data: this suite creates exactly the orders it checks
+    emu = await startEmulator({ seed: false, tcp: true }); // no demonstration data: this suite creates exactly the orders it checks (tcp: one test also runs the staff gateway)
+    emu.exec("alter role m1_staff_gateway login;"); // the disposable database trusts the loopback login; the production role is a login role too
     site = await startWebsite({
       CUSTOMER_ACCOUNTS_ENABLED: "true",
       NEXT_PUBLIC_SUPABASE_URL: emu.url,
@@ -429,6 +430,41 @@ describe("M1 order workflow: the customer website at desktop and phone widths (p
           const body = await text(page);
           assert.doesNotMatch(body, /Record payment|Admin dashboard/i, `${name}: ${path}`);
         }
+      }
+    });
+
+    it("the same holds with the staff dashboard switched ON: a signed-in customer still gets the ordinary 404 (not a 200 with a loading placeholder) for every /admin address", async () => {
+      // The admin area streams a loading placeholder while a page is prepared. A response that has started streaming can no longer become
+      // a 404, so the admin layout decides the 404 for non-staff first. With the dashboard ON (and a real gateway connection), a customer
+      // must therefore still get the site's ordinary not-found page, byte for byte, so nothing says that an admin area exists.
+      const adminSite = await startWebsite({
+        CUSTOMER_ACCOUNTS_ENABLED: "true",
+        STAFF_ADMIN_ENABLED: "true",
+        STAFF_GATEWAY_DATABASE_URL: `postgresql://m1_staff_gateway@127.0.0.1:${emu.db.cluster.port}/${emu.db.cluster.database}`,
+        NEXT_PUBLIC_SUPABASE_URL: emu.url,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: emu.anonKey,
+      });
+      const context = await browser.newContext({ viewport: SIZES.desktop });
+      try {
+        const page = await context.newPage();
+        await page.goto(`${adminSite.base}/auth/sign-in`);
+        await page.fill("#signin-email", emu.users.alice.email);
+        await page.fill("#signin-password", emu.users.alice.password);
+        await page.click("form:has(#signin-email) button[type=submit]");
+        await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 20_000 });
+        const unknown = await page.goto(`${adminSite.base}/this-address-does-not-exist`);
+        assert.equal(unknown.status(), 404);
+        const reference = await text(page);
+        for (const path of ["/admin", "/admin/orders", "/admin/orders/00000000-0000-4000-8000-000000000001", "/admin/payments", "/admin/loyalty", "/admin/policies", "/admin/audit", "/admin/mfa"]) {
+          const response = await page.goto(`${adminSite.base}${path}`);
+          assert.equal(response.status(), 404, `${path} must answer 404 before anything is streamed`);
+          const body = await text(page);
+          assert.equal(body, reference, `${path} must render exactly the ordinary 404`);
+          assert.doesNotMatch(body, /M1 Staff|Staff dashboard|Loading/i, path);
+        }
+      } finally {
+        await context.close();
+        await adminSite.stop();
       }
     });
   });

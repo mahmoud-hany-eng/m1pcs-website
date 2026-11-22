@@ -48,9 +48,10 @@ function send(res, status, body, extra = {}) {
   res.end(payload);
 }
 
-export async function startEmulator({ port = 0, accessTtl = 3600, seed = true } = {}) {
+export async function startEmulator({ port = 0, accessTtl = 3600, seed = true, tcp = false } = {}) {
   // The preview and the browser tests run on the owner-confirmed deposit schedule, never on the tests' flat example.
-  const db = startDatabase({ schedule: "confirmed" });
+  // `tcp` also opens the database on loopback, for a test that runs the website's staff gateway (which connects over TCP) against it.
+  const db = startDatabase({ schedule: "confirmed", tcp });
   const secret = newSecret();
   const issuedAt = Math.floor(Date.now() / 1000);
   const anonKey = signJwt({ iss: "m1-local-emulator", role: "anon", iat: issuedAt, exp: issuedAt + 10 * 365 * 24 * 3600 }, secret);

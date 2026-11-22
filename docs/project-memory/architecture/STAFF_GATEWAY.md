@@ -166,3 +166,32 @@ Sensitive value.
 * The hosted Auth settings (rate limits on the built-in mailer, email deliverability, JWT signing-key configuration).
 * The gateway runs in one process pool of at most four connections; load behaviour is untested.
 * Row-level behaviour for a staff role that is neither `owner` nor `staff` has no screens yet.
+
+## 8. Where the server code runs, and the admin loading placeholder (PLAT-0004 performance fix)
+
+**Measured problem.** On the first hosted PLAT-0004 Preview the admin pages took several seconds. The cause was geography, not
+the database: Vercel runs functions in `iad1` (Washington) by default and the development Supabase project is in `ap-south-1`
+(Mumbai). Every network round trip between them costs about 0.2 s, and one admin page needs about 17 of them (a Supabase Auth
+`getUser` call, a fresh pooler connection, and three gateway transactions of five statements each). The database itself needed
+about 25 to 60 ms per page. (The evidence is the Supabase edge and pooler logs of the first hosted session: the `/auth/v1/user`
+call took a median of 630 ms of which about 3 ms was Supabase's own work; a new pooler connection took about 1.1 s.)
+
+**What was changed.**
+
+* `vercel.json` asks for ONE function region, `bom1` (Mumbai), the same region as `ap-south-1`. It applies to the deployments of the
+  branch that carries the file; the project's global Function Region setting and the Production deployment are unchanged, and
+  stay so until this file is merged. One region is what the Hobby plan allows. Static files are not affected by the function region.
+* `src/app/admin/loading.tsx` (and a card-shaped one for `/admin/mfa`) draws the admin frame with static placeholders while a page
+  is prepared, so a click gives immediate feedback. The placeholder has no data, no link, no animation and no permission-dependent
+  content.
+* Because a response that has started streaming a placeholder can no longer become a 404, `src/app/admin/layout.tsx` now asks the
+  same cached `getStaffState()` as the pages and answers the site's ordinary 404 for "disabled" and "not staff" BEFORE anything is
+  streamed. It only decides that 404 (a person who is not staff never sees the placeholder, so it cannot reveal that an admin area
+  exists); sign-in, second-step and permission handling are unchanged and stay in `requireStaff` and `requireStaffCandidate`.
+
+**What was deliberately not changed** (separate, measured decisions): the authentication and authorization checks, the three gateway
+transactions per page, the connection pool settings, Supabase Auth, the database functions, RLS and TLS.
+
+**Expected, and to be measured after the Preview deploys.** If the two ends are in the same region the round trips fall from about
+0.2 s to a few milliseconds, so the cost of a page should fall from several seconds to a fraction of a second. This is a projection
+until the hosted logs show it.

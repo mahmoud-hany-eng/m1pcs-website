@@ -510,3 +510,49 @@ describe("CI runs every regression suite (PLAT-0004 corrections, C7)", () => {
     assert.doesNotMatch(code, /secrets\.|SUPABASE_|DATABASE_URL|services:|container:/);
   });
 });
+
+describe("admin performance fix: Mumbai functions and the loading placeholder (PLAT-0004)", () => {
+  it("vercel.json asks for ONE function region, bom1 (Mumbai, next to the Supabase project), and nothing else", () => {
+    const config = JSON.parse(read("vercel.json"));
+    // Only the region (and the editor schema hint). A hosting file that also rewrote routes, headers, build commands or environment
+    // would be a different decision. One region is also what the Hobby plan allows.
+    assert.deepEqual(Object.keys(config).sort(), ["$schema", "regions"]);
+    assert.deepEqual(config.regions, ["bom1"]);
+    assert.equal(config.$schema, "https://openapi.vercel.sh/vercel.json");
+  });
+
+  it("the Supabase development project and the function region are the same region (the reason for bom1)", () => {
+    // ap-south-1 is Mumbai, which is Vercel's bom1. The measured cost of Virginia (iad1) to Mumbai was about 0.2 s per network round trip.
+    assert.match(read("docs/project-memory/architecture/STAFF_GATEWAY.md"), /ap-south-1[^\n]*bom1|bom1[^\n]*ap-south-1/);
+  });
+
+  it("the loading placeholders are static: no data, no staff code, no link, no animation", () => {
+    for (const p of ["src/app/admin/loading.tsx", "src/components/admin/AdminLoading.tsx", "src/app/admin/mfa/loading.tsx"]) {
+      assert.ok(existsSync(join(ROOT, p)), `${p} exists`);
+      const code = read(p).replace(/\/\*[^]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      assert.doesNotMatch(code, /["']use client["']/, `${p} must stay a server component`);
+      // Everything it may import: the placeholder component itself and the page container. Nothing that reads a session or the database.
+      for (const [, from] of code.matchAll(/from\s+["']([^"']+)["']/g)) {
+        assert.match(from, /^@\/components\/(admin\/AdminLoading|ui\/Container)$/, `${p} imports ${from}`);
+      }
+      assert.doesNotMatch(code, /requireStaff|getStaffState|staffCall|staffApi|supabase|cookies\(|headers\(|process\.env|<Link|<form|<a |href=/i, p);
+      assert.doesNotMatch(code, /animate-|transition|keyframes|motion/i, `${p}: no animation`);
+      // The route file only renders the shared placeholder; the placeholder itself carries the status announcement.
+      if (p === "src/app/admin/loading.tsx") assert.match(code, /return <AdminLoading \/>;/, p);
+      else assert.match(code, /role="status"/, `${p} announces itself to assistive technology`);
+    }
+  });
+
+  it("the admin layout decides the 404 for non-staff BEFORE anything is streamed, and does nothing else about authorization", () => {
+    const text = read("src/app/admin/layout.tsx");
+    const code = text.replace(/^\s*\/\/.*$/gm, "");
+    assert.match(code, /import \{ getStaffState \} from "@\/lib\/staff\/session";/);
+    const gate = code.indexOf("await getStaffState()");
+    const notFoundForNonStaff = code.search(/state\.state === "disabled" \|\| state\.state === "not_staff"\) notFound\(\)/);
+    const children = code.indexOf("return <>{children}</>");
+    assert.ok(gate > 0 && notFoundForNonStaff > gate && children > notFoundForNonStaff, "the gate runs, then 404s non-staff, then renders the children");
+    // It never redirects and never requires staff: the second-step page must stay reachable at aal1, and sign-in, second-step and
+    // permission handling remain in requireStaff / requireStaffCandidate on each page (checked by the test above).
+    assert.doesNotMatch(code, /requireStaff|redirect\(|signInUrl/);
+  });
+});
