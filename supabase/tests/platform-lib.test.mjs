@@ -11,6 +11,8 @@ try {
   money = await import("../../src/lib/platform/money.ts");
   env = await import("../../src/lib/platform/env.ts");
 } catch (error) {
+  // CI (M1_REQUIRE_PG=1) must FAIL on any import error: a real defect in the website code must never turn into a green skip.
+  if (process.env.M1_REQUIRE_PG === "1") throw error;
   loadError = error;
 }
 const skip = loadError ? `this Node version cannot import TypeScript directly (${loadError.code ?? loadError.message}); use Node 22.18 or newer` : false;

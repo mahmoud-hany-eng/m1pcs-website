@@ -28,12 +28,16 @@ if (!haveServer && process.env.M1_REQUIRE_PG === "1") throw new Error("M1_REQUIR
 let gateway = null;
 let api = null;
 let outcomes = null;
+let orderActions = null;
 let skip = haveServer ? false : "no PostgreSQL server programs were found";
 try {
   gateway = await import("../../src/lib/staff/gateway.ts");
   api = await import("../../src/lib/staff/api.ts");
   outcomes = await import("../../src/lib/staff/outcomes.ts");
+  orderActions = await import("../../src/lib/staff/order-actions.ts");
 } catch (error) {
+  // CI (M1_REQUIRE_PG=1) must FAIL on any import error: a real defect in the website code must never turn into a green skip.
+  if (process.env.M1_REQUIRE_PG === "1") throw error;
   skip = `this Node version cannot import TypeScript directly (${error.code ?? error.message}); use Node 22.18 or newer`;
 }
 const suite = skip ? describe.skip : describe;
@@ -44,6 +48,7 @@ const suite = skip ? describe.skip : describe;
  *   drop-call               the function call is never delivered; the connection is cut (the request is lost before it runs)
  *   drop-commit-request     COMMIT is never delivered; the connection is cut (the database rolls back on disconnect)
  *   drop-commit-answer      COMMIT IS delivered and executed; its answer is thrown away and the connection is cut
+ *   hang-commit-request     COMMIT is swallowed and the connection stays open and silent (a half-open socket)
  */
 function startProxy(targetPort) {
   const state = { mode: "pass", sockets: new Set(), dropped: 0 };
@@ -71,6 +76,11 @@ function startProxy(targetPort) {
         return;
       }
       if (/Q\0\0\0\u000bcommit\0/.test(text)) {
+        if (state.mode === "hang-commit-request") {
+          state.mode = "pass";
+          state.dropped += 1;
+          return;
+        }
         if (state.mode === "drop-commit-request") {
           state.mode = "pass";
           state.dropped += 1;
@@ -206,7 +216,7 @@ suite("the website's own gateway code, over a real connection: accurate messages
       assert.equal(warn[0].order_id, first.id);
       const warning = outcomes.duplicateWarning(warn);
       assert.equal(warning.duplicates[0].id, first.id);
-      assert.match(warning.message, /Nothing was created yet/);
+      assert.match(warning.message, /did not create an order/);
       const second = await api.staffApi(staff("sam")).createOrder(CUST_C, items, null, null, newKey("e2e"));
       assert.notEqual(second.id, first.id, "a confirmed second order is created, not blocked");
     });
@@ -225,7 +235,7 @@ suite("the website's own gateway code, over a real connection: accurate messages
       const shown = outcomes.failureState(lost.error);
       assert.doesNotMatch(shown.message, /nothing was changed/i);
       assert.match(shown.message, /may or may not have been saved/);
-      assert.match(shown.message, /If you send the same form again within the hour, it will not be saved twice/);
+      assert.match(shown.message, /If instead you send this same form again without reloading, within the hour, it will not be saved twice/);
       assert.equal(shown.keyRetired, undefined, "the key is kept");
       assert.equal(h.paymentsOf(order), 1, "the truth: it WAS saved");
       await reset();
@@ -329,6 +339,180 @@ suite("the website's own gateway code, over a real connection: accurate messages
       assert.equal(h.paymentsOf(order), 1, "exactly one payment: the holder's");
       const repeat = await api.staffApi(staff()).recordPayment(order, "deposit", 40000, "cash", null, null, key, 0);
       assert.equal(repeat.replayed, true);
+    });
+  });
+
+  // =================================================================================================================
+  describe("a half-open connection at COMMIT (the client-side query limit)", () => {
+    it("a COMMIT that is swallowed by a silent connection is reported as an UNKNOWN outcome after the client limit, not left hanging; nothing was saved and the same form then records once", async () => {
+      await reset();
+      const order = h.confirmed(200000);
+      const key = newKey("hang");
+      proxy.state.mode = "hang-commit-request";
+      const started = Date.now();
+      const hung = await attemptCall(() => api.staffApi(staff()).recordPayment(order, "deposit", 40000, "cash", null, null, key, 0));
+      const waited = Date.now() - started;
+      assert.ok(hung.error instanceof gateway.StaffOutcomeUnknownError, String(hung.error));
+      assert.ok(waited >= gateway.QUERY_TIMEOUT_MS - 500 && waited < gateway.QUERY_TIMEOUT_MS + 5000, `it answered at the client limit (${waited} ms)`);
+      await sleep(300);
+      assert.equal(h.paymentsOf(order), 0, "COMMIT never reached the database: nothing was saved");
+      await reset();
+      const again = await api.staffApi(staff()).recordPayment(order, "deposit", 40000, "cash", null, null, key, 0);
+      assert.equal(again.replayed, false);
+      assert.equal(h.paymentsOf(order), 1);
+    });
+  });
+
+  // =================================================================================================================
+  describe("the action bodies (order-actions.ts) against the real gateway and database: what the screen decides", () => {
+    const form = (fields) => {
+      const data = new FormData();
+      for (const [k, v] of Object.entries(fields)) data.set(k, v);
+      return data;
+    };
+    const orderForm = (key, description, { price = "123.00", confirm = false, customer = CUST_C } = {}) =>
+      form({ customer_id: customer, idempotency_key: key, item_description_0: description, item_quantity_0: "1", item_price_0: price, item_kind_0: "component", prices_verified: "yes", ...(confirm ? { confirm_duplicate: "yes" } : {}) });
+    const payForm = (order, key, { amount = "250.00", expected = "0", extra = {} } = {}) =>
+      form({ order_id: order, idempotency_key: key, expected_paid_minor: expected, purpose: "deposit", amount, method: "cash", received_confirmed: "yes", ...extra });
+    const spy = () => {
+      const paths = [];
+      return { paths, revalidate: (p) => paths.push(p) };
+    };
+    /** What actions.ts's run() does with a thrown failure. */
+    const shell = async (work) => {
+      try {
+        return await work();
+      } catch (error) {
+        return outcomes.failureState(error);
+      }
+    };
+    const real = () => api.staffApi(staff("sam"));
+    const ordersCount = () => h.count("select count(*) from public.orders");
+
+    it("a first order says 'created', refreshes the order list and opens the new order; the same form again (a retry) says 'already created' and opens the SAME order", async () => {
+      await reset();
+      const { paths, revalidate } = spy();
+      const key = newKey("act");
+      const before = ordersCount();
+      const first = await orderActions.createOrderWork(real(), orderForm(key, "Action body item one"), revalidate);
+      assert.equal(first.status, "success");
+      assert.equal(first.message, outcomes.ORDER_CREATED);
+      assert.match(first.href, /^\/admin\/orders\/[0-9a-f-]{36}$/);
+      assert.deepEqual(paths, ["/admin/orders"]);
+      const retry = await orderActions.createOrderWork(real(), orderForm(key, "Action body item one"), revalidate);
+      assert.equal(retry.status, "success", "the retry is not warned about its own order");
+      assert.equal(retry.message, outcomes.ORDER_ALREADY_CREATED);
+      assert.equal(retry.href, first.href);
+      assert.equal(ordersCount(), before + 1, "exactly one order");
+    });
+
+    it("a second order with the same items under a NEW key creates NOTHING and warns; ticking the override creates it; the override is what decides", async () => {
+      await reset();
+      const { paths, revalidate } = spy();
+      const description = "Action body duplicate item";
+      const a = await orderActions.createOrderWork(real(), orderForm(newKey("act"), description), revalidate);
+      assert.equal(a.status, "success");
+      const before = ordersCount();
+      paths.length = 0;
+      const warn = await orderActions.createOrderWork(real(), orderForm(newKey("act"), description), revalidate);
+      assert.equal(warn.status, "error");
+      assert.equal(warn.duplicates.length, 1);
+      assert.match(warn.message, /did not create an order/);
+      assert.equal(ordersCount(), before, "the warning created nothing");
+      assert.deepEqual(paths, [], "and refreshed nothing");
+      const confirmed = await orderActions.createOrderWork(real(), orderForm(newKey("act"), description, { confirm: true }), revalidate);
+      assert.equal(confirmed.status, "success");
+      assert.equal(confirmed.message, outcomes.ORDER_CREATED);
+      assert.equal(ordersCount(), before + 1, "the confirmed second order was created");
+      // anything other than the exact word "yes" is not a confirmation
+      const form2 = orderForm(newKey("act"), description);
+      form2.set("confirm_duplicate", "on");
+      assert.equal((await orderActions.createOrderWork(real(), form2, revalidate)).status, "error");
+    });
+
+    it("the duplicate check is advice: if it cannot run the order is still created; a permission failure still stops it", async () => {
+      await reset();
+      const { revalidate } = spy();
+      const unavailable = { similarOrders: async () => { throw new gateway.StaffUnavailableError("down"); }, createOrder: real().createOrder };
+      const made = await orderActions.createOrderWork(unavailable, orderForm(newKey("act"), "Advice failure item"), revalidate);
+      assert.equal(made.status, "success");
+      const denied = { similarOrders: async () => { throw new gateway.StaffPermissionError(); }, createOrder: async () => assert.fail("must not create") };
+      const stopped = await shell(() => orderActions.createOrderWork(denied, orderForm(newKey("act"), "Advice failure item 2"), revalidate));
+      assert.equal(stopped.status, "error");
+      assert.equal(stopped.message, outcomes.DENIED);
+    });
+
+    it("a stale or incomplete form is refused BEFORE any database call", async () => {
+      await reset();
+      const { paths, revalidate } = spy();
+      let calls = 0;
+      const counting = { similarOrders: async () => { calls += 1; return []; }, createOrder: async () => { calls += 1; return { id: "x", replayed: false }; }, recordPayment: async () => { calls += 1; return { id: "x", replayed: false }; } };
+      const bad = [
+        orderForm("short", "Stale form item"), // key shape
+        orderForm(newKey("act"), "Stale form item", { customer: "not-a-uuid" }),
+        orderForm(newKey("act"), "Stale form item", { price: "abc" }),
+        (() => { const f = orderForm(newKey("act"), "Stale form item"); f.delete("prices_verified"); return f; })(),
+      ];
+      for (const f of bad) assert.equal((await orderActions.createOrderWork(counting, f, revalidate)).status, "error");
+      assert.equal((await orderActions.createOrderWork(counting, orderForm("short", "x"), revalidate)).message, "This form is out of date. Reload the page and try again. Nothing was changed.");
+      const order = h.confirmed(100000);
+      assert.equal((await orderActions.recordPaymentWork(counting, payForm(order, "short"), revalidate)).message, "This form is out of date. Reload the page and try again. Nothing was changed.");
+      assert.equal((await orderActions.recordPaymentWork(counting, payForm(order, newKey("act"), { expected: "-5" }), revalidate)).message, "This form is out of date. Reload the page and try again. Nothing was changed.");
+      assert.equal((await orderActions.recordPaymentWork(counting, payForm(order, newKey("act"), { expected: "" }), revalidate)).status, "error");
+      assert.equal((await orderActions.recordPaymentWork(counting, payForm("not-a-uuid", newKey("act")), revalidate)).message, "That record could not be found.");
+      const unconfirmed = payForm(order, newKey("act"));
+      unconfirmed.delete("received_confirmed");
+      assert.equal((await orderActions.recordPaymentWork(counting, unconfirmed, revalidate)).status, "error");
+      assert.equal(calls, 0, "no stale form reached the gateway");
+      assert.deepEqual(paths, []);
+    });
+
+    it("a payment says 'recorded' once and 'already recorded' for a repeat, and refreshes the order, the payment list and the dashboard", async () => {
+      await reset();
+      const { paths, revalidate } = spy();
+      const order = h.confirmed(300000);
+      const key = newKey("act");
+      const owner = () => api.staffApi(staff());
+      const first = await orderActions.recordPaymentWork(owner(), payForm(order, key), revalidate);
+      assert.deepEqual(first, { status: "success", message: outcomes.PAYMENT_RECORDED });
+      assert.deepEqual(paths, [`/admin/orders/${order}`, "/admin/payments", "/admin"]);
+      const again = await orderActions.recordPaymentWork(owner(), payForm(order, key), revalidate);
+      assert.deepEqual(again, { status: "success", message: outcomes.PAYMENT_ALREADY_RECORDED });
+      assert.equal(h.paymentsOf(order), 1);
+      assert.equal(h.paidOf(order), 25000);
+    });
+
+    it("a stale balance, a reversed payment and a refused method each reach the screen as the right message, with the right key handling", async () => {
+      await reset();
+      const { revalidate } = spy();
+      const owner = () => api.staffApi(staff());
+      const order = h.confirmed(300000);
+      // stale balance (M1K03): the form saw 0 but someone paid 100 before
+      assert.ok(h.pay(h.OLIVIA, order, 10000, newKey("act"), { expected: 0 }).ok);
+      const stale = await shell(() => orderActions.recordPaymentWork(owner(), payForm(order, newKey("act")), revalidate));
+      assert.equal(stale.status, "error");
+      assert.match(stale.message, /you saw QAR 0\.00, it is now QAR 100\.00\); nothing was recorded/);
+      assert.equal(stale.keyRetired, undefined, "the refused attempt never used its key");
+      // a reversed payment (M1K02): the same form a second time must not be reported as recorded
+      const key = newKey("act");
+      const made = await orderActions.recordPaymentWork(owner(), payForm(order, key, { expected: "10000" }), revalidate);
+      assert.equal(made.status, "success");
+      h.reverse(order, h.scalar(`select id from public.payments where order_id = '${order}' and entry_type = 'payment' order by created_at desc limit 1`));
+      const reversed = await shell(() => orderActions.recordPaymentWork(owner(), payForm(order, key, { expected: "10000" }), revalidate));
+      assert.equal(reversed.status, "error");
+      assert.match(reversed.message, /has since been reversed, so it was not recorded again/);
+      assert.equal(reversed.keyRetired, true);
+      // a method the website does not record is refused by the form check
+      const method = await orderActions.recordPaymentWork(owner(), payForm(order, newKey("act"), { extra: { method: "bank_transfer" } }), revalidate);
+      assert.equal(method.status, "error");
+      assert.ok(method.fieldErrors?.method);
+    });
+
+    it("actions.ts is only the shell: both money actions delegate to these bodies and map failures through outcomes.ts", () => {
+      const actions = readFileSync(join(ROOT, "src/lib/staff/actions.ts"), "utf8");
+      assert.match(actions, /createOrderWork\(api, formData, revalidatePath\)/);
+      assert.match(actions, /recordPaymentWork\(api, formData, revalidatePath\)/);
+      assert.match(actions, /return failed\(failureState\(error\)\)/);
     });
   });
 

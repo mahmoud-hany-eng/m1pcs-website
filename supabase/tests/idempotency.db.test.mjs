@@ -596,7 +596,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
   describe("the website side (static checks of the source; the browser behaviour is tested in idempotency.hook.browser.test.mjs)", () => {
     const forms = readFileSync(join(ROOT, "src/components/admin/forms.tsx"), "utf8");
     const hook = readFileSync(join(ROOT, "src/components/admin/use-idempotency-key.ts"), "utf8");
-    const actions = readFileSync(join(ROOT, "src/lib/staff/actions.ts"), "utf8");
+    const actions = readFileSync(join(ROOT, "src/lib/staff/order-actions.ts"), "utf8");
     const api = readFileSync(join(ROOT, "src/lib/staff/api.ts"), "utf8");
 
     it("both forms carry a hidden idempotency_key through the shared hook; the payment form also carries the balance it showed", () => {
@@ -624,23 +624,23 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
       assert.match(readFileSync(join(ROOT, "src/app/admin/orders/[id]/page.tsx"), "utf8"), /expectedPaidMinor=\{order\.amount_paid_minor\}/);
     });
 
-    it("the actions refuse a form without a valid key (and, for payments, a valid expected amount) before any database call, and pass both on", () => {
-      for (const name of ["createOrderAction", "recordPaymentAction"]) {
+    it("the action bodies refuse a form without a valid key (and, for payments, a valid expected amount) before any database call, and pass both on (behaviour: gateway-outcomes.db.test.mjs)", () => {
+      for (const name of ["createOrderWork", "recordPaymentWork"]) {
         const start = actions.indexOf(`export async function ${name}`);
-        const body = actions.slice(start, actions.indexOf("\nexport async function", start + 10));
+        const body = actions.slice(start, actions.indexOf("\nexport async function", start + 10) === -1 ? undefined : actions.indexOf("\nexport async function", start + 10));
         assert.match(body, /parseIdempotencyKey\(formData\)/, name);
         assert.match(body, /STALE_FORM_MESSAGE/, name);
         assert.match(body, /idempotencyKey/, `${name} passes the key to the API`);
       }
-      const payment = actions.slice(actions.indexOf("export async function recordPaymentAction"), actions.indexOf("export async function reversePaymentAction"));
+      const payment = actions.slice(actions.indexOf("export async function recordPaymentWork"));
       assert.match(payment, /parseExpectedPaid\(formData\)/);
       assert.match(payment, /idempotencyKey, expectedPaid\)/);
       assert.match(api, /recordPayment: async \([\s\S]*idempotencyKey: string, expectedPaidMinor: number/);
       assert.match(api, /createOrder: async \(.*idempotencyKey: string\)/);
     });
 
-    it("the duplicate check only warns: the action returns the warning before creating, never blocks a confirmed order, and an advisory failure does not stop an order", () => {
-      const order = actions.slice(actions.indexOf("export async function createOrderAction"), actions.indexOf("export async function transitionOrderAction"));
+    it("the duplicate check only warns: the body returns the warning before creating, never blocks a confirmed order, and an advisory failure does not stop an order (behaviour: gateway-outcomes.db.test.mjs)", () => {
+      const order = actions.slice(actions.indexOf("export async function createOrderWork"), actions.indexOf("export async function recordPaymentWork"));
       assert.match(order, /confirm_duplicate/);
       assert.match(order, /return duplicateWarning\(similar\)/);
       assert.match(order, /catch \(error\) \{\s*if \(error instanceof StaffPermissionError\) throw error;/, "only a permission failure stops the order; the advice failing does not");

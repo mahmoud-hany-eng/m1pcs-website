@@ -470,6 +470,17 @@ suite("release sequence: expand -> new website -> contract, with undo scripts (P
       assert.equal(defs(db), before, "the whole migration rolled back, including the functions it had created");
     });
 
+    it("a pre-existing key table with the right column NAMES but the wrong TYPES is also refused, and the whole migration rolls back", () => {
+      const { db } = deployed();
+      db.commit("create table private.idempotency_keys (actor uuid, operation text, idempotency_key text, request_hash integer, result_id uuid, created_at timestamptz); alter table private.idempotency_keys enable row level security;");
+      const before = defs(db);
+      const r = oneQuery(db, migration(M17));
+      assert.equal(r.ok, false);
+      assert.match(r.err, /private\.idempotency_keys has an unexpected shape/);
+      assert.match(r.err, /request_hash:integer/);
+      assert.equal(defs(db), before);
+    });
+
     it("default privileges that would grant anon execute on new functions cannot widen them: the migration revokes explicitly and its self-check confirms it", () => {
       const { db } = deployed();
       db.commit("alter default privileges in schema admin grant execute on functions to anon;");

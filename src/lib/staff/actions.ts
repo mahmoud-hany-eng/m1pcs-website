@@ -15,22 +15,18 @@ import { revalidatePath } from "next/cache";
 import { formatQar } from "@/lib/platform/money";
 import type { StaffContext } from "./session";
 import { requireStaff } from "./session";
-import { StaffOperationError, StaffPermissionError } from "./gateway";
+import { StaffOperationError } from "./gateway";
 import { echoValues, type StaffFormState } from "./form-state";
-import { DENIED, duplicateWarning, failureState, orderSuccessMessage, paymentSuccessMessage } from "./outcomes";
+import { DENIED, failureState } from "./outcomes";
+import { createOrderWork, recordPaymentWork } from "./order-actions";
 import {
   CLAIM_CODE_HOURS,
   depositPolicyValue,
   isUuid,
   parseCustomer,
   parseDepositSchedule,
-  parseExpectedPaid,
-  parseIdempotencyKey,
-  parseOrder,
-  parsePayment,
   parseReason,
   parseTracking,
-  STALE_FORM_MESSAGE,
 } from "./validation";
 
 const ORDER_STATUS = /^[a-z_]{3,40}$/;
@@ -102,32 +98,8 @@ export async function revokeClaimCodeAction(_previous: StaffFormState, formData:
 // ---------------------------------------------------------------------------------------------------------------
 
 export async function createOrderAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
-  const customerId = field(formData, "customer_id");
-  return run("/admin/orders/new", "orders.create", formData, async ({ api }) => {
-    if (!isUuid(customerId)) return { status: "error", fieldErrors: { customer_id: "Choose the customer first." } };
-    const parsed = parseOrder(formData, customerId);
-    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-    const idempotencyKey = parseIdempotencyKey(formData);
-    if (!idempotencyKey) return { status: "error", message: STALE_FORM_MESSAGE };
-    // A WARNING, never a block: if this customer already has an order with the same items from the last day, say so and
-    // create nothing until the person confirms. A customer can legitimately buy the same thing twice, so confirming always
-    // works. The order this key already created is not reported (a retry is answered by the database below). The check is
-    // advice: if it cannot run, the order is still created.
-    if (field(formData, "confirm_duplicate") !== "yes") {
-      let similar: Awaited<ReturnType<typeof api.similarOrders>> = [];
-      try {
-        similar = await api.similarOrders(parsed.value.customerId, parsed.value.items, idempotencyKey);
-      } catch (error) {
-        if (error instanceof StaffPermissionError) throw error;
-      }
-      if (similar.length) return duplicateWarning(similar);
-    }
-    // The order's total is worked out by the database from these lines; the form never supplies it. A repeat with the
-    // same key (a double click, a retry after a timeout) returns the order that was already created and says so.
-    const { id, replayed } = await api.createOrder(parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey);
-    revalidatePath("/admin/orders");
-    return { status: "success", message: orderSuccessMessage(replayed), href: `/admin/orders/${id}` };
-  });
+  // What the action decides lives in order-actions.ts, where a test runs it against the real gateway and database.
+  return run("/admin/orders/new", "orders.create", formData, ({ api }) => createOrderWork(api, formData, revalidatePath));
 }
 
 export async function transitionOrderAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
@@ -177,24 +149,7 @@ export async function retractTrackingAction(_previous: StaffFormState, formData:
 
 export async function recordPaymentAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
   const orderId = field(formData, "order_id");
-  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.record", formData, async ({ api }) => {
-    if (!isUuid(orderId)) return badId();
-    const parsed = parsePayment(formData);
-    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-    const { purpose, amountMinor, method, reference, notes } = parsed.value;
-    const idempotencyKey = parseIdempotencyKey(formData);
-    if (!idempotencyKey) return { status: "error", message: STALE_FORM_MESSAGE };
-    // The amount already paid that the person was looking at. The database refuses the payment if the real balance differs.
-    const expectedPaid = parseExpectedPaid(formData);
-    if (expectedPaid === null) return { status: "error", message: STALE_FORM_MESSAGE };
-    // A repeat with the same key records nothing and returns the payment that was already recorded (and says so), unless that
-    // payment has since been reversed or the repeat is more than an hour old: then it is refused and says why.
-    const { replayed } = await api.recordPayment(orderId, purpose, amountMinor, method, reference, notes, idempotencyKey, expectedPaid);
-    revalidatePath(`/admin/orders/${orderId}`);
-    revalidatePath("/admin/payments");
-    revalidatePath("/admin");
-    return { status: "success", message: paymentSuccessMessage(replayed) };
-  });
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "payments.record", formData, ({ api }) => recordPaymentWork(api, formData, revalidatePath));
 }
 
 export async function reversePaymentAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {

@@ -1,4 +1,6 @@
-# Baseline continuous integration (OPS-0002). Read-only and unprivileged: no secret, no write permission, no deployment.
+# Continuous integration (OPS-0002; extended by HD-0021). The token is read-only: no secret, no write permission, no deployment, no hosted service.
+# Since HD-0021 the job also installs packages on its own throw-away runner (sudo apt-get, a pinned Playwright and its browser) and runs the
+# database and browser regression suites against PostgreSQL servers that the tests start and delete themselves.
 # The shape of this file is enforced by ops/lib/workflow-safety.mjs against policy.workflow_policy (run by `npm run ops:validate`).
 name: CI
 

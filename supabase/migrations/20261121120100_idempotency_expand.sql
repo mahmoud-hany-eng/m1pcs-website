@@ -212,7 +212,7 @@ begin
   -- this check and the insert below.
   if p_expected_paid_minor is not null and o.amount_paid_minor <> p_expected_paid_minor then
     raise exception 'the amount paid on this order changed while you were working (you saw QAR %, it is now QAR %); nothing was recorded. Reload the page and check the payments before recording again',
-      to_char(p_expected_paid_minor / 100.0, 'FM999999990.00'), to_char(o.amount_paid_minor / 100.0, 'FM999999990.00')
+      to_char(p_expected_paid_minor / 100.0, 'FM999999999999990.00'), to_char(o.amount_paid_minor / 100.0, 'FM999999999999990.00')
       using errcode = 'M1K03';
   end if;
   if o.amount_paid_minor + p_amount_minor > o.total_minor then
@@ -271,6 +271,11 @@ begin
     raise exception 'items must be a JSON array of 1 to 200 items' using errcode = '22023';
   end if;
 
+  -- A quotation needs its own permission; it is checked BEFORE the claim so that a repeat can never skip it.
+  if p_quotation_id is not null then
+    perform private.require_permission('quotations.manage');
+  end if;
+
   -- A retry of an order that was already created returns that order and creates nothing, while it is recent and the order
   -- has not since been cancelled. Two orders with the same content are NOT a retry: only the same key is.
   replay := private.idempotency_claim('order.create', p_idempotency_key,
@@ -283,7 +288,6 @@ begin
   end if;
 
   if p_quotation_id is not null then
-    perform private.require_permission('quotations.manage');
     select * into q from public.quotations where id = p_quotation_id for update;
     if not found then
       raise exception 'quotation not found' using errcode = 'P0002';
@@ -475,9 +479,9 @@ declare
   cols text;
 begin
   -- The table must have the shape this migration (and every later function) relies on, even if it pre-existed.
-  select string_agg(column_name, ',' order by column_name) into cols
+  select string_agg(column_name || ':' || data_type, ',' order by column_name) into cols
   from information_schema.columns where table_schema = 'private' and table_name = 'idempotency_keys';
-  if cols is distinct from 'actor,created_at,idempotency_key,operation,request_hash,result_id' then
+  if cols is distinct from 'actor:uuid,created_at:timestamp with time zone,idempotency_key:text,operation:text,request_hash:text,result_id:uuid' then
     raise exception 'private.idempotency_keys has an unexpected shape (%)', cols;
   end if;
   if not exists (

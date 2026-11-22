@@ -52,6 +52,18 @@ only adds, the previous website works against the expanded database.
 * Applied **statement by statement** (`psql -f` without a wrapping transaction): the statements before the failure stay applied. The expand migration is **rerunnable** (`create ... if not exists`, `create or replace`, idempotent grants): fix the cause and run the whole file again; the result is identical to a clean run (a test proves this by interrupting it midway).
 * The expand migration ends with self-checks (table shape, privileges, `private.security_audit()`, `private.gateway_audit()`). If one fails the migration fails and rolls back; the message names the problem.
 
+## Before step 1 (read-only)
+
+```sql
+-- The expand migration reuses version 20261121120100, which an EARLIER draft of this release also used (with different content, as
+-- 20261121120100_idempotency_keys.sql). If any database already recorded that version, the migration tool would skip the new file.
+-- Expect NO row here. (The hosted development database was checked read-only on 2026-11-22: it holds only m01 to m15.)
+select version, name from supabase_migrations.schema_migrations where version >= '20261121' order by version;
+-- Expect the three PLAT-0003 write functions to NOT call the claim helper:
+select p.oid::regprocedure from pg_proc p where p.pronamespace = 'admin'::regnamespace
+ and p.proname in ('record_payment','create_order','adjust_loyalty') and p.prosrc like '%idempotency_claim%';   -- expect 0 rows
+```
+
 ## Checks after each step (read-only)
 
 ```sql
@@ -61,14 +73,14 @@ select p.oid::regprocedure from pg_proc p where p.pronamespace = 'admin'::regnam
 select count(*) from private.security_audit();   -- expect 0
 select count(*) from private.gateway_audit();    -- expect 0
 
--- before contract: nothing recent should have been written without a key (a non-zero number means a key-less writer, such as the old website, is still active)
+-- before contract: nothing written since the new website went out should lack a key (a non-zero number means a key-less writer, such as the old
+-- website, is still active). Replace the timestamp with the moment the NEW website became live (not "7 days": that would count legitimate old writes).
 select count(*) from public.payments p
- where p.entry_type = 'payment' and p.created_at > now() - interval '7 days'
+ where p.entry_type = 'payment' and p.created_at > timestamptz '2026-12-01 00:00:00+03'   -- <- the deployment time
    and not exists (select 1 from private.idempotency_keys k where k.result_id = p.id);
 ```
 
-(The last query is a hint, not a proof: an owner at a SQL prompt also writes without a key. Always confirm in Vercel that no old
-deployment still serves the admin area.)
+(The last query is a hint, not a proof: an owner at a SQL prompt also writes without a key. **An old Vercel Preview deployment that shares this database never disappears on its own.** Before contract, open the project's deployments in Vercel and confirm that no deployment of the old website (Production or Preview, including any with an alias or a stored link) can still reach the admin area; disabling or deleting it is the operational step that makes the confirmation true.)
 
 ## What the tests prove
 

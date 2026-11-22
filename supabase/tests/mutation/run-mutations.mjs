@@ -42,11 +42,24 @@ const MUTATIONS = [
   ["M20", "client key store: the key is not bound to the balance the page showed", "src/lib/staff/idempotency-client.ts", "if (saved && saved.binding === binding) return saved.key;", "if (saved) return saved.key;", [UNIT, HOOK]],
   ["M21", "hook: a success does not take a new key", "src/components/admin/use-idempotency-key.ts", "    setKey(rotateKey(storeOf(), scope, binding));", "    /* no rotation */", [HOOK]],
   ["M22", "hook: any error rotates the key", "src/lib/staff/idempotency-client.ts", "return state.status === \"success\" || (state.status === \"error\" && state.keyRetired === true);", "return state.status === \"success\" || state.status === \"error\";", [UNIT, HOOK]],
-  ["M23", "action: a confirmed duplicate is still warned about (the override is ignored)", "src/lib/staff/actions.ts", "if (field(formData, \"confirm_duplicate\") !== \"yes\") {", "if (true) {", [BASE]],
+  ["M23", "action body: a confirmed duplicate is still warned about (the override is ignored)", "src/lib/staff/order-actions.ts", "if (field(formData, \"confirm_duplicate\") !== \"yes\") {", "if (true) {", [OUTCOMES]],
   ["M24", "form: the order form is not locked after the order was created", "src/components/admin/forms.tsx", "<fieldset disabled={created} className=\"contents\">", "<fieldset className=\"contents\">", [BASE]],
   ["M25", "order creation: the permission check comes AFTER the customer lookup", MIG, "  perform private.require_permission('orders.create');\n  if not exists (select 1 from public.customers where id = p_customer_id) then", "  if not exists (select 1 from public.customers where id = p_customer_id) then", [WINDOW]],
   ["M26", "loyalty: the permission check comes AFTER the input validation", MIG, "  perform private.require_permission('loyalty.adjust');\n  if p_points is null or p_points = 0 then", "  if p_points is null or p_points = 0 then", [WINDOW]],
-  ["M27", "payment: a replay is answered BEFORE the permission is checked (revoked access can still replay)", MIG, "  perform private.require_permission('payments.record');\n  if p_amount_minor is null or p_amount_minor <= 0 then", "  if p_amount_minor is null or p_amount_minor <= 0 then", [WINDOW]],
+  ["M27", "payment: the permission check is MOVED after the replay (revoked access can still replay)", MIG, [
+    ["  perform private.require_permission('payments.record');\n  if p_amount_minor is null or p_amount_minor <= 0 then", "  if p_amount_minor is null or p_amount_minor <= 0 then"],
+    ["  if replay is not null then\n    return replay;\n  end if;\n\n  select * into o from public.orders where id = p_order_id for update;", "  if replay is not null then\n    return replay;\n  end if;\n  perform private.require_permission('payments.record');\n\n  select * into o from public.orders where id = p_order_id for update;"],
+  ], null, [WINDOW]],
+  ["M28", "gateway: after a connection failure the gateway waits for a ROLLBACK answer from the dead connection", "src/lib/staff/gateway.ts", "if (client && !broken) await client.query(\"rollback\")", "if (client) await client.query(\"rollback\")", [OUTCOMES]],
+  ["M29", "action body: a permission failure of the duplicate check no longer stops the order", "src/lib/staff/order-actions.ts", "      if (error instanceof StaffPermissionError) throw error;\n", "", [OUTCOMES]],
+  ["M30", "action body: a payment form without the expected paid amount is accepted", "src/lib/staff/order-actions.ts", "if (expectedPaid === null) return { status: \"error\", message: STALE_FORM_MESSAGE };", "", [OUTCOMES]],
+  ["M31", "action body: a repeated payment is announced like a first save", "src/lib/staff/order-actions.ts", "message: paymentSuccessMessage(replayed)", "message: paymentSuccessMessage(false)", [OUTCOMES]],
+  ["M32", "action body: the order list is not refreshed after an order is created", "src/lib/staff/order-actions.ts", "  revalidate(\"/admin/orders\");\n", "", [OUTCOMES]],
+  ["M33", "contract rollback: the expand rollback no longer notices the contract (marker removed)", "supabase/release/idempotency_expand_rollback.sql", "and p.prosrc like '%m1:contract-wrapper%'", "and false", [RELEASE]],
+  ["M34", "expand: the key table's column TYPES are not checked (names only)", MIG, [
+    ["column_name || ':' || data_type", "column_name"],
+    ["'actor:uuid,created_at:timestamp with time zone,idempotency_key:text,operation:text,request_hash:text,result_id:uuid'", "'actor,created_at,idempotency_key,operation,request_hash,result_id'"],
+  ], null, [RELEASE]],
 ];
 
 const only = new Set(process.argv.slice(2));
@@ -62,12 +75,21 @@ try {
     if (only.size && !only.has(id)) continue;
     const path = join(copy, file);
     const original = readFileSync(path, "utf8");
-    const hits = original.split(find).length - 1;
-    if (hits !== 1) {
-      results.push({ id, what, verdict: `NOT APPLIED (the text occurs ${hits} times)` });
-      continue;
+    // `find` may be a list of [find, replace] pairs (a mutation that needs several edits, such as MOVING a check).
+    const pairs = Array.isArray(find) ? find : [[find, replace]];
+    let mutated = original;
+    let applied = true;
+    for (const [f, r] of pairs) {
+      const hits = mutated.split(f).length - 1;
+      if (hits !== 1) {
+        results.push({ id, what, verdict: `NOT APPLIED (the text occurs ${hits} times)` });
+        applied = false;
+        break;
+      }
+      mutated = mutated.replace(f, () => r);
     }
-    writeFileSync(path, original.replace(find, () => replace));
+    if (!applied) continue;
+    writeFileSync(path, mutated);
     const caught = [];
     for (const suite of suites) {
       const r = spawnSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "--disable-warning=ExperimentalWarning", "--test", suite], { cwd: copy, encoding: "utf8", timeout: 600_000 });

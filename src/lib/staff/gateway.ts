@@ -67,7 +67,7 @@ export class StaffOutcomeUnknownError extends Error {
 export const OUTCOME_UNKNOWN =
   "The connection was lost before we could confirm the result, so this may or may not have been saved. Reload the page and check before trying again.";
 export const OUTCOME_UNKNOWN_REPEAT_SAFE =
-  "The connection was lost before we could confirm the result, so this may or may not have been saved. Reload the page and check first. If you send the same form again within the hour, it will not be saved twice.";
+  "The connection was lost before we could confirm the result, so this may or may not have been saved. Reload the page and look in the list before doing anything else; record it again only if it is not there. If instead you send this same form again without reloading, within the hour, it will not be saved twice.";
 export const UNAVAILABLE_NOTHING_CHANGED = "The staff service is not available right now. Nothing was changed. Try again in a moment.";
 export const TOO_SLOW = "This took too long and was cancelled. Nothing was changed. Try again in a moment.";
 export const UNEXPECTED = "Something went wrong. Nothing was changed.";
@@ -121,6 +121,9 @@ const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
 const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "record_payment"]);
 export const isWriteCall = (name: StaffCallName): boolean => WRITE_CALLS.has(name);
 
+/** Client-side limit for one query; the database's own statement_timeout (10 s) normally answers first. */
+export const QUERY_TIMEOUT_MS = 12_000;
+
 let pool: Pool | null = null;
 
 /** True when the gateway secret is set. The value itself is never logged or returned. */
@@ -151,6 +154,10 @@ function getPool(): Pool {
     max: 4,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
+    // The database cancels a statement after 10 s (see staffCallMeta). This client-side limit, a little longer, is for a connection that
+    // goes silent without closing (a half-open socket): without it the call would wait for the platform's own timeout and the person
+    // would never be told honestly that the result is unknown.
+    query_timeout: QUERY_TIMEOUT_MS,
     application_name: "m1-staff-gateway",
   });
   // A broken idle connection must not crash the server.
@@ -242,7 +249,10 @@ export async function staffCallMeta<T>(staff: VerifiedStaff, name: StaffCallName
     return { value: row?.r as T, replayed: row?.replayed === true };
   } catch (error) {
     broken = (error as { severity?: string } | null)?.severity !== "ERROR";
-    if (client) await client.query("rollback").catch(() => {});
+    // After a database error the connection is healthy and must be rolled back. After a connection failure it is not: asking it to roll back
+    // would wait for another answer that may never come, so it is destroyed instead (the database rolls back an open transaction when the
+    // connection ends).
+    if (client && !broken) await client.query("rollback").catch(() => {});
     throw error instanceof StaffUnavailableError ? error : mapError(error, name, stage);
   } finally {
     client?.removeListener("error", absorb);

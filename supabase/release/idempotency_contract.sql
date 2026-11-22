@@ -50,6 +50,7 @@ begin
     set search_path = ''
     as $$
     begin
+      -- m1:contract-wrapper (the expand rollback looks for this marker)
       return admin.record_payment(p_order_id, p_purpose, p_amount_minor, p_method, p_received_at, p_receipt_number,
                                   p_internal_reference, p_internal_notes, null::text, null::bigint);
     end;
@@ -71,6 +72,7 @@ begin
     set search_path = ''
     as $$
     begin
+      -- m1:contract-wrapper (the expand rollback looks for this marker)
       return admin.create_order(p_customer_id, p_items, p_quotation_id, p_placed_via, p_delivery_method, p_delivery_address, null::text);
     end;
     $$
@@ -84,6 +86,7 @@ begin
     set search_path = ''
     as $$
     begin
+      -- m1:contract-wrapper (the expand rollback looks for this marker)
       return admin.adjust_loyalty(p_customer_id, p_points, p_reason, null::text);
     end;
     $$

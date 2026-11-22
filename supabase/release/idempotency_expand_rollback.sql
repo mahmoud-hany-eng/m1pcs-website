@@ -33,7 +33,7 @@ begin
       and ((p.proname = 'record_payment' and p.pronargs = 8)
         or (p.proname = 'create_order' and p.pronargs = 6)
         or (p.proname = 'adjust_loyalty' and p.pronargs = 3))
-      and p.prosrc like '%null::text%'
+      and p.prosrc like '%m1:contract-wrapper%'
   ) into stale;
   if stale then
     raise exception 'REFUSED: the CONTRACT step is still applied; the old signatures delegate to the functions this script removes. NOTHING WAS CHANGED.'

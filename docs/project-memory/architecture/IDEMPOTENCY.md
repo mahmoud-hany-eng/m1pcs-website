@@ -25,7 +25,7 @@ the only protection was a disabled button and, for payments, the order-total cap
 * The claim and the operation are **one transaction**. If the operation fails, or the connection dies, the claim rolls back with it, so a
   failed attempt never uses up a key and the corrected retry works.
 * A key belongs to **one authenticated staff member** (`auth.uid()`). The table has **no privileges for any API role or for the staff gateway**,
-  row level security is on, and it is **append-only** (triggers refuse update, delete and truncate, even for a superuser).
+  row level security is on, and it is **append-only** (triggers refuse update, delete and truncate for every role; a superuser could only change it by deliberately disabling the trigger, which the tests do on a disposable database to age a key).
 * **Through the staff gateway a key is required**, and so is the expected paid amount for a payment. A direct database caller (migrations, test
   harnesses, an owner at a SQL prompt) may omit both; it then has no duplicate protection, exactly as before.
 
@@ -65,7 +65,7 @@ page and check the payments before recording again"*) instead of being added to 
 
 `admin.similar_orders(customer, items, key)` is read-only. It lists up to five of the same customer's orders from the last 24 hours, not cancelled, with the same items (same kind, description ignoring case
 and spaces, quantity and price, in any order). The order **this key** already created is never listed (a retry is answered by the create itself). The website shows the evidence and a checkbox:
-*"Nothing was created yet. This customer already has an order with the same items… If they really want another one, tick the box below and create the order again."* Ticking it creates the order.
+*"This submission did not create an order. This customer already has an order with the same items… If they really want another one, tick the box below and create the order again."* Ticking it creates the order.
 **The database never rejects a valid second order**; a customer can legitimately buy the same thing twice. If the evidence query cannot run, the order is still created.
 
 ## Server clock
@@ -84,12 +84,12 @@ A payment sent without a date (the website always does) is dated by the **databa
 ## Honest messages
 
 `src/lib/staff/outcomes.ts` holds every sentence. "Nothing was changed" is said **only where it is true**: the database answered with an error (it rolled back), or the connection broke before `COMMIT` was sent. When `COMMIT` was
-sent and its answer never arrived, the website says *"may or may not have been saved… If you send the same form again within the hour, it will not be saved twice"* and keeps the key. A real-connection test with a fault-injecting proxy
+sent and its answer never arrived (or a silent connection swallowed it: the gateway also has a 12-second client-side query limit), the website says *"may or may not have been saved. Reload the page and look in the list before doing anything else; record it again only if it is not there. If instead you send this same form again without reloading, within the hour, it will not be saved twice"* and keeps the key. (After a reload of a payment page the balance has moved, so the form gets a new key by design: that is why the message tells the person to look in the list first.) A real-connection test with a fault-injecting proxy
 proves both sides: **COMMIT delivered, answer lost → the payment is saved and the retry is answered with the original**; **COMMIT never delivered → nothing is saved and the retry records exactly once**.
 A first save says *"recorded"*; a repeat says *"already recorded earlier, so nothing new was recorded"*.
 
 That test also found and fixed a real defect in the gateway: a connection that died mid-request made the driver emit an `error` event on the checked-out client with no listener, which Node treats as an **uncaught
-exception** (it would have taken the server process down). The event is now absorbed; the failure still reaches the screen as a rejected query.
+exception** (it would have taken the server process down). The event is now absorbed; the failure still reaches the screen as a rejected query. After a connection failure the gateway no longer waits for a ROLLBACK answer from the dead connection; it destroys the connection, and the database rolls the open transaction back.
 
 ## Release shape: expand, then contract
 
@@ -111,7 +111,8 @@ New overloads: executable by `authenticated` and the staff gateway only (revoked
 * It does not cover other operations (a status move, a tracking update, a payment reversal): those already refuse a repeat by their own rules.
 * It does **not** implement any compensation of loyalty points when a payment is reversed: that policy is still undecided ([PROPOSAL_PAYMENT_REVERSAL_AND_LOYALTY.md](PROPOSAL_PAYMENT_REVERSAL_AND_LOYALTY.md)).
 * `admin.adjust_loyalty` has no staff screen and is not in the gateway's fixed statement list; the rule is in the database, so a future screen inherits it.
-* The staff screens cannot be driven in a browser without a real second factor; the hook, the actions' wiring, the gateway and the messages are each tested directly instead.
+* The staff screens cannot be driven in a browser without a real second factor. Instead the hook runs in a real browser, the **action bodies** (`src/lib/staff/order-actions.ts`: stale-form refusal, the duplicate warning and its override, first-save versus repeat wording, which pages refresh) run against the real gateway and database, and the Server Action shell (`actions.ts`) is a thin wrapper that a static test checks.
+* A quotation-backed order needs `quotations.manage`, checked before the claim so a repeat can never skip it. The website never sends a quotation today.
 
 ## Tests
 
@@ -122,6 +123,6 @@ New overloads: executable by `authenticated` and the staff gateway only (revoked
 | `release.db.test.mjs` | `npm run release:db:test` | expand on a copy of the deployed structure, old/new coexistence, contract guard, undo scripts, failure and recovery |
 | `gateway-outcomes.db.test.mjs` | `npm run gateway:outcomes:test` | the website's own gateway code over a real connection with a fault-injecting proxy: accurate messages, honest unknowns |
 | `idempotency.hook.browser.test.mjs` | `npm run workflow:hook:test` | the real hook in a real browser with real `sessionStorage` |
-| `supabase/tests/mutation/run-mutations.mjs` | by hand | 27 deliberate breakages of these rules, each caught by a suite |
+| `supabase/tests/mutation/run-mutations.mjs` | by hand | deliberate breakages of these rules, each caught by a suite |
 
 CI runs `npm run test:db` (disposable local PostgreSQL started by the tests themselves: no hosted database, no service container, no secret) and `npm run test:browser` (a pinned Playwright installed for that job only). A static test fails if a suite is left out of both scripts.

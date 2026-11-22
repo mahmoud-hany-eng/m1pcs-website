@@ -47,7 +47,7 @@ export function duplicateWarning(similar: readonly SimilarOrderRow[], now: Date 
   const what = similar.length === 1 ? "an order" : `${similar.length} orders`;
   return {
     status: "error",
-    message: `Nothing was created yet. This customer already has ${what} with the same items from the last 24 hours: ${list}. If they really want another one, tick the box below and create the order again.`,
+    message: `This submission did not create an order. This customer already has ${what} with the same items from the last 24 hours: ${list}. If they really want another one, tick the box below and create the order again.`,
     duplicates: evidence,
   };
 }

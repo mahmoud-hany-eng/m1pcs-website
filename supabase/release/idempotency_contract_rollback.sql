@@ -4,6 +4,9 @@
 -- Generated from a database built from the deployed migrations; supabase/tests/release.db.test.mjs proves that running this
 -- script returns the three functions to byte-identical definitions.
 
+-- One transaction however it is run (psql -f runs statement by statement otherwise): all three functions are restored, or none.
+begin;
+
 CREATE OR REPLACE FUNCTION admin.adjust_loyalty(p_customer_id uuid, p_points integer, p_reason text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -168,3 +171,5 @@ begin
   return pay_id;
 end;
 $function$;
+
+commit;

@@ -19,6 +19,8 @@ try {
     format: await import("../../src/lib/staff/format.ts"),
   };
 } catch (error) {
+  // CI (M1_REQUIRE_PG=1) must FAIL on any import error: a real defect in the website code must never turn into a green skip.
+  if (process.env.M1_REQUIRE_PG === "1") throw error;
   skip = `this Node version cannot import TypeScript directly (${error.code ?? error.message}); use Node 22.18 or newer`;
 }
 const { flag, v, state, client, outcomes, gateway, format } = load ?? {};
@@ -338,10 +340,11 @@ describe("what the screen says (PLAT-0004): every sentence is true for the situa
       assert.equal(s.status, "error");
       assert.doesNotMatch(s.message, /nothing was changed/i);
       assert.match(s.message, /may or may not have been saved/);
-      assert.match(s.message, /Reload the page and check/);
+      assert.match(s.message, /Reload the page and (check|look)/);
       assert.equal(s.keyRetired, undefined, "the key is KEPT so that sending the form again is a repeat");
     }
-    assert.match(keyed.message, /will not be saved twice/);
+    assert.match(keyed.message, /without reloading, within the hour, it will not be saved twice/);
+    assert.match(keyed.message, /record it again only if it is not there/);
     assert.doesNotMatch(plain.message, /will not be saved twice/);
   });
 
@@ -352,7 +355,7 @@ describe("what the screen says (PLAT-0004): every sentence is true for the situa
     ], now);
     assert.equal(warning.status, "error");
     assert.equal(warning.keyRetired, undefined);
-    assert.match(warning.message, /Nothing was created yet/);
+    assert.match(warning.message, /This submission did not create an order/);
     assert.match(warning.message, /O-2026-0001/);
     assert.match(warning.message, /12 minutes ago/);
     assert.match(warning.message, /QAR 4,000\.00/);

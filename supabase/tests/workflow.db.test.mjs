@@ -470,13 +470,13 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
 
     it("[PLAT-0004] the staff screens now send an idempotency key with every payment and order (chosen by the page, kept across retries), and the receipt number is still generated server-side", () => {
       const forms = readFileSync(join(ROOT, "src/components/admin/forms.tsx"), "utf8");
-      const actions = readFileSync(join(ROOT, "src/lib/staff/actions.ts"), "utf8");
+      const actions = readFileSync(join(ROOT, "src/lib/staff/order-actions.ts"), "utf8");
       assert.match(forms, /<button type="submit" disabled=\{pending \|\| disabled\}/, "the submit button is still disabled while the action is pending (the first, cosmetic layer)");
       assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 2, "the payment form and the order form each carry the key");
-      const record = actions.slice(actions.indexOf("export async function recordPaymentAction"), actions.indexOf("export async function reversePaymentAction"));
+      const record = actions.slice(actions.indexOf("export async function recordPaymentWork"));
       assert.match(record, /parseIdempotencyKey\(formData\)/, "recording a payment requires a key");
       assert.match(record, /api\.recordPayment\(orderId, purpose, amountMinor, method, reference, notes, idempotencyKey, expectedPaid\)/, "the screen passes an internal reference, the key and the balance it showed, never a receipt number");
-      const create = actions.slice(actions.indexOf("export async function createOrderAction"), actions.indexOf("export async function", actions.indexOf("export async function createOrderAction") + 10));
+      const create = actions.slice(actions.indexOf("export async function createOrderWork"), actions.indexOf("export async function recordPaymentWork"));
       assert.match(create, /parseIdempotencyKey\(formData\)/, "creating an order requires a key");
     });
 

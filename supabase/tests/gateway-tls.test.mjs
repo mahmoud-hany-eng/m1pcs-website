@@ -36,6 +36,8 @@ try {
   tlsLib = await import("../../src/lib/staff/gateway-tls.ts");
   rootCa = await import("../../src/lib/staff/supabase-root-ca.ts");
 } catch (error) {
+  // CI (M1_REQUIRE_PG=1) must FAIL on any import error: a real defect in the website code must never turn into a green skip.
+  if (process.env.M1_REQUIRE_PG === "1") throw error;
   skip = `this Node version cannot import TypeScript directly (${error.code ?? error.message}); use Node 22.18 or newer`;
 }
 const { gatewayConnection, enforcedTlsConnection, GatewayConfigError } = tlsLib ?? {};
