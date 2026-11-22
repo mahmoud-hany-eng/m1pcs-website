@@ -19,6 +19,7 @@ const WV = "supabase/tests/workflow.v2.db.test.mjs";
 const LIB = "supabase/tests/workflow-lib.test.mjs";
 const STATIC = "supabase/tests/static.test.mjs";
 const DB = "supabase/tests/db.test.mjs";
+const DIFF = "supabase/tests/compat.differential.db.test.mjs";
 
 /** [id, what the mutation breaks, file, text to find (must occur exactly once), replacement, the suites that must catch it] */
 const MUTATIONS = [
@@ -56,6 +57,9 @@ const MUTATIONS = [
   ["W32", "validation: Qatar time is read as UTC", VAL, "const utc = Date.UTC(year, month - 1, day, hour - 3, minute);", "const utc = Date.UTC(year, month - 1, day, hour, minute);", [LIB]],
   ["W33", "validation: any text is accepted as a fulfilment type", VAL, "const found = FULFILLMENT_TYPES.find((type) => type === value);", "const found = value ? (value as (typeof FULFILLMENT_TYPES)[number]) : undefined;", [LIB]],
   ["W34", "gateway: the correction call is not listed as a write call", GW, "\"publish_tracking_update\", \"publish_tracking_correction\", \"set_order_fulfillment_type\", \"adopt_new_workflow\", \"retract_tracking_event\",", "\"publish_tracking_update\", \"set_order_fulfillment_type\", \"adopt_new_workflow\", \"retract_tracking_event\",", [STATIC]],
+  ["W35", "compatibility: the resume refusal of an earlier-workflow order is reworded (the differential test must notice any change of an earlier write path)", FN, "      raise exception 'a held order can only resume at % (or be cancelled)', previous using errcode = '55000';", "      raise exception 'a held order can only resume at %', previous using errcode = '55000';", [DIFF]],
+  ["W36", "compatibility: the status history loses its reason (an earlier write path writes different rows)", FN, "  values (o.id, o.status, p_to_status, (select auth.uid()), left(p_reason, 500));\n  perform private.try_award_loyalty(o.id);", "  values (o.id, o.status, p_to_status, (select auth.uid()), null);\n  perform private.try_award_loyalty(o.id);", [DIFF]],
+  ["W37", "compatibility: an earlier-workflow order is refused a move the earlier database allowed", FN, "    select t.requires_permission from private.order_status_transitions t\n    where o.workflow_version = 1 and t.from_code = o.status and t.to_code = p_to", "    select t.requires_permission from private.order_status_transitions t\n    where o.workflow_version = 1 and t.from_code = o.status and t.to_code = p_to and t.to_code <> 'in_transit'", [DIFF]],
 ];
 
 const only = new Set(process.argv.slice(2));

@@ -93,21 +93,27 @@ again. Nothing hosted is touched by the tests or by these files until an operato
 
 # Order workflow v2 release (separate from the idempotency release above)
 
-The owner-defined order workflow is **a second, independent expand step**. Read `docs/project-memory/architecture/ORDER_WORKFLOW.md` first.
+The owner-defined order workflow is **a second, independent expand step**. Read `docs/project-memory/architecture/ORDER_WORKFLOW.md` first (section 7 is the full sequence).
 **Nothing here has been applied to any hosted database.**
 
-| Step | What | How | Reversible by |
-| --- | --- | --- | --- |
-| 1. **Expand** | Apply migrations `20261122120000_order_workflow_v2_schema.sql` and `20261122120100_order_workflow_v2_functions.sql`. Additive: new columns, tables, statuses, stage data, two owner-only permissions, and `create or replace` of five staff functions (same signatures). **No order changes; the release switch `orders.workflow` ships as 1.** The deployed website keeps working. | the normal migration path, in order | `order_workflow_v2_rollback.sql` (functions + switch); the additive data stays |
-| 2. **Deploy** | Deploy the website of this branch (the staff pages call the new functions, so **step 1 must be applied first**). Orders are still earlier-workflow. | the normal Vercel deployment | redeploy the previous deployment |
-| 3. **Adopt one order** | The owner places the synthetic order on the new workflow (`admin.adopt_new_workflow`, or the owner-only card on the order page). | the staff dashboard | not reversible per order (an order's workflow only moves 1 → 2); history is intact |
-| 4. **Cutover** | The owner sets the release switch to 2: `select admin.set_policy('orders.workflow', '{"default_version": 2}', 'confirmed_by_owner', '<reason>');` | the staff dashboard (Policies) or an owner SQL session | set it back to `{"default_version": 1}` (affects only orders created afterwards) |
+**Order matters because PLAT-0004 auto-deploys on every push.** Apply the database (steps 2 and 3) **before** pushing; the earlier website keeps working on the expanded database.
+
+| Step | What | Gate |
+| --- | --- | --- |
+| 1 | Read-only pre-flight (migration list, the fingerprints in ORDER_WORKFLOW.md section 9, no `workflow_version` column, O-2611-00001 as recorded) | owner authorization A |
+| 2 | Apply `20261122120000_order_workflow_v2_schema.sql` (atomic; additive; the release switch ships as 1) | A |
+| 3 | Apply `20261122120100_order_workflow_v2_functions.sql` (atomic; five functions replaced with the same signatures, four added) | A |
+| 4 | Read-only post-flight (checks below), then look at the earlier Preview | A |
+| 5 | Push the reviewed commit **once**; CI runs and Vercel builds the new Preview; verify both | owner authorization B |
+| 6 | Adopt O-2611-00001 (owner, one order) | owner authorization C |
+| 7 | Acceptance testing by adopting synthetic orders (the switch is still 1), then switch to 2: `select admin.set_policy('orders.workflow', '{"default_version": 2}', 'confirmed_by_owner', '<reason>');` | owner authorization D for the switch |
 
 `order_workflow_v2_rollback.sql` is guarded exactly like the contract step: it refuses (`M1W02`) unless the session first runs
 `set m1.confirm_workflow_rollback = 'new-website-retired';`, and refuses (`M1W01`) while any order is on the new workflow, because the earlier
 functions cannot move or show such an order. It restores the five earlier function definitions byte for byte and sets the switch back to 1; it deletes nothing.
+(With only step 2 applied the earlier website already works: the differential test checks that state too.)
 
-Read-only checks after step 1 (expect the stated results):
+Read-only checks after step 3 (expect the stated results):
 
 ```sql
 select count(*) from private.security_audit();                                           -- 0
@@ -115,5 +121,14 @@ select count(*) from private.gateway_audit();                                   
 select count(*) from public.orders where workflow_version <> 1;                          -- 0 (nothing moved)
 select value from private.business_policies where key = 'orders.workflow';               -- {"default_version": 1}
 select count(*) from public.order_workflow_stages;                                       -- 22
-select string_agg(code, ',' order by sort_order) from public.order_statuses;              -- 17 statuses
+select count(*) from public.order_statuses;                                              -- 17
+select order_ref, status, total_minor, deposit_required_minor, amount_paid_minor from public.orders where order_ref = 'O-2611-00001';
+                                                                                         -- in_transit, 435055, 108764, 435055 (unchanged)
+select count(*) from public.payments where order_id = (select id from public.orders where order_ref = 'O-2611-00001');   -- 2
+select count(*) from public.order_tracking_events where order_id = (select id from public.orders where order_ref = 'O-2611-00001');  -- 4
+select count(*) from private.order_status_history where order_id = (select id from public.orders where order_ref = 'O-2611-00001');  -- 5
 ```
+
+Before step 2, the earlier functions must have exactly these fingerprints (`md5(pg_get_functiondef(oid))`, identical on the hosted development database and on a local build of the
+migrations up to the idempotency expand): `transition_order` ce5fd8fbaf9c0b0b97ef496b06fdc146, `publish_tracking_event` 43d3ef4b5bc019b15adc26261a9af7f4, `get_order` 6e27cf9b3a4bc4eae8e98410e34378d7,
+`list_orders` 01f5bbc4da54cdaad0b314dcbf34c604, `dashboard_summary` a3f45d9ef90cdc16a608c609b3675e1e (the rollback script restores exactly these five).

@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { findPgBin } from "./harness.mjs";
+import { asRole, findPgBin } from "./harness.mjs";
 import { AS, ID, newOrder, startDatabase } from "./fixtures.mjs";
 import { ROOT } from "./support/browser.mjs";
 
@@ -781,6 +781,52 @@ suite("order workflow v2: database layer (real PostgreSQL 16, real migrations, r
       assert.equal(count(`select count(*) from public.order_tracking_events where order_id = '${id}' and event_kind = 'update'`), 4);
     });
 
+    it("the hosted synthetic order's EXACT figures (QAR 4,350.55; deposit 1,087.64; balance payment 3,262.91; two receipts; four updates) survive adoption, and loyalty is awarded once, later", () => {
+      // The values below were read (read-only) from the hosted development database for order O-2611-00001 and are rebuilt here from scratch.
+      setSwitch(1);
+      const id = make(435055);
+      setSwitch(2);
+      move(id, "awaiting_deposit");
+      assert.equal(read(`select deposit_required_minor || '|' || deposit_rate_bps || '|' || deposit_rule from public.orders where id = '${id}'`),
+        "108764|2500|tier 2 of 3: 25.00% of the whole order total, to the nearest dirham (a half rounds up)");
+      act(AS.olivia, `select admin.record_payment('${id}', 'deposit', 108764, 'fawran');`);
+      for (const s of ["deposit_received", "sourcing", "in_transit"]) move(id, s);
+      for (const [title, msg] of [["Synthetic update 1", "one"], ["Synthetic update 2", "two"], ["Synthetic update 3", "three"], ["Synthetic update 4", "four"]]) {
+        act(AS.sam, `select admin.publish_tracking_event('${id}', '${title}', '${msg}', 'in_transit');`);
+      }
+      act(AS.olivia, `select admin.record_payment('${id}', 'balance', 326291, 'fawran');`);
+      const figures = () => read(`select o.total_minor || '|' || o.deposit_required_minor || '|' || o.amount_paid_minor || '|' || o.balance_due_minor || '|' || coalesce(o.delivery_method, 'undecided') || '|'
+        || (select string_agg(p.purpose || ':' || p.amount_minor || ':' || p.method, ',' order by p.amount_minor) from public.payments p where p.order_id = o.id) || '|'
+        || (select count(distinct p.receipt_number) from public.payments p where p.order_id = o.id) || '|'
+        || (select count(*) from public.order_tracking_events e where e.order_id = o.id) || '|'
+        || (select count(*) from private.order_status_history h where h.order_id = o.id) || '|'
+        || (select count(*) from public.loyalty_ledger l where l.order_id = o.id) from public.orders o where o.id = '${id}'`).split("|");
+      const [total, deposit, paid, due, delivery, payments, receipts, updates, history, loyalty] = figures();
+      assert.deepEqual([total, deposit, paid, due, delivery, payments, receipts, updates, history, loyalty],
+        ["435055", "108764", "435055", "0", "undecided", "deposit:108764:fawran,balance:326291:fawran", "2", "4", "5", "0"]);
+      const rows = () => read(`select (select string_agg(p.id || p.receipt_number || p.amount_minor || p.received_at, ',' order by p.id) from public.payments p where p.order_id = '${id}') || '#'
+        || (select string_agg(e.id || e.title || e.message || e.published_at || coalesce(a.user_id::text, '-'), ',' order by e.id) from public.order_tracking_events e left join private.tracking_event_authors a on a.event_id = e.id where e.order_id = '${id}')`);
+      const rowsBefore = rows();
+      assert.equal(lines(db.commit(`${AS.olivia}select admin.adopt_new_workflow('${id}', 'rehearsal of the hosted synthetic order');`)).pop().trim(), "live_tracking");
+      const after = figures();
+      assert.deepEqual(after.slice(0, 8), ["435055", "108764", "435055", "0", "undecided", "deposit:108764:fawran,balance:326291:fawran", "2", "4"], "money, receipts and updates are unchanged");
+      assert.deepEqual(after.slice(8), ["6", "0"], "the history gained exactly one row; adoption awarded nothing");
+      assert.equal(rows(), rowsBefore, "every payment (with its receipt and date) and every update (with its author and time) is byte for byte the same");
+      // it finishes on the new path; points are earned once, at delivery, on the whole total (QAR 4,350.55 -> 435 points)
+      publish(id, "Landed", { loc: "Doha" });
+      for (const s of ["arrived_in_qatar", "carrier_delivering"]) move(id, s);
+      act(AS.sam, `select admin.set_order_fulfillment_type('${id}', 'custom_pc_build');`);
+      for (const s of ["building", "quality_check", "ready_for_delivery"]) {
+        move(id, s);
+        assert.equal(count(`select count(*) from public.loyalty_ledger where order_id = '${id}'`), 0, s);
+      }
+      move(id, "delivered");
+      assert.equal(read(`select string_agg(entry_type || ':' || points, ',') from public.loyalty_ledger where order_id = '${id}'`), "award:435");
+      act(AS.olivia, `select admin.award_loyalty_for_order('${id}');`);
+      assert.equal(count(`select count(*) from public.loyalty_ledger where order_id = '${id}'`), 1, "asking again never awards a second time");
+      assert.equal(figures().slice(0, 5).join("|"), "435055|108764|435055|0|undecided");
+    });
+
     it("the adopted order carries on: it accepts new updates (nested after the four), the customer sees all five, and it finishes on the new path", () => {
       const id = legacy.transit;
       publish(id, "Arrived at the hub", { loc: "Doha hub" });
@@ -915,6 +961,45 @@ suite("order workflow v2: database layer (real PostgreSQL 16, real migrations, r
       }
       assert.equal(snapshot(), before);
       assert.equal(read("select version from private.business_policies where key = 'orders.workflow'"), policyVersion, "the release switch the owner set is not reset by a rerun");
+    });
+  });
+
+  // =================================================================================================================
+  // Observations for the owner (release preparation). Tests tagged [OBSERVED] record CURRENT behaviour that needs a business decision; they do
+  // not decide it. Each one is written so that it fails, loudly, on the day the behaviour is changed on purpose.
+  describe("[OBSERVED] business-integrity observations (documented, deliberately not changed in this release)", () => {
+    it("[OBSERVED] an order whose delivery method is still 'Not decided' can reach Ready for delivery and Delivered / Collected, and no staff function can set the method afterwards", () => {
+      const id = v2Order("ready_for_delivery", { type: "parts_only", full: true });
+      assert.equal(read(`select coalesce(delivery_method, 'undecided') from public.orders where id = '${id}'`), "undecided");
+      move(id, "delivered");
+      assert.equal(status(id), "delivered", "nothing checks the delivery method before Delivered / Collected");
+      assert.equal(read("select coalesce(string_agg(p.oid::regprocedure::text, ', '), 'none') from pg_proc p where p.pronamespace = 'admin'::regnamespace and p.proname ~* 'deliver'"), "none",
+        "the method can only be given when the order is created; there is no function to decide it later");
+    });
+
+    it("[OBSERVED] who did what IS recorded for every status move and payment (the user id); the dashboard shows a dash only when the staff member has no display name", () => {
+      const erin = "00000000-0000-4000-8000-0000000000e9";
+      db.commit(`insert into auth.users (id, email) values ('${erin}', 'erin@example.test');
+        insert into private.staff_members (user_id, role_code, display_name, is_active) values ('${erin}', 'owner', null, true);`);
+      const asErin = asRole({ sub: erin, aal: "aal2" });
+      const id = make(100000);
+      act(asErin, `select admin.transition_order('${id}', 'awaiting_deposit', 'by a staff member without a display name');`);
+      act(asErin, `select admin.record_payment('${id}', 'deposit', 15000, 'cash');`);
+      act(AS.olivia, `select admin.transition_order('${id}', 'deposit_received', 'by a staff member with a display name');`);
+      // recorded: the actor's id, in the history, the payment details and the audit log
+      assert.equal(read(`select string_agg((changed_by = '${erin}')::text, ',' order by id) from private.order_status_history where order_id = '${id}' and to_status = 'awaiting_deposit'`), "true");
+      assert.equal(read(`select (recorded_by = '${erin}')::text from private.payment_details where payment_id = (select id from public.payments where order_id = '${id}')`), "true");
+      assert.equal(count(`select count(*) from private.audit_log where actor = '${erin}' and action in ('order.transition', 'payment.recorded')`), 2);
+      // shown: the display name, or nothing (a dash on the screen) when there is none
+      const g = get(id, AS.olivia);
+      assert.deepEqual(g.history.filter((h) => h.to_status !== "pending_confirmation").map((h) => h.by), [null, "Owner (test)"]);
+      assert.deepEqual(g.payments.map((p) => p.recorded_by), [null]);
+      // setting the display name (an owner function that already exists) makes the same, unchanged, history show the name
+      act(AS.olivia, `select admin.set_staff_member('${erin}', 'owner', true, 'Erin (test)', 'give the staff member a display name');`);
+      const named = get(id, AS.olivia);
+      assert.deepEqual(named.history.filter((h) => h.to_status !== "pending_confirmation").map((h) => h.by), ["Erin (test)", "Owner (test)"]);
+      assert.deepEqual(named.payments.map((p) => p.recorded_by), ["Erin (test)"]);
+      assert.equal(read(`select (changed_by = '${erin}')::text from private.order_status_history where order_id = '${id}' and to_status = 'awaiting_deposit'`), "true", "the history itself was never rewritten");
     });
   });
 
