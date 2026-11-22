@@ -49,6 +49,7 @@ const suite = skip ? describe.skip : describe;
  *   drop-commit-request     COMMIT is never delivered; the connection is cut (the database rolls back on disconnect)
  *   drop-commit-answer      COMMIT IS delivered and executed; its answer is thrown away and the connection is cut
  *   hang-commit-request     COMMIT is swallowed and the connection stays open and silent (a half-open socket)
+ *   hang-rollback           the ROLLBACK after a database error is swallowed (the connection stays open and silent)
  */
 function startProxy(targetPort) {
   const state = { mode: "pass", sockets: new Set(), dropped: 0 };
@@ -73,6 +74,11 @@ function startProxy(targetPort) {
         state.mode = "pass";
         state.dropped += 1;
         cut();
+        return;
+      }
+      if (state.mode === "hang-rollback" && /Q\0\0\0\u000drollback\0/.test(text)) {
+        state.mode = "pass";
+        state.dropped += 1;
         return;
       }
       if (/Q\0\0\0\u000bcommit\0/.test(text)) {
@@ -359,6 +365,23 @@ suite("the website's own gateway code, over a real connection: accurate messages
       await reset();
       const again = await api.staffApi(staff()).recordPayment(order, "deposit", 40000, "cash", null, null, key, 0);
       assert.equal(again.replayed, false);
+      assert.equal(h.paymentsOf(order), 1);
+    });
+  });
+
+  // =================================================================================================================
+  describe("a connection that cannot even roll back", () => {
+    it("after a business refusal whose ROLLBACK is swallowed, the refusal is still reported correctly, the dead connection is destroyed, and the next request works at once", async () => {
+      await reset();
+      const order = h.confirmed(100000);
+      proxy.state.mode = "hang-rollback";
+      const refused = await attemptCall(() => api.staffApi(staff()).recordPayment(order, "deposit", 100001, "cash", null, null, newKey("rb"), 0));
+      assert.ok(refused.error instanceof gateway.StaffOperationError, String(refused.error));
+      assert.equal(message(refused.error), "this payment would exceed the order total");
+      const started = Date.now();
+      const next = await api.staffApi(staff()).recordPayment(order, "deposit", 10000, "cash", null, null, newKey("rb"), 0);
+      assert.ok(Date.now() - started < 5000, "the next request did not inherit the hung connection");
+      assert.equal(next.replayed, false);
       assert.equal(h.paymentsOf(order), 1);
     });
   });

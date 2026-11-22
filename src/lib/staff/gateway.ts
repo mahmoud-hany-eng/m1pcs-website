@@ -160,8 +160,12 @@ function getPool(): Pool {
     query_timeout: QUERY_TIMEOUT_MS,
     application_name: "m1-staff-gateway",
   });
-  // A broken idle connection must not crash the server.
+  // A broken idle connection must not crash the server, and neither must a late socket error on a connection that was already released or
+  // destroyed: every pooled client keeps a no-op listener for its whole life.
   pool.on("error", () => {});
+  pool.on("connect", (connected) => {
+    connected.on("error", () => {});
+  });
   return pool;
 }
 
@@ -252,7 +256,13 @@ export async function staffCallMeta<T>(staff: VerifiedStaff, name: StaffCallName
     // After a database error the connection is healthy and must be rolled back. After a connection failure it is not: asking it to roll back
     // would wait for another answer that may never come, so it is destroyed instead (the database rolls back an open transaction when the
     // connection ends).
-    if (client && !broken) await client.query("rollback").catch(() => {});
+    if (client && !broken) {
+      try {
+        await client.query("rollback");
+      } catch {
+        broken = true; // the connection could not even roll back: it is destroyed, never returned to the pool
+      }
+    }
     throw error instanceof StaffUnavailableError ? error : mapError(error, name, stage);
   } finally {
     client?.removeListener("error", absorb);

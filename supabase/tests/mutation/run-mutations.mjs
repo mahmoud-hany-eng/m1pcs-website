@@ -60,6 +60,11 @@ const MUTATIONS = [
     ["column_name || ':' || data_type", "column_name"],
     ["'actor:uuid,created_at:timestamp with time zone,idempotency_key:text,operation:text,request_hash:text,result_id:uuid'", "'actor,created_at,idempotency_key,operation,request_hash,result_id'"],
   ], null, [RELEASE]],
+  ["M35", "gateway: a failed ROLLBACK does not mark the connection broken (it goes back to the pool)", "src/lib/staff/gateway.ts", "        broken = true; // the connection could not even roll back: it is destroyed, never returned to the pool", "        /* kept */", [OUTCOMES]],
+  ["M36", "order creation: the quotation permission is checked AFTER the claim (a repeat skips it)", MIG, [
+    ["  if p_quotation_id is not null then\n    perform private.require_permission('quotations.manage');\n  end if;\n\n  -- A retry of an order", "  -- A retry of an order"],
+    ["  if p_quotation_id is not null then\n    select * into q from public.quotations where id = p_quotation_id for update;", "  if p_quotation_id is not null then\n    perform private.require_permission('quotations.manage');\n    select * into q from public.quotations where id = p_quotation_id for update;"],
+  ], null, [WINDOW]],
 ];
 
 const only = new Set(process.argv.slice(2));

@@ -11,7 +11,7 @@
 //   * permission and the second factor are checked BEFORE anything about the order, the key or the replay is revealed.
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { findPgBin } from "./harness.mjs";
+import { asRole, findPgBin } from "./harness.mjs";
 import { AS, ID, startDatabase } from "./fixtures.mjs";
 import { CUST_C, ONE, PAT, SESSION, makeHelpers, newKey, seedIdempotencyFixtures, sleep } from "./support/idempotency-helpers.mjs";
 
@@ -402,6 +402,29 @@ suite("idempotency window, expected paid amount, duplicate evidence and security
       } finally {
         db.commit(`update auth.sessions set aal = 'aal2' where id = '${SESSION.pat}';`);
       }
+    });
+
+    it("QUOTATION PERMISSION: an order made from a quotation needs quotations.manage, and a REPLAY of it does not skip that check once the permission is gone", () => {
+      const X = "00000000-0000-4000-8000-0000000000f7";
+      const QUOTE = "00000000-0000-4000-8000-0000000000d7";
+      db.commit(`insert into auth.users (id, email) values ('${X}', 'quote.clerk@example.test');
+        insert into private.staff_roles (code, description) values ('orders_quotes', 'Test role: orders and quotations');
+        insert into private.role_permissions (role_code, permission_code) values ('orders_quotes', 'orders.create'), ('orders_quotes', 'quotations.manage');
+        insert into private.staff_members (user_id, role_code, display_name, is_active) values ('${X}', 'orders_quotes', 'Quote clerk (test)', true);
+        insert into public.quotations (id, customer_id, category, quantity, product_preference) values ('${QUOTE}', '${ID.custA}', 'Mouse', 1, 'Not sure');
+        update public.quotations set status = 'in_review' where id = '${QUOTE}';
+        update public.quotations set status = 'quoted', quoted_total_minor = 50000 where id = '${QUOTE}';
+        insert into public.quotation_lines (quotation_id, position, description, quantity, unit_price_minor) values ('${QUOTE}', 1, 'Quoted mouse', 1, 50000);
+        update public.quotations set status = 'accepted' where id = '${QUOTE}';`);
+      const clerk = asRole({ sub: X, aal: "aal2" });
+      const key = newKey("quote");
+      const call = `select admin.create_order('${ID.custA}'::uuid, '[{"kind":"component","description":"Quoted mouse","quantity":1,"unit_price_minor":50000}]'::jsonb, '${QUOTE}'::uuid, 'admin'::text, null::text, null::text, '${key}'::text)`;
+      db.commit(`${clerk}${call};`);
+      assert.equal(h.stateOf(clerk, call), "OK", "while the permission holds, the repeat is answered");
+      db.commit(`delete from private.role_permissions where role_code = 'orders_quotes' and permission_code = 'quotations.manage';`);
+      assert.equal(h.stateOf(clerk, call), "42501", "the repeat is refused once quotations.manage is gone");
+      const ordersAfter = h.count(`select count(*) from public.orders where quotation_id = '${QUOTE}'`);
+      assert.equal(ordersAfter, 1);
     });
 
     it("TIMEOUT WHILE WAITING FOR A CLAIM: a second session with the same key gives up at its own statement timeout, records nothing, and the first still commits exactly one payment", async () => {

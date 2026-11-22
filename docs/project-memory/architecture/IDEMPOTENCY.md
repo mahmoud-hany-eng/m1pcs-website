@@ -89,7 +89,7 @@ proves both sides: **COMMIT delivered, answer lost → the payment is saved and 
 A first save says *"recorded"*; a repeat says *"already recorded earlier, so nothing new was recorded"*.
 
 That test also found and fixed a real defect in the gateway: a connection that died mid-request made the driver emit an `error` event on the checked-out client with no listener, which Node treats as an **uncaught
-exception** (it would have taken the server process down). The event is now absorbed; the failure still reaches the screen as a rejected query. After a connection failure the gateway no longer waits for a ROLLBACK answer from the dead connection; it destroys the connection, and the database rolls the open transaction back.
+exception** (it would have taken the server process down). The event is now absorbed; the failure still reaches the screen as a rejected query. After a connection failure the gateway no longer waits for a ROLLBACK answer from the dead connection; it destroys the connection, and the database rolls the open transaction back. A connection that cannot even roll back after a database error is destroyed too, never returned to the pool, and every pooled connection keeps a permanent no-op error listener.
 
 ## Release shape: expand, then contract
 
@@ -112,7 +112,7 @@ New overloads: executable by `authenticated` and the staff gateway only (revoked
 * It does **not** implement any compensation of loyalty points when a payment is reversed: that policy is still undecided ([PROPOSAL_PAYMENT_REVERSAL_AND_LOYALTY.md](PROPOSAL_PAYMENT_REVERSAL_AND_LOYALTY.md)).
 * `admin.adjust_loyalty` has no staff screen and is not in the gateway's fixed statement list; the rule is in the database, so a future screen inherits it.
 * The staff screens cannot be driven in a browser without a real second factor. Instead the hook runs in a real browser, the **action bodies** (`src/lib/staff/order-actions.ts`: stale-form refusal, the duplicate warning and its override, first-save versus repeat wording, which pages refresh) run against the real gateway and database, and the Server Action shell (`actions.ts`) is a thin wrapper that a static test checks.
-* A quotation-backed order needs `quotations.manage`, checked before the claim so a repeat can never skip it. The website never sends a quotation today.
+* A quotation-backed order needs `quotations.manage`, checked before the claim so a repeat can never skip it (tested with a role that loses the permission after the first order). The website never sends a quotation today.
 
 ## Tests
 
