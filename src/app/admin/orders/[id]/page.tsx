@@ -12,9 +12,9 @@ import {
   TrackingCorrectionForm,
   TrackingForm,
   TransitionForm,
-  fulfillmentLabel,
 } from "@/components/admin/forms";
 import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
+import { fulfillmentLabel } from "@/lib/workflow/labels";
 import { buildWorkflowTimeline } from "@/lib/workflow/timeline";
 import { entryLabel, formatDay, formatWhen, methodLabel, percentLabel, plainAmount, purposeLabel } from "@/lib/staff/format";
 import { StaffOperationError } from "@/lib/staff/gateway";

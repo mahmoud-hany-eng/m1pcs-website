@@ -27,6 +27,7 @@ import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
 import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS } from "@/lib/staff/validation";
 import { ageText } from "@/lib/staff/format";
+import { TYPE_LABEL, fulfillmentLabel } from "@/lib/workflow/labels";
 import type { AdoptionOption, FulfillmentType, NextStatus } from "@/lib/workflow/types";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { Notice } from "@/components/account/ui";
@@ -545,8 +546,7 @@ export function TrackingCorrectionForm({ orderId, corrects }: { orderId: string;
   );
 }
 
-const TYPE_LABEL: Record<FulfillmentType, string> = { custom_pc_build: "Custom PC build", parts_only: "Parts only" };
-export const fulfillmentLabel = (type: FulfillmentType | null | undefined): string => (type ? TYPE_LABEL[type] : "Not chosen yet");
+// (fulfillmentLabel lives in @/lib/workflow/labels: the server page needs it too, and a client module's exports cannot be called on the server.)
 
 /** An explicit choice: nothing infers it from the items or the notes. Locked (by the page and by the database) once the order is inside its branch. */
 export function FulfillmentTypeForm({ orderId, current, locked }: { orderId: string; current: FulfillmentType | null; locked: boolean }) {

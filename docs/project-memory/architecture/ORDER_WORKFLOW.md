@@ -206,3 +206,31 @@ and `static.test.mjs`. `supabase/tests/mutation/run-workflow-mutations.mjs` brea
 * **P4. Earlier website's counter (optional hardening).** Hide the six new statuses from customers' reads (row level security) until the release switch is 2 or a workflow-2 order exists, so the earlier website shows exactly what it
   showed before. It adds a policy and a helper function to a public reference table and needs security-audit exceptions; not recommended for the short window described in section 7.
 
+
+## 11. Incident 2026-11-22: the staff order page failed for an order on the current workflow (fixed locally; one new Preview needed)
+
+**What happened.** On the first hosted use (Preview of `460587c`), the owner opened the earlier-workflow order O-2611-00001; the page rendered, with its adoption card. About seven seconds later the owner
+moved the order onto the current workflow with that card (audit entry `order.workflow_adopted`, 19:13:22Z, `in_transit` -> `live_tracking`, reason typed by the owner), and every later open of the page showed
+"This page could not load. Nothing was changed. Please try again in a moment." (the admin error boundary, which prints that text for ANY thrown error).
+
+**Cause (confirmed with the real Next.js 15.5 production server, not inferred).** `src/app/admin/orders/[id]/page.tsx` is a server component. It imported `fulfillmentLabel` from `components/admin/forms.tsx`,
+a `"use client"` module, and CALLED it (status badge, and the read-only order-type line) whenever the order is on the current workflow. Next.js turns every export of a client module into a client reference when
+server code imports it; calling one on the server throws `Attempted to call fulfillmentLabel() from the server but fulfillmentLabel is on the client` (HTTP 500). An earlier-workflow order never reaches the call,
+which is why the page worked until the order was adopted. Evidence: the database logged no error at all in the window (the gateway connected at 19:13:15, :22 and :43 and `admin.get_order` ran without a
+single ERROR or FATAL), sign-in was healthy (every `/auth/v1/user` call returned 200), and a one-line probe route making the same call returned 500 with that exact message on a production build of `460587c`.
+Not a database, authorization, JSON, timeline or migration defect; the order's data is intact.
+
+**Why nothing caught it.** TypeScript, lint and `next build` accept the call. The unit tests import modules in plain Node, where there is no server/client boundary. The browser suites cover the customer pages
+(which were exercised under a real build) but not the staff order page, because the staff dashboard needs a real second factor. No test rendered that page with an order on the current workflow.
+
+**Fix.** `fulfillmentLabel` and its label table moved to a plain module, `src/lib/workflow/labels.ts`, imported by both the server page and the client forms. No database, migration, policy or permission change.
+
+**Tests added (both fail on `460587c` and pass after the fix).**
+* `supabase/tests/server-client-boundary.test.mjs`: parses every file in `src/` and fails if any module that is not a client module CALLS something it imported from a `"use client"` module (it also self-tests the detector).
+* `supabase/tests/admin-order-page.db.test.mjs`: rebuilds the hosted order's values through the real staff functions, reads the real `admin.get_order`, and renders the REAL page and components with React's server
+  renderer under `supabase/tests/support/page-render-loader.mjs`, which emulates the server/client boundary (a client module's non-component exports throw when called from server code, with Next's own message).
+  It renders the order before adoption (earlier workflow: flat tracking list, receipts, status control, adoption card) and after it (current workflow: nested updates, order type, publish form), and for a role without
+  the status permission (the second place the order type is written).
+
+**Rule for new code.** A function a server page needs belongs in a plain module; a `"use client"` file may export only components (and values only other client code uses). Rendering a client component, or passing it props, is
+what the boundary is for; calling its exports on the server is not allowed.
