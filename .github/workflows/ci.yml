@@ -1,6 +1,7 @@
-# Continuous integration (OPS-0002; extended by HD-0021). The token is read-only: no secret, no write permission, no deployment, no hosted service.
-# Since HD-0021 the job also installs packages on its own throw-away runner (sudo apt-get, a pinned Playwright and its browser) and runs the
-# database and browser regression suites against PostgreSQL servers that the tests start and delete themselves.
+# Continuous integration (OPS-0002; extended in PLAT-0004, PENDING the owner's approval: see the proposal handed over with that change).
+# The token is read-only: no secret, no write permission, no deployment, no hosted service. The job also runs the database and browser
+# regression suites against PostgreSQL servers that the tests start and delete themselves (PostgreSQL 16 is preinstalled on the runner image),
+# and installs Playwright's browser (Playwright itself comes from the lockfile, with integrity hashes).
 # The shape of this file is enforced by ops/lib/workflow-safety.mjs against policy.workflow_policy (run by `npm run ops:validate`).
 name: CI
 
@@ -47,12 +48,8 @@ jobs:
         run: npm run ops:validate
       - name: Run the operations tests
         run: npm run ops:test
-      - name: Install the pinned browser test tool for this job only (not saved to package.json or the lockfile)
-        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0
-      - name: Install the browser and its system libraries
+      - name: Install the browser and its system libraries (Playwright is a locked, exactly pinned dev dependency)
         run: npx playwright install --with-deps chromium
-      - name: Make sure the PostgreSQL server programs the database tests start for themselves are present
-        run: sudo apt-get install -y --no-install-recommends postgresql-16
       - name: Database, gateway and accounting regression suites (disposable local PostgreSQL, no hosted service)
         run: npm run test:db
       - name: Browser regression suites (real browser, local emulator)

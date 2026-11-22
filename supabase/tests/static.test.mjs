@@ -488,9 +488,20 @@ describe("CI runs every regression suite (PLAT-0004 corrections, C7)", () => {
     assert.match(pkg.scripts["test:browser"], /^M1_REQUIRE_PG=1 M1_REQUIRE_PLAYWRIGHT=1 /);
   });
 
-  it("the browser tool is installed for the job only, at one exact version, and is not a project dependency", () => {
-    assert.match(ci, /run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@\d+\.\d+\.\d+$/m);
-    assert.equal(pkg.dependencies?.playwright ?? pkg.devDependencies?.playwright ?? null, null);
+  it("Playwright is a LOCKED, exactly pinned dev dependency (integrity hashes in the lockfile), and CI fetches nothing outside the lockfile", () => {
+    const version = pkg.devDependencies?.playwright;
+    assert.match(version ?? "", /^\d+\.\d+\.\d+$/, "an exact version, not a range");
+    const lock = JSON.parse(read("package-lock.json"));
+    for (const name of ["playwright", "playwright-core"]) {
+      const entry = lock.packages?.[`node_modules/${name}`];
+      assert.ok(entry, `${name} is in the lockfile`);
+      assert.equal(entry.version, version, `${name} is locked at ${version}`);
+      assert.match(entry.integrity ?? "", /^sha512-/, `${name} has an integrity hash`);
+      assert.equal(entry.dev, true, `${name} is a dev dependency only`);
+    }
+    const code = ci.replace(/^\s*#.*$/gm, "");
+    assert.doesNotMatch(code, /npm (install|i|add)\b|apt(-get)?\b|\bsudo\b|curl|wget|pip /, "no unlocked or privileged install in the workflow itself");
+    assert.match(code, /run: npx playwright install --with-deps chromium$/m, "the browser comes from Playwright's own installer, at the locked version");
   });
 
   it("the CI runs the same disposable-PostgreSQL suites a developer runs: no hosted database, no secret, no service container", () => {

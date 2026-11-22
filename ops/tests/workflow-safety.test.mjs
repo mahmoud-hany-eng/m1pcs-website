@@ -48,15 +48,17 @@ test("the frozen CI definition used to replay the recorded real runs still satis
   }
 });
 
-test("the live CI runs the database and browser regression suites (PLAT-0004 corrections), after the operations checks and before the build", () => {
+test("the live CI runs the database and browser regression suites (PLAT-0004 corrections), after the operations checks and before the build, with no unlocked install and no apt step", () => {
   const commands = policy.workflow_policy.required_commands;
   const idx = (c) => commands.indexOf(c);
   for (const c of ["npm run test:db", "npm run test:browser"]) assert.ok(idx(c) > idx("npm run ops:test") && idx(c) < idx("npm run build"), c);
   assert.ok(idx("npm run test:db") < idx("npm run test:browser"));
-  assert.ok(idx("npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0") < idx("npx playwright install --with-deps chromium"));
-  assert.ok(idx("npx playwright install --with-deps chromium") < idx("npm run test:browser"));
+  assert.ok(idx("npx playwright install --with-deps chromium") > idx("npm run ops:test") && idx("npx playwright install --with-deps chromium") < idx("npm run test:browser"));
   assert.ok(REAL.includes("run: npm run test:db") && REAL.includes("run: npm run test:browser"));
   assert.ok(policy.workflow_policy.max_timeout_minutes >= 20 && REAL.includes("timeout-minutes: 20"));
+  // The only installs: `npm ci` from the lockfile, and Playwright's own browser installer. Nothing is fetched outside the lockfile.
+  for (const c of commands) assert.ok(!/^npm (install|i|add)\b/.test(c) && !/\bapt(-get)?\b/.test(c) && !/\b(curl|wget|pip|bash|sh)\b/.test(c), `an unlocked or privileged command is approved: ${c}`);
+  assert.match(REAL, /run: npm ci --ignore-scripts --no-audit --no-fund$/m);
 });
 
 test("the real repository passes the file-level check", () => {

@@ -4,7 +4,7 @@
   "policy_version": "0.7.0",
   "status": "draft_pending_human_review",
   "owner": "human",
-  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits were read and verified from the actions' own repositories. 0.4.0 (OPS-0003, HD-0015) extends the memory contract with the trusted-base and CI-evidence files; 0.5.0 (OPS-0004, HD-0017) adds the review packet and decision gate files and the manual_session reviewer runtime (selected stays null); 0.6.0 (HD-0018 to HD-0020) adds PROHIB-017 (Instagram and video-production files), requires REQ-OPS-011 to REQ-OPS-013 and CLAUDE.md sections 13 and 14, and adds the browser-review and Instagram-separation documents; 0.7.0 (PLAT-0004 corrections, HD-0021) extends the CI workflow with the database and browser regression suites (five more commands, in order; the job timeout is raised to the policy maximum). No rule was relaxed in any of these versions.",
+  "provenance": "Initial values are the Phase 0 automation audit recommendations, revised by the owner's decisions in HD-0010 (existing Claude subscription only; no paid AI service; routine low-risk work runs automatically; sensitive changes and production releases need a human). Whether HD-0010 is the complete list of Phase 0 modifications is still open (OQ-0020), so every other value here is a recommendation until a human sets status to active. Nothing in this file is a business decision. The workflow_policy section (0.3.0) records the approved shape of CI workflows for OPS-0002 (HD-0013); the two action commits were read and verified from the actions' own repositories. 0.4.0 (OPS-0003, HD-0015) extends the memory contract with the trusted-base and CI-evidence files; 0.5.0 (OPS-0004, HD-0017) adds the review packet and decision gate files and the manual_session reviewer runtime (selected stays null); 0.6.0 (HD-0018 to HD-0020) adds PROHIB-017 (Instagram and video-production files), requires REQ-OPS-011 to REQ-OPS-013 and CLAUDE.md sections 13 and 14, and adds the browser-review and Instagram-separation documents; 0.7.0 (PLAT-0004 corrections) PROPOSES extending the CI workflow with the database and browser regression suites (three more commands, in order; the job timeout is raised to the policy maximum). It is PENDING the owner's approval: no approval record exists yet, so approval_reference still names HD-0013. No rule was relaxed in any of these versions.",
   "task_id_prefixes": ["OPS", "PLAT"],
   "branches": {
     "production": "main",
@@ -162,7 +162,7 @@
     "governing_question": "OQ-0031"
   },
   "workflow_policy": {
-    "approval_reference": "HD-0021",
+    "approval_reference": "HD-0013",
     "workflow_dir": ".github/workflows",
     "allowed_workflow_files": [".github/workflows/ci.yml"],
     "required_workflow_files": [".github/workflows/ci.yml"],
@@ -202,9 +202,7 @@
       "npx tsc --noEmit",
       "npm run ops:validate",
       "npm run ops:test",
-      "npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0",
       "npx playwright install --with-deps chromium",
-      "sudo apt-get install -y --no-install-recommends postgresql-16",
       "npm run test:db",
       "npm run test:browser",
       "npm run build"
