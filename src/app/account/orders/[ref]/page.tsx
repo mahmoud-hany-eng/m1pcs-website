@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { AccountShell } from "@/components/account/AccountShell";
 import { ItemsTable, MoneySummary, PaymentList, Timeline } from "@/components/account/dashboard";
 import { EmptyState, Panel, ProgressSteps, StatusPill } from "@/components/account/ui";
-import { loadOrderDetail, loadStatuses } from "@/lib/accounts/server/data";
+import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
+import { loadOrderDetail, loadStatuses, loadWorkflowStages } from "@/lib/accounts/server/data";
 import { requireLinkedCustomer } from "@/lib/accounts/server/guard";
-import { buildItems, buildOrderSummary, buildPayments, buildTimeline, isOrderRef } from "@/lib/accounts/shared/view-models";
+import { buildItems, buildOrderSummary, buildPayments, buildTimeline, formatDateTime, isOrderRef } from "@/lib/accounts/shared/view-models";
+import { buildWorkflowTimeline, stagesForOrder } from "@/lib/workflow/timeline";
 
 /**
  * One order. The reference in the address is only a lookup key: the database returns the order only if it belongs to
@@ -17,11 +19,22 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
   const { user, supabase } = await requireLinkedCustomer(isOrderRef(ref) ? `/account/orders/${ref}` : "/account/orders");
   if (!isOrderRef(ref)) notFound();
 
-  const [detail, statuses] = await Promise.all([loadOrderDetail(supabase, ref), loadStatuses(supabase)]);
+  const [detail, statuses, stageRows] = await Promise.all([loadOrderDetail(supabase, ref), loadStatuses(supabase), loadWorkflowStages(supabase)]);
   if (!detail) notFound();
 
-  const summary = buildOrderSummary(detail.order, statuses);
+  const summary = buildOrderSummary(detail.order, statuses, stageRows);
   const timeline = buildTimeline(detail.events, statuses);
+  // An order on the owner-defined workflow is drawn as ONE timeline with the shipment updates nested in Live tracking: the same
+  // model the staff dashboard draws. An order on the earlier workflow (or a database without the stage data) keeps the page it always had.
+  const stages = stagesForOrder(detail.order, stageRows, statuses);
+  const workflow =
+    (detail.order.workflow_version ?? 1) >= 2 && stages.length > 0
+      ? buildWorkflowTimeline({
+          stages,
+          status: { code: summary.status.code, label: summary.status.label, description: summary.status.description, isTerminal: statuses.find((s) => s.code === summary.status.code)?.is_terminal === true },
+          events: detail.events,
+        })
+      : null;
   const payments = buildPayments(detail.payments);
   const items = buildItems(detail.items);
   const latest = timeline.length > 0 ? timeline[timeline.length - 1] : null;
@@ -34,9 +47,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
 
       <Panel title="Where your order is" aside={<StatusPill status={summary.status} />}>
         <div className="flex flex-col gap-4">
-          <ProgressSteps status={summary.status} />
-          <p className="text-sm text-text-secondary">{summary.status.description}</p>
-          {latest ? (
+          {workflow ? null : <ProgressSteps status={summary.status} />}
+          {workflow ? null : <p className="text-sm text-text-secondary">{summary.status.description}</p>}
+          {workflow ? <WorkflowTimeline timeline={workflow} formatTime={formatDateTime} audience="customer" /> : null}
+          {!workflow && latest ? (
             <div className="glass-subtle rounded-glass-sm p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">Latest update · {latest.when}</p>
               <p className="mt-1 font-display text-base font-semibold text-white">{latest.title}</p>
@@ -64,6 +78,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
         <ItemsTable items={items} />
       </Panel>
 
+      {workflow ? null : (
       <Panel title="Tracking timeline">
         {timeline.length > 0 ? (
           <Timeline entries={timeline} />
@@ -73,6 +88,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
           </EmptyState>
         )}
       </Panel>
+      )}
     </AccountShell>
   );
 }

@@ -57,7 +57,20 @@ export function staffApi(staff: VerifiedStaff) {
     transitionOrder: (orderId: string, toStatus: string, reason: string | null) => call<string>("transition_order", [orderId, toStatus, reason]),
     publishTracking: (orderId: string, title: string, message: string | null, statusCode: string | null) =>
       call<string>("publish_tracking_event", [orderId, title, message, statusCode]),
+    // Shipment progress: where it is and when it happened. Accepted only while the order is in Live tracking (the database decides).
+    publishTrackingUpdate: (orderId: string, title: string, message: string | null, location: string | null, occurredAt: string | null) =>
+      call<string>("publish_tracking_update", [orderId, title, message, location, occurredAt]),
+    // After Live tracking has ended: an owner-only, reasoned, visibly marked addition. The original updates stay.
+    publishTrackingCorrection: (
+      orderId: string, title: string, message: string | null, location: string | null, occurredAt: string | null, reason: string, correctsEventId: string | null,
+    ) => call<string>("publish_tracking_correction", [orderId, title, message, location, occurredAt, reason, correctsEventId]),
     retractTracking: (eventId: string, reason: string) => call<string>("retract_tracking_event", [eventId, reason]),
+    // An explicit choice, never inferred: "custom_pc_build" or "parts_only".
+    setFulfillmentType: (orderId: string, fulfillmentType: string, reason: string | null) =>
+      call<string>("set_order_fulfillment_type", [orderId, fulfillmentType, reason]),
+    // Puts ONE existing order onto the current workflow (owner only). Returns the status it was placed at.
+    adoptWorkflow: (orderId: string, reason: string, targetStatus: string | null, fulfillmentType: string | null) =>
+      call<string>("adopt_new_workflow", [orderId, reason, targetStatus, fulfillmentType]),
 
     // The business accepts cash and Fawran. The database also knows older methods for historical records; the website
     // records only the two that are in use, so a crafted request cannot record another.

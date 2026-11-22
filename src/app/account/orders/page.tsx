@@ -1,14 +1,14 @@
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderCard } from "@/components/account/dashboard";
 import { EmptyState } from "@/components/account/ui";
-import { loadOrders, loadStatuses } from "@/lib/accounts/server/data";
+import { loadOrders, loadStatuses, loadWorkflowStages } from "@/lib/accounts/server/data";
 import { requireLinkedCustomer } from "@/lib/accounts/server/guard";
 import { buildOrderSummary } from "@/lib/accounts/shared/view-models";
 
 export default async function OrdersPage() {
   const { user, supabase } = await requireLinkedCustomer("/account/orders");
-  const [statuses, orders] = await Promise.all([loadStatuses(supabase), loadOrders(supabase)]);
-  const cards = orders.map((order) => buildOrderSummary(order, statuses));
+  const [statuses, orders, stageRows] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadWorkflowStages(supabase)]);
+  const cards = orders.map((order) => buildOrderSummary(order, statuses, stageRows));
 
   return (
     <AccountShell active="orders" email={user.email} title="My orders" description="Every order M1 has placed for you, newest first.">

@@ -3,7 +3,7 @@ import { AccountShell } from "@/components/account/AccountShell";
 import { OrderCard } from "@/components/account/dashboard";
 import { ProfileForm } from "@/components/account/forms";
 import { EmptyState, Notice, Panel, StatCard } from "@/components/account/ui";
-import { loadLoyalty, loadOrders, loadStatuses } from "@/lib/accounts/server/data";
+import { loadLoyalty, loadOrders, loadStatuses, loadWorkflowStages } from "@/lib/accounts/server/data";
 import { requireCustomerContext } from "@/lib/accounts/server/guard";
 import { buildOverview } from "@/lib/accounts/shared/view-models";
 
@@ -45,8 +45,8 @@ export default async function AccountOverviewPage({ searchParams }: { searchPara
     );
   }
 
-  const [statuses, orders, loyalty] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadLoyalty(supabase)]);
-  const overview = buildOverview(customer, orders, statuses, loyalty.balances);
+  const [statuses, orders, loyalty, stageRows] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadLoyalty(supabase), loadWorkflowStages(supabase)]);
+  const overview = buildOverview(customer, orders, statuses, loyalty.balances, stageRows);
 
   return (
     <AccountShell active="overview" email={user.email} title={overview.greeting} description="Your orders, payments and rewards at M1 Gaming PCs.">

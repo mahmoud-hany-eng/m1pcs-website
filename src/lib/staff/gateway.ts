@@ -99,6 +99,10 @@ const CALLS = {
   similar_orders: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.similar_orders($1::uuid, $2::jsonb, $3::text) t",
   transition_order: "select admin.transition_order($1::uuid, $2::text, $3::text)::text as r",
   publish_tracking_event: "select admin.publish_tracking_event($1::uuid, $2::text, $3::text, $4::text) as r",
+  publish_tracking_update: "select admin.publish_tracking_update($1::uuid, $2::text, $3::text, $4::text, $5::timestamptz)::text as r",
+  publish_tracking_correction: "select admin.publish_tracking_correction($1::uuid, $2::text, $3::text, $4::text, $5::timestamptz, $6::text, $7::uuid)::text as r",
+  set_order_fulfillment_type: "select admin.set_order_fulfillment_type($1::uuid, $2::text, $3::text)::text as r",
+  adopt_new_workflow: "select admin.adopt_new_workflow($1::uuid, $2::text, $3::text, $4::text) as r",
   retract_tracking_event: "select admin.retract_tracking_event($1::uuid, $2::text)::text as r",
   record_payment: "with c as materialized (select admin.record_payment($1::uuid, $2::text, $3::bigint, $4::text, null::timestamptz, null::text, $5::text, $6::text, $7::text, $8::bigint) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
   reverse_payment: "select admin.reverse_payment($1::uuid, $2::text) as r",
@@ -115,7 +119,7 @@ export type StaffCallName = keyof typeof CALLS;
 /** The calls that change data. For these, "nothing was changed" must be TRUE whenever the screen says it. */
 const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
   "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "transition_order", "publish_tracking_event",
-  "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
+  "publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow", "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
 ]);
 /** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
 const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "record_payment"]);

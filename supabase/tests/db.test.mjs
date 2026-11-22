@@ -93,7 +93,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("the whole customer-visible surface is exactly this set of tables and views", () => {
       assert.equal(
         db.ok("select string_agg(table_name, ',' order by table_name) from information_schema.tables where table_schema = 'public';"),
-        "customer_accounts,customers,loyalty_balances,loyalty_ledger,order_items,order_statuses,order_tracking_events,orders,payments,quotation_lines,quotations,quote_categories",
+        "customer_accounts,customers,loyalty_balances,loyalty_ledger,order_items,order_statuses,order_tracking_events,order_workflow_stages,orders,payments,quotation_lines,quotations,quote_categories",
       );
     });
 
@@ -103,13 +103,14 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
         customer_accounts: "customer_id,linked_at,linked_via,user_id",
         quotations: "additional_notes,category,created_at,customer_id,guest_email,guest_name,guest_phone,id,product_preference,quantity,quote_ref,quoted_total_minor,requested_budget_minor,requested_specs,source,specific_model,status,updated_at,valid_until",
         quotation_lines: "description,id,line_total_minor,position,quantity,quotation_id,unit_price_minor",
-        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,id,order_ref,placed_via,quotation_id,status,total_minor,updated_at",
+        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,fulfillment_type,id,order_ref,placed_via,quotation_id,status,total_minor,updated_at,workflow_version",
         order_items: "description,id,kind,line_total_minor,order_id,position,quantity,unit_price_minor",
-        order_tracking_events: "id,message,order_id,published_at,status_code,title",
+        order_tracking_events: "corrects_event_id,event_kind,id,location,message,occurred_at,order_id,published_at,status_code,title",
         payments: "amount_minor,created_at,currency,entry_type,id,method,order_id,purpose,receipt_number,received_at,reverses_payment_id",
         loyalty_ledger: "created_at,customer_id,description,entry_type,id,order_id,points,reverses_entry_id",
         loyalty_balances: "balance_points,customer_id,entries",
         order_statuses: "code,customer_description,customer_label,is_provisional,is_terminal,sort_order",
+        order_workflow_stages: "branch,position,shows_tracking,status_code,workflow_version",
         quote_categories: "label,sort_order",
       };
       for (const [table, columns] of Object.entries(expected)) {
@@ -150,7 +151,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
       it("every public table and view has an interface with exactly the database's columns", () => {
         const map = source.match(/export interface PublicTables \{([\s\S]*?)\n\}/)[1];
         const tables = [...map.matchAll(/^ {2}([a-z_]+): ([A-Za-z]+);/gm)].map((m) => ({ table: m[1], iface: m[2] }));
-        assert.equal(tables.length, 12);
+        assert.equal(tables.length, 13);
         for (const { table, iface } of tables) {
           const typed = interfaceProps(iface).map((p) => p.name).sort().join(",");
           const real = db.ok(`select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema = 'public' and table_name = '${table}';`);
@@ -329,14 +330,16 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
 
     it("every policy that the code reads exists, and only the two confirmed loyalty rates are marked confirmed", () => {
       assert.equal(db.ok("select string_agg(key, ',' order by key) from private.business_policies;", AS.superuser),
-        "admin.mfa,loyalty.award_trigger,loyalty.earn_rate,loyalty.earning_base,loyalty.negative_balance,loyalty.point_value,orders.deposit,orders.full_payment");
+        "admin.mfa,loyalty.award_trigger,loyalty.earn_rate,loyalty.earning_base,loyalty.negative_balance,loyalty.point_value,orders.deposit,orders.full_payment,orders.workflow");
       assert.equal(db.ok("select string_agg(key, ',' order by key) from private.business_policies where confirmation = 'confirmed_by_owner';", AS.superuser),
         "loyalty.earn_rate,loyalty.point_value");
     });
 
-    it("every status named by a transition or a policy exists, and the status vocabulary is flagged provisional", () => {
+    it("every status named by a transition or a policy exists; only the two earlier-workflow-only statuses are still flagged provisional", () => {
       assert.equal(db.ok("select count(*) from private.order_status_transitions t left join public.order_statuses s on s.code = t.to_code where s.code is null;", AS.superuser), "0");
-      assert.equal(db.ok("select count(*) from public.order_statuses where not is_provisional;", AS.superuser), "0");
+      assert.equal(db.ok("select count(*) from private.order_workflow_transitions t left join public.order_statuses s on s.code = t.to_code where s.code is null;", AS.superuser), "0");
+      // The owner has defined the current workflow; the two statuses that exist only for orders on the earlier workflow keep their flag.
+      assert.equal(db.ok("select string_agg(code, ',' order by code) from public.order_statuses where is_provisional;", AS.superuser), "in_transit,sourcing");
     });
   });
 
@@ -417,7 +420,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     });
 
     it("anonymous visitors can read only the status and category reference lists, and cannot change them", () => {
-      assert.equal(db.ok(count("public.order_statuses"), AS.anon), "11");
+      assert.equal(db.ok(count("public.order_statuses"), AS.anon), "17");
       assert.equal(db.ok(count("public.quote_categories"), AS.anon), "18");
       db.denied("insert into public.quote_categories (label, sort_order) values ('Hack', 99);", AS.anon, /permission denied/);
       db.denied("update public.order_statuses set customer_label = 'x';", AS.anon, /permission denied/);
@@ -533,7 +536,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
   // =================================================================================================================
   describe("staff authorization is decided on the server from the staff tables", () => {
     it("lists the permissions of a role", () => {
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "21");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "23");
       assert.equal(db.ok("select string_agg(p, ',' order by p) from admin.my_permissions() p;", AS.sam),
         "customers.manage,customers.read,notes.read,notes.write,orders.create,orders.read,orders.transition,quotations.manage,quotations.read,tracking.publish");
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.alice), "0");
@@ -582,12 +585,12 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("the second-factor rule: a staff session without aal2 has no permission while the policy requires it", () => {
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.oliviaAal1), "0");
       db.denied(newOrder({ items: oneItem(100), who: AS.oliviaAal1 }), "", /permission denied: orders\.create/);
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "21");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "23");
     });
 
     it("the second-factor rule fails closed when its policy row is missing, and can be relaxed only by the owner's policy", () => {
       assert.equal(db.ok("delete from private.business_policies where key = 'admin.mfa'; reset role;" + AS.oliviaAal1 + "select count(*) from admin.my_permissions();", AS.superuser), "0");
-      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "21");
+      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "23");
     });
 
     it("a staff member row alone is what grants access: removing it removes every permission", () => {
@@ -862,7 +865,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     });
 
     it("the policy list tells the owner which values are still unconfirmed placeholders", () => {
-      assert.equal(db.ok("select count(*) from admin.list_policies() where confirmation = 'unconfirmed_default';", AS.olivia), "6");
+      assert.equal(db.ok("select count(*) from admin.list_policies() where confirmation = 'unconfirmed_default';", AS.olivia), "7");
       assert.equal(db.ok("select string_agg(key, ',' order by key) from admin.list_policies() where open_question is not null;", AS.olivia),
         "loyalty.earn_rate,loyalty.earning_base,loyalty.award_trigger,loyalty.negative_balance,loyalty.point_value,orders.full_payment".split(",").sort().join(","));
     });

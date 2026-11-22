@@ -5,6 +5,7 @@
  * business rules stay in the database where the owner can change them.
  */
 import { formatQar } from "@/lib/platform/money";
+import { stagesForOrder, type StageRowInput } from "@/lib/workflow/timeline";
 import type {
   CustomerRow,
   LoyaltyBalanceRow,
@@ -54,9 +55,16 @@ export interface StatusView {
   steps: number;
 }
 
-export function buildStatusView(code: string, statuses: readonly OrderStatusRow[]): StatusView {
+/**
+ * `pathCodes` is the list of stages THIS order's workflow follows, in order (from the stage table). Without it the path is every
+ * status below the off-path threshold: what an earlier database (one with no stage table) always meant.
+ */
+export function buildStatusView(code: string, statuses: readonly OrderStatusRow[], pathCodes?: readonly string[]): StatusView {
   const sorted = [...statuses].sort((a, b) => a.sort_order - b.sort_order);
-  const path = sorted.filter((s) => s.sort_order < OFF_PATH_SORT_ORDER);
+  const byCode = new Map(sorted.map((s) => [s.code, s] as const));
+  const path = pathCodes && pathCodes.length > 0
+    ? pathCodes.flatMap((c) => (byCode.has(c) ? [byCode.get(c) as OrderStatusRow] : []))
+    : sorted.filter((s) => s.sort_order < OFF_PATH_SORT_ORDER);
   const status = sorted.find((s) => s.code === code);
   if (!status) {
     // An unknown code is shown as it is rather than hidden, so a vocabulary change never blanks the page.
@@ -91,12 +99,13 @@ export interface OrderSummaryView {
   href: string;
 }
 
-export function buildOrderSummary(order: OrderRow, statuses: readonly OrderStatusRow[]): OrderSummaryView {
+export function buildOrderSummary(order: OrderRow, statuses: readonly OrderStatusRow[], stageRows: readonly StageRowInput[] = []): OrderSummaryView {
   const outstanding = order.deposit_required_minor - order.amount_paid_minor;
+  const pathCodes = stagesForOrder(order, stageRows, statuses).map((stage) => stage.code);
   return {
     ref: order.order_ref,
     placedOn: formatDate(order.created_at),
-    status: buildStatusView(order.status, statuses),
+    status: buildStatusView(order.status, statuses, pathCodes),
     total: formatQar(order.total_minor),
     depositRequired: formatQar(order.deposit_required_minor),
     paid: formatQar(order.amount_paid_minor),
@@ -256,6 +265,7 @@ export function buildOverview(
   orders: readonly OrderRow[],
   statuses: readonly OrderStatusRow[],
   loyalty: readonly LoyaltyBalanceRow[],
+  stageRows: readonly StageRowInput[] = [],
 ): OverviewView {
   const newestFirst = [...orders].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const terminal = new Set(statuses.filter((s) => s.is_terminal).map((s) => s.code));
@@ -268,7 +278,7 @@ export function buildOverview(
     greeting: first ? `Welcome back, ${first}` : "Welcome back",
     orderCount: orders.length,
     openOrderCount: orders.filter((o) => !terminal.has(o.status)).length,
-    latestOrder: newestFirst[0] ? buildOrderSummary(newestFirst[0], statuses) : null,
+    latestOrder: newestFirst[0] ? buildOrderSummary(newestFirst[0], statuses, stageRows) : null,
     totalBalanceDue: formatQar(due),
     hasBalanceDue: due > 0,
     loyaltyBalance: loyalty.reduce((sum, row) => sum + (row.balance_points ?? 0), 0),

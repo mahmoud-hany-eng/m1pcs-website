@@ -8,22 +8,26 @@
 import { useActionState, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { formatQar, parseQarToMinor } from "@/lib/platform/money";
 import {
+  adoptWorkflowAction,
   createCustomerAction,
   createOrderAction,
   issueClaimCodeAction,
   previewDepositAction,
   publishTrackingAction,
+  publishTrackingCorrectionAction,
   recordPaymentAction,
   retractTrackingAction,
   reversePaymentAction,
   revokeClaimCodeAction,
   setDepositScheduleAction,
+  setFulfillmentTypeAction,
   transitionOrderAction,
 } from "@/lib/staff/actions";
 import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
 import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS } from "@/lib/staff/validation";
 import { ageText } from "@/lib/staff/format";
+import type { AdoptionOption, FulfillmentType, NextStatus } from "@/lib/workflow/types";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { Notice } from "@/components/account/ui";
 
@@ -417,52 +421,216 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
   );
 }
 
-export function TransitionForm({ orderId, next }: { orderId: string; next: { code: string; label: string }[] }) {
+export function TransitionForm({ orderId, next }: { orderId: string; next: NextStatus[] }) {
   const [state, action, pending] = useStaffForm(transitionOrderAction);
+  // Only moves that can be made right now are offered. A move that is valid but not available yet (for example Deposit confirmed
+  // before the deposit is recorded) is listed below with the reason, so the person knows what is missing; it cannot be chosen.
+  const ready = next.filter((n) => !n.blocked_reason);
+  const waiting = next.filter((n) => n.blocked_reason);
   if (next.length === 0) return <p className="text-sm text-text-muted">This order is in a final state. No further status change is possible.</p>;
   return (
-    <form action={action} className="flex flex-col gap-3" noValidate>
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="transition-form">
       <input type="hidden" name="order_id" value={orderId} />
       <Feedback state={state} />
-      <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
-        <Field id="t-status" label="Move to" error={errorOf(state, "to_status")}>
-          <Select state={state} id="t-status" name="to_status" defaultValue={next[0].code}>
-            {next.map((n) => (
-              <option key={n.code} value={n.code}>
-                {n.label}
+      {ready.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
+          <Field id="t-status" label="Move to" error={errorOf(state, "to_status")}>
+            <Select state={state} id="t-status" name="to_status" defaultValue={ready[0].code}>
+              {ready.map((n) => (
+                <option key={n.code} value={n.code}>
+                  {n.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field id="t-reason" label="Reason (optional)" error={errorOf(state, "reason")}>
+            <Input state={state} id="t-reason" name="reason" maxLength={500} />
+          </Field>
+          <Submit pending={pending} pendingLabel="Updating…">
+            Update status
+          </Submit>
+        </div>
+      ) : (
+        <p className="text-sm text-text-muted">No status change can be made right now.</p>
+      )}
+      {waiting.length > 0 ? (
+        <ul className="flex flex-col gap-1.5 text-xs text-text-muted" data-testid="transition-blocked">
+          {waiting.map((n) => (
+            <li key={n.code}>
+              <span className="font-semibold text-text-secondary">{n.label}</span> is not available yet: {n.blocked_reason}.
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </form>
+  );
+}
+
+/** The fields both tracking forms share: where the shipment is, what happened and when. Nothing here is filled in for the person. */
+function TrackingFields({ state, prefix }: { state: StaffFormState; prefix: string }) {
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id={`${prefix}-title`} label="Update title" error={errorOf(state, "title")}>
+          <Input state={state} id={`${prefix}-title`} name="title" maxLength={120} placeholder="Departed Miami airport" />
+        </Field>
+        <Field id={`${prefix}-location`} label="Shipment location (optional)" error={errorOf(state, "location")}>
+          <Input state={state} id={`${prefix}-location`} name="location" maxLength={120} placeholder="Miami, USA" />
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[1.6fr_1fr]">
+        <Field id={`${prefix}-msg`} label="Description (optional)" error={errorOf(state, "message")}>
+          <Input state={state} id={`${prefix}-msg`} name="message" maxLength={1000} />
+        </Field>
+        <Field id={`${prefix}-when`} label="When it happened (Qatar time, optional)" error={errorOf(state, "occurred_at")}>
+          <Input state={state} id={`${prefix}-when`} name="occurred_at" type="datetime-local" />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+/** Open only while the order is in Live tracking (the page shows it only then; the database refuses it at any other time). */
+export function TrackingForm({ orderId }: { orderId: string }) {
+  const [state, action, pending] = useStaffForm(publishTrackingAction);
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="tracking-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <Feedback state={state} />
+      <h3 className="font-display text-base font-semibold text-white">Publish a tracking update</h3>
+      <TrackingFields state={state} prefix="tr" />
+      <div>
+        <Submit pending={pending} tone="glass" pendingLabel="Publishing…">
+          Publish to customer
+        </Submit>
+      </div>
+      <p className="text-xs text-text-muted">
+        What you publish here is shown to the customer in their account, in order of when it happened. Type the place and the time yourself; nothing is filled in for you. Leave the time empty to use the moment you publish. A published update can be withdrawn but never deleted.
+      </p>
+    </form>
+  );
+}
+
+/** Owner only, after Live tracking has ended: a reasoned, visibly marked addition. The original updates stay as they are. */
+export function TrackingCorrectionForm({ orderId, corrects }: { orderId: string; corrects: { id: string; title: string }[] }) {
+  const [state, action, pending] = useStaffForm(publishTrackingCorrectionAction);
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="tracking-correction-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <Feedback state={state} />
+      <h3 className="font-display text-base font-semibold text-white">Add a correction</h3>
+      <p className="text-xs text-text-muted">Live tracking has ended for this order, so a new entry is a correction: the customer sees it marked as a correction, and the reason below is kept for staff. The earlier updates are not changed.</p>
+      <TrackingFields state={state} prefix="co" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="co-corrects" label="Update this corrects (optional)" error={errorOf(state, "corrects_event_id")}>
+          <Select state={state} id="co-corrects" name="corrects_event_id" defaultValue="">
+            <option value="">None in particular</option>
+            {corrects.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
               </option>
             ))}
           </Select>
         </Field>
-        <Field id="t-reason" label="Reason (optional)" error={errorOf(state, "reason")}>
-          <Input state={state} id="t-reason" name="reason" maxLength={500} />
+        <Field id="co-reason" label="Reason (kept for staff)" error={errorOf(state, "reason")}>
+          <Input state={state} id="co-reason" name="reason" maxLength={500} required />
         </Field>
-        <Submit pending={pending} pendingLabel="Updating…">
-          Update status
+      </div>
+      <div>
+        <Submit pending={pending} tone="glass" pendingLabel="Adding…">
+          Add correction
         </Submit>
       </div>
     </form>
   );
 }
 
-export function TrackingForm({ orderId }: { orderId: string }) {
-  const [state, action, pending] = useStaffForm(publishTrackingAction);
+const TYPE_LABEL: Record<FulfillmentType, string> = { custom_pc_build: "Custom PC build", parts_only: "Parts only" };
+export const fulfillmentLabel = (type: FulfillmentType | null | undefined): string => (type ? TYPE_LABEL[type] : "Not chosen yet");
+
+/** An explicit choice: nothing infers it from the items or the notes. Locked (by the page and by the database) once the order is inside its branch. */
+export function FulfillmentTypeForm({ orderId, current, locked }: { orderId: string; current: FulfillmentType | null; locked: boolean }) {
+  const [state, action, pending] = useStaffForm(setFulfillmentTypeAction);
   return (
-    <form action={action} className="flex flex-col gap-3" noValidate>
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="fulfillment-form">
       <input type="hidden" name="order_id" value={orderId} />
       <Feedback state={state} />
-      <div className="grid gap-3 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end">
-        <Field id="tr-title" label="Update title" error={errorOf(state, "title")}>
-          <Input state={state} id="tr-title" name="title" maxLength={120} placeholder="Parts arrived in Qatar" />
+      <p className="text-sm text-text-secondary">
+        Order type: <span className="font-semibold text-white" data-testid="fulfillment-current">{fulfillmentLabel(current)}</span>
+      </p>
+      {current === null ? <p className="text-xs text-warning">Not chosen yet. It is required before this order can leave “Carrier delivering order to M1”.</p> : null}
+      {locked ? (
+        <p className="text-xs text-text-muted">The order is already inside its {current ? TYPE_LABEL[current] : ""} steps, so the type can no longer be changed.</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Field id="ft-type" label="Order type" error={errorOf(state, "fulfillment_type")}>
+            <Select state={state} id="ft-type" name="fulfillment_type" defaultValue={current ?? ""}>
+              <option value="" disabled>
+                Choose…
+              </option>
+              <option value="custom_pc_build">{TYPE_LABEL.custom_pc_build}</option>
+              <option value="parts_only">{TYPE_LABEL.parts_only}</option>
+            </Select>
+          </Field>
+          <Submit pending={pending} tone="glass" pendingLabel="Saving…">
+            Save type
+          </Submit>
+        </div>
+      )}
+    </form>
+  );
+}
+
+/** Owner only, one order at a time: places an order of the earlier workflow on the current one. Its history, payments and updates are not touched. */
+export function AdoptWorkflowForm({ orderId, options }: { orderId: string; options: AdoptionOption[] }) {
+  const [state, action, pending] = useStaffForm(adoptWorkflowAction);
+  const first = options.find((o) => o.is_default) ?? options[0];
+  const [target, setTarget] = useState(first?.target_status ?? "");
+  if (options.length === 0) return null;
+  const chosen = options.find((o) => o.target_status === target) ?? first;
+  const implied = chosen.requires_fulfillment;
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="adopt-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <Feedback state={state} />
+      <p className="text-sm text-text-secondary">
+        This order is on the earlier workflow. Moving it to the current one keeps its history, payments, receipts and tracking updates exactly as they are, adds one history entry, and cannot be undone.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="ad-target" label="Place it at" error={errorOf(state, "target_status")}>
+          <Select state={state} id="ad-target" name="target_status" value={target} onChange={(e) => setTarget(e.target.value)}>
+            {options.map((o) => (
+              <option key={o.target_status} value={o.target_status}>
+                {o.label}
+                {o.is_default ? " (suggested)" : ""}
+              </option>
+            ))}
+          </Select>
         </Field>
-        <Field id="tr-msg" label="Message (optional)" error={errorOf(state, "message")}>
-          <Input state={state} id="tr-msg" name="message" maxLength={1000} />
-        </Field>
-        <Submit pending={pending} tone="glass" pendingLabel="Publishing…">
-          Publish to customer
+        {implied ? (
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">Order type</span>
+            <span className="text-white">{TYPE_LABEL[implied]}</span>
+            <input type="hidden" name="fulfillment_type" value={implied} />
+          </div>
+        ) : (
+          <Field id="ad-type" label="Order type (optional)" error={errorOf(state, "fulfillment_type")}>
+            <Select state={state} id="ad-type" name="fulfillment_type" defaultValue="">
+              <option value="">Decide later</option>
+              <option value="custom_pc_build">{TYPE_LABEL.custom_pc_build}</option>
+              <option value="parts_only">{TYPE_LABEL.parts_only}</option>
+            </Select>
+          </Field>
+        )}
+      </div>
+      <Field id="ad-reason" label="Reason (kept in the history)" error={errorOf(state, "reason")}>
+        <Input state={state} id="ad-reason" name="reason" maxLength={500} required />
+      </Field>
+      <div>
+        <Submit pending={pending} tone="glass" pendingLabel="Moving…">
+          Move to the current workflow
         </Submit>
       </div>
-      <p className="text-xs text-text-muted">What you publish here is shown to the customer in their account. Keep it factual. A published update can be withdrawn but never deleted.</p>
     </form>
   );
 }

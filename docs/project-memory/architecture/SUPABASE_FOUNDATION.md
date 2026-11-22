@@ -100,6 +100,10 @@ when every cost is in QAR and is otherwise `null` (OQ-0012).
 (terminal). Each row carries a customer-facing label and description, and an `is_provisional` flag. The list is
 a placeholder for the owner's real stages (OQ-0005).
 
+> **Update (PLAT-0004, local, not yet applied anywhere):** the owner has since defined the real workflow. It is added alongside this
+> vocabulary as workflow version 2, with fulfilment branches, nested Live tracking and a per-order compatibility strategy; see
+> [ORDER_WORKFLOW.md](ORDER_WORKFLOW.md). Everything described in this section still applies to orders on workflow version 1.
+
 **Transitions are data.** `private.order_status_transitions` lists the allowed moves. `admin.transition_order` refuses
 any other move, requires the `orders.transition` permission, writes the history row (who, when, why) and keeps the
 status and the history in one transaction. A held order can resume only at the status it was held from, or be

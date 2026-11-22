@@ -13,6 +13,7 @@ import type {
   OrderItemRow,
   OrderRow,
   OrderStatusRow,
+  OrderWorkflowStageRow,
   OrderTrackingEventRow,
   PaymentRow,
 } from "@/lib/platform/database.types";
@@ -50,6 +51,20 @@ export async function loadCustomers(supabase: AppSupabaseClient, userId: string)
 export async function loadStatuses(supabase: AppSupabaseClient): Promise<OrderStatusRow[]> {
   const result = await supabase.from("order_statuses").select("*").order("sort_order", { ascending: true });
   if (result.error) fail("order statuses", result.error);
+  return result.data ?? [];
+}
+
+/**
+ * The stages each workflow follows. Tolerant on purpose: a database that has not been given the stage table yet (an earlier
+ * release) answers with an error here, and the customer pages then show the order the way they always did, from the status list.
+ * Only the failing step is logged, never data.
+ */
+export async function loadWorkflowStages(supabase: AppSupabaseClient): Promise<OrderWorkflowStageRow[]> {
+  const result = await supabase.from("order_workflow_stages").select("*").order("position", { ascending: true });
+  if (result.error) {
+    console.error(`[accounts] workflow stages unavailable${result.error.code ? ` (${result.error.code})` : ""}; using the status list`);
+    return [];
+  }
   return result.data ?? [];
 }
 

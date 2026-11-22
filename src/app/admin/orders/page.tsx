@@ -4,19 +4,26 @@ import { DataTable, LinkButton, Money, SearchBar, Section, StatusBadge } from "@
 import { formatDay } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
+// The filter lists every status an order can have, in the owner's order, then the two that only orders on the earlier workflow use.
 const STATUSES: [string, string][] = [
   ["", "All statuses"],
   ["pending_confirmation", "Order received"],
   ["awaiting_deposit", "Awaiting deposit"],
-  ["deposit_received", "Deposit received"],
-  ["sourcing", "Sourcing"],
-  ["in_transit", "In transit"],
-  ["building", "Building"],
-  ["quality_check", "Final checks"],
-  ["ready_for_delivery", "Ready for delivery"],
-  ["delivered", "Delivered"],
+  ["deposit_received", "Deposit confirmed"],
+  ["order_confirmed", "Order confirmed"],
+  ["live_tracking", "Live tracking"],
+  ["arrived_in_qatar", "Order arrived in Qatar"],
+  ["carrier_delivering", "Carrier delivering order to M1"],
+  ["building", "M1 is building your PC"],
+  ["quality_check", "Final quality checks"],
+  ["items_arrived", "Items arrived at M1"],
+  ["awaiting_scheduling", "Awaiting scheduling for pickup or delivery"],
+  ["ready_for_delivery", "Ready for delivery or pickup"],
+  ["delivered", "Delivered / Collected"],
   ["on_hold", "On hold"],
   ["cancelled", "Cancelled"],
+  ["sourcing", "Sourcing (earlier workflow)"],
+  ["in_transit", "In transit (earlier workflow)"],
 ];
 const first = (value: string | string[] | undefined): string => (Array.isArray(value) ? value[0] : value) ?? "";
 
@@ -64,6 +71,12 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             { key: "ref", header: "Order", cell: (r) => r.order_ref, primary: true },
             { key: "customer", header: "Customer", cell: (r) => r.customer_name },
             { key: "status", header: "Status", cell: (r) => <StatusBadge code={r.status} label={r.status_label} /> },
+            {
+              key: "type",
+              header: "Type",
+              cell: (r) => ((r.workflow_version ?? 1) >= 2 ? (r.fulfillment_type === "custom_pc_build" ? "Custom PC build" : r.fulfillment_type === "parts_only" ? "Parts only" : "Not chosen") : "Earlier workflow"),
+              hideOnCard: true,
+            },
             { key: "total", header: "Total", cell: (r) => <Money minor={r.total_minor} />, align: "right" },
             { key: "paid", header: "Paid", cell: (r) => <Money minor={r.amount_paid_minor} />, align: "right" },
             { key: "balance", header: "Balance", cell: (r) => <Money minor={r.balance_due_minor} />, align: "right" },

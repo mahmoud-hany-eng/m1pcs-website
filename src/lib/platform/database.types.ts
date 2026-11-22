@@ -132,10 +132,15 @@ export interface OrderRow {
   delivery_method: DeliveryMethod | null;
   delivery_address: string | null;
   placed_via: PlacedVia;
+  /** Which order workflow the order follows: 1 is the earlier provisional path, 2 the owner-defined one (see order_workflow_stages). */
+  workflow_version: number;
+  /** Chosen explicitly by staff; null until chosen (every earlier order). Never inferred. */
+  fulfillment_type: FulfillmentType | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
 
+export type FulfillmentType = "custom_pc_build" | "parts_only";
 export type OrderItemKind = "component" | "build_service" | "delivery" | "discount" | "other";
 
 /** table: public.order_items */
@@ -158,6 +163,23 @@ export interface OrderTrackingEventRow {
   title: string;
   message: string | null;
   published_at: Timestamp;
+  /** Where the shipment is, as typed by staff. Null for updates that did not name a place. */
+  location: string | null;
+  /** When the event happened, as typed by staff. Null means "when it was published". */
+  occurred_at: Timestamp | null;
+  /** A correction is an addition made after Live tracking ended; it is shown to the customer as a correction. */
+  event_kind: "update" | "correction";
+  corrects_event_id: Uuid | null;
+}
+
+/** table: public.order_workflow_stages. What each workflow's timeline is drawn from (readable by signed-in customers). */
+export interface OrderWorkflowStageRow {
+  workflow_version: number;
+  branch: "any" | FulfillmentType;
+  position: number;
+  status_code: string;
+  /** The stage that owns the nested, expandable shipment updates. */
+  shows_tracking: boolean;
 }
 
 export type PaymentEntryType = "payment" | "reversal" | "refund";
@@ -253,6 +275,7 @@ export interface PublicTables {
   quotations: QuotationRow;
   quotation_lines: QuotationLineRow;
   order_statuses: OrderStatusRow;
+  order_workflow_stages: OrderWorkflowStageRow;
   orders: OrderRow;
   order_items: OrderItemRow;
   order_tracking_events: OrderTrackingEventRow;

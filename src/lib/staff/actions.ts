@@ -25,8 +25,10 @@ import {
   isUuid,
   parseCustomer,
   parseDepositSchedule,
+  parseFulfillmentType,
   parseReason,
   parseTracking,
+  parseTrackingCorrection,
 } from "./validation";
 
 const ORDER_STATUS = /^[a-z_]{3,40}$/;
@@ -124,9 +126,57 @@ export async function publishTrackingAction(_previous: StaffFormState, formData:
     if (!isUuid(orderId)) return badId();
     const parsed = parseTracking(formData);
     if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-    await api.publishTracking(orderId, parsed.value.title, parsed.value.message, null);
+    // Whether the order is in Live tracking is decided by the database, in the same transaction as the write.
+    await api.publishTrackingUpdate(orderId, parsed.value.title, parsed.value.message, parsed.value.location, parsed.value.occurredAt);
     revalidatePath(`/admin/orders/${orderId}`);
     return { status: "success", message: "The update is now visible to the customer." };
+  });
+}
+
+/** After Live tracking has ended: owner only. The database re-checks the permission, the reason and the order's tracking phase. */
+export async function publishTrackingCorrectionAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "tracking.correct", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const parsed = parseTrackingCorrection(formData);
+    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+    const v = parsed.value;
+    await api.publishTrackingCorrection(orderId, v.title, v.message, v.location, v.occurredAt, v.reason, v.correctsEventId);
+    revalidatePath(`/admin/orders/${orderId}`);
+    return { status: "success", message: "The correction was added to the tracking history and is marked as a correction for the customer." };
+  });
+}
+
+/** The fulfilment type is an explicit choice (Custom PC build or Parts only); nothing infers it from the items or the notes. */
+export async function setFulfillmentTypeAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "orders.transition", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const parsed = parseFulfillmentType(formData);
+    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+    await api.setFulfillmentType(orderId, parsed.value, null);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    return { status: "success", message: "The order type was saved." };
+  });
+}
+
+/** Owner only, one order at a time, with a reason: puts an existing order on the current workflow. */
+export async function adoptWorkflowAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "orders.adopt", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const reason = parseReason(formData);
+    if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
+    const target = field(formData, "target_status");
+    if (target !== "" && !ORDER_STATUS.test(target)) return { status: "error", fieldErrors: { target_status: "Choose one of the listed statuses." } };
+    const type = field(formData, "fulfillment_type");
+    if (type !== "" && !parseFulfillmentType(formData).ok) return { status: "error", fieldErrors: { fulfillment_type: "Choose Custom PC build or Parts only." } };
+    await api.adoptWorkflow(orderId, reason.value, target || null, type || null);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: "The order now follows the current workflow. Its earlier history is unchanged." };
   });
 }
 

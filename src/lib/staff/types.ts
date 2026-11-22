@@ -1,8 +1,15 @@
+import type { AdoptionOption, FulfillmentType, NextStatus, TrackingPhase, WorkflowStageEntry } from "@/lib/workflow/types";
+export type { AdoptionOption, FulfillmentType, NextStatus, TrackingPhase, WorkflowStageEntry };
+
 /** The shapes the staff functions return (all money in integer QAR minor units). Hand-maintained, like the other row types. */
 export interface DashboardSummary {
   total_orders: number;
   awaiting_confirmation: number;
   awaiting_deposit: number;
+  /** The next three exist once the order workflow migration is applied (absent from an earlier database). */
+  order_confirmed?: number;
+  live_tracking?: number;
+  awaiting_scheduling?: number;
   under_assembly: number;
   ready_for_delivery: number;
   delivered: number;
@@ -93,6 +100,9 @@ export interface OrderListRow {
   customer_id: string;
   customer_name: string;
   customer_code: string;
+  /** Present once the order workflow migration is applied; an earlier database leaves them out. */
+  workflow_version?: number;
+  fulfillment_type?: FulfillmentType | null;
 }
 export interface OrderItemDetail {
   position: number;
@@ -117,7 +127,16 @@ export interface TrackingEntry {
   published_at: string;
   retracted: boolean;
   retraction_reason: string | null;
+  /** The fields below come with the order workflow migration; an earlier database leaves them out. */
+  location?: string | null;
+  occurred_at?: string | null;
+  event_kind?: "update" | "correction";
+  corrects_event_id?: string | null;
+  correction_reason?: string | null;
+  /** Who published it (staff display name). */
+  by?: string | null;
 }
+
 export interface PaymentEntry {
   id: string;
   entry_type: "payment" | "reversal" | "refund";
@@ -158,7 +177,18 @@ export interface OrderDetail {
   items: OrderItemDetail[];
   history: OrderHistoryEntry[];
   tracking: TrackingEntry[];
-  next_statuses: { code: string; label: string }[];
+  next_statuses: NextStatus[];
+  workflow_version?: number;
+  fulfillment_type?: FulfillmentType | null;
+  tracking_phase?: TrackingPhase | null;
+  /** The status the order was put on hold from, while it is on hold. */
+  held_from?: string | null;
+  status_is_terminal?: boolean;
+  /** The order is inside its fulfilment branch, so its type can no longer be changed. */
+  fulfillment_locked?: boolean;
+  stages?: WorkflowStageEntry[];
+  /** Owner only, earlier-workflow orders only: where this order could be placed on the current workflow. */
+  adoption_options?: AdoptionOption[] | null;
   /** Present only for someone who may read payments. */
   payments?: PaymentEntry[];
 }

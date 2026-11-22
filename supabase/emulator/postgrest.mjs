@@ -16,7 +16,7 @@ export class RestError extends Error {
 
 // Exactly the tables and views the customer API exposes (schema public).
 export const EXPOSED_RELATIONS = new Set([
-  "customers", "customer_accounts", "quote_categories", "quotations", "quotation_lines", "order_statuses",
+  "customers", "customer_accounts", "quote_categories", "quotations", "quotation_lines", "order_statuses", "order_workflow_stages",
   "orders", "order_items", "order_tracking_events", "payments", "loyalty_ledger", "loyalty_balances",
 ]);
 // The only tables a customer session may update, and only through column grants in the database.

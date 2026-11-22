@@ -3,7 +3,19 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Empty, KeyValues, Money, Section, StatusBadge } from "@/components/admin/ui";
-import { PaymentForm, RetractTrackingForm, ReversePaymentForm, TrackingForm, TransitionForm } from "@/components/admin/forms";
+import {
+  AdoptWorkflowForm,
+  FulfillmentTypeForm,
+  PaymentForm,
+  RetractTrackingForm,
+  ReversePaymentForm,
+  TrackingCorrectionForm,
+  TrackingForm,
+  TransitionForm,
+  fulfillmentLabel,
+} from "@/components/admin/forms";
+import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
+import { buildWorkflowTimeline } from "@/lib/workflow/timeline";
 import { entryLabel, formatDay, formatWhen, methodLabel, percentLabel, plainAmount, purposeLabel } from "@/lib/staff/format";
 import { StaffOperationError } from "@/lib/staff/gateway";
 import { isUuid } from "@/lib/staff/validation";
@@ -25,6 +37,37 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const payments = order.payments;
   const defaultPurpose = order.deposit_outstanding_minor > 0 ? "deposit" : "balance";
   const defaultAmount = plainAmount(order.deposit_outstanding_minor > 0 ? order.deposit_outstanding_minor : Math.max(order.balance_due_minor, 0));
+  // The staff dashboard and the customer tracker draw the SAME model (src/lib/workflow/timeline.ts) from the same stage data.
+  // An earlier database that has not been given the stage data yet returns no stages: the page then shows the flat list it always did.
+  const stages = order.stages ?? [];
+  const onCurrentWorkflow = (order.workflow_version ?? 1) >= 2 && stages.length > 0;
+  const timeline = stages.length > 0
+    ? buildWorkflowTimeline({
+        stages,
+        status: { code: order.status, label: order.status_label, isTerminal: order.status_is_terminal === true },
+        stoppedAt: order.held_from ?? null,
+        events: order.tracking,
+        includeRetracted: true,
+      })
+    : null;
+  const phase = order.tracking_phase ?? null;
+  const type = order.fulfillment_type ?? null;
+  const correctable = order.tracking.filter((event) => !event.retracted && event.event_kind !== "correction").map((event) => ({ id: event.id, title: event.title }));
+  const trackingFooter = !onCurrentWorkflow ? null : phase === "live" ? (
+    can("tracking.publish") ? <TrackingForm orderId={order.id} /> : <p className="text-sm text-text-muted">Your role cannot publish tracking updates.</p>
+  ) : phase === "not_started" ? (
+    <p className="text-sm text-text-muted" data-testid="tracking-closed">Tracking updates open when the order reaches Live tracking. None can be published before then.</p>
+  ) : phase === "cancelled" ? (
+    <p className="text-sm text-text-muted" data-testid="tracking-closed">This order was cancelled. No further tracking updates can be added.</p>
+  ) : (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-text-muted" data-testid="tracking-closed">
+        {phase === "paused" ? "This order is on hold, so tracking updates wait until it returns to Live tracking. " : "Live tracking has ended for this order, so the history is read-only. "}
+        Adding to it now is a correction, made by the owner with a reason.
+      </p>
+      {can("tracking.correct") ? <TrackingCorrectionForm orderId={order.id} corrects={correctable} /> : null}
+    </div>
+  );
   return (
     <AdminShell
       active="orders"
@@ -33,7 +76,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       title={order.order_ref}
       description={`${order.customer.full_name} · placed ${formatDay(order.created_at)}`}
       previewLabel={process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null}
-      actions={<StatusBadge code={order.status} label={order.status_label} />}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          {onCurrentWorkflow ? <Badge tone="neutral">{fulfillmentLabel(type)}</Badge> : null}
+          <StatusBadge code={order.status} label={order.status_label} />
+        </div>
+      }
     >
       <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" data-testid="order-money">
         <Money3 label="Order total" minor={order.total_minor} />
@@ -44,9 +92,44 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="flex min-w-0 flex-col gap-6">
+          {timeline ? (
+            <Section title="Order progress" aside={onCurrentWorkflow ? undefined : <Badge tone="paused">Earlier workflow</Badge>}>
+              <WorkflowTimeline
+                timeline={timeline}
+                formatTime={formatWhen}
+                audience="staff"
+                updateExtras={onCurrentWorkflow && can("tracking.publish") ? (node) => <RetractTrackingForm orderId={order.id} eventId={node.id} /> : undefined}
+                trackingFooter={trackingFooter}
+                branchNote={
+                  onCurrentWorkflow && type === null ? (
+                    <p className="rounded-glass-sm border border-warning/40 bg-warning/10 p-3 text-sm text-warning" data-testid="branch-note">
+                      The steps after “Carrier delivering order to M1” depend on the order type (Custom PC build or Parts only). It has not been chosen yet. Choose it under Order type.
+                    </p>
+                  ) : null
+                }
+              />
+            </Section>
+          ) : null}
+
           {can("orders.transition") ? (
             <Section title="Status">
               <TransitionForm orderId={order.id} next={order.next_statuses} />
+            </Section>
+          ) : null}
+
+          {onCurrentWorkflow ? (
+            <Section title="Order type">
+              {can("orders.transition") ? (
+                <FulfillmentTypeForm orderId={order.id} current={type} locked={order.fulfillment_locked === true || order.status === "cancelled"} />
+              ) : (
+                <p className="text-sm text-text-secondary">{fulfillmentLabel(type)}</p>
+              )}
+            </Section>
+          ) : null}
+
+          {order.adoption_options && order.adoption_options.length > 0 && can("orders.adopt") ? (
+            <Section title="Move to the current workflow">
+              <AdoptWorkflowForm orderId={order.id} options={order.adoption_options} />
             </Section>
           ) : null}
 
@@ -65,34 +148,37 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             />
           </Section>
 
-          <Section title="Tracking updates shown to the customer">
-            {order.tracking.length === 0 ? (
-              <Empty>No update has been published yet.</Empty>
-            ) : (
-              <ol className="flex flex-col gap-3">
-                {order.tracking.map((event) => (
-                  <li key={event.id} className="rounded-glass-sm border border-border bg-white/[0.025] p-3.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className={`text-sm font-semibold ${event.retracted ? "text-text-muted line-through" : "text-white"}`}>{event.title}</p>
-                      <span className="text-xs text-text-muted">{formatWhen(event.published_at)}</span>
-                    </div>
-                    {event.message ? <p className="mt-1 text-sm text-text-secondary">{event.message}</p> : null}
-                    {event.retracted ? <p className="mt-2 text-xs text-warning">Withdrawn{event.retraction_reason ? `: ${event.retraction_reason}` : ""}. The customer no longer sees it.</p> : null}
-                    {!event.retracted && can("tracking.publish") ? (
-                      <div className="mt-2">
-                        <RetractTrackingForm orderId={order.id} eventId={event.id} />
+          {onCurrentWorkflow ? null : (
+            <Section title="Tracking updates shown to the customer">
+              {order.tracking.length === 0 ? (
+                <Empty>No update has been published yet.</Empty>
+              ) : (
+                <ol className="flex flex-col gap-3">
+                  {order.tracking.map((event) => (
+                    <li key={event.id} className="rounded-glass-sm border border-border bg-white/[0.025] p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className={`text-sm font-semibold ${event.retracted ? "text-text-muted line-through" : "text-white"}`}>{event.title}</p>
+                        <span className="text-xs text-text-muted">{formatWhen(event.occurred_at ?? event.published_at)}</span>
                       </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            )}
-            {can("tracking.publish") ? (
-              <div className="mt-5 border-t border-border pt-5">
-                <TrackingForm orderId={order.id} />
-              </div>
-            ) : null}
-          </Section>
+                      {event.location ? <p className="mt-1 text-xs text-text-secondary">Location: {event.location}</p> : null}
+                      {event.message ? <p className="mt-1 text-sm text-text-secondary">{event.message}</p> : null}
+                      {event.retracted ? <p className="mt-2 text-xs text-warning">Withdrawn{event.retraction_reason ? `: ${event.retraction_reason}` : ""}. The customer no longer sees it.</p> : null}
+                      {!event.retracted && can("tracking.publish") ? (
+                        <div className="mt-2">
+                          <RetractTrackingForm orderId={order.id} eventId={event.id} />
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {can("tracking.publish") ? (
+                <div className="mt-5 border-t border-border pt-5">
+                  <TrackingForm orderId={order.id} />
+                </div>
+              ) : null}
+            </Section>
+          )}
 
           <Section title="Status history">
             <DataTable

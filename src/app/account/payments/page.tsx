@@ -2,15 +2,15 @@ import Link from "next/link";
 import { AccountShell } from "@/components/account/AccountShell";
 import { PaymentList } from "@/components/account/dashboard";
 import { EmptyState, Panel } from "@/components/account/ui";
-import { loadOrders, loadPayments, loadStatuses } from "@/lib/accounts/server/data";
+import { loadOrders, loadPayments, loadStatuses, loadWorkflowStages } from "@/lib/accounts/server/data";
 import { requireLinkedCustomer } from "@/lib/accounts/server/guard";
 import { buildOrderSummary, buildPayments } from "@/lib/accounts/shared/view-models";
 
 export default async function PaymentsPage() {
   const { user, supabase } = await requireLinkedCustomer("/account/payments");
-  const [statuses, orders, payments] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadPayments(supabase)]);
+  const [statuses, orders, payments, stageRows] = await Promise.all([loadStatuses(supabase), loadOrders(supabase), loadPayments(supabase), loadWorkflowStages(supabase)]);
 
-  const summaries = orders.map((order) => ({ order, view: buildOrderSummary(order, statuses) }));
+  const summaries = orders.map((order) => ({ order, view: buildOrderSummary(order, statuses, stageRows) }));
   // An order is owed on when it is priced, has a balance, and has not been cancelled.
   const owing = summaries.filter(({ order, view }) => order.total_minor > 0 && order.balance_due_minor > 0 && view.status.tone !== "cancelled");
 

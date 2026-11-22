@@ -171,14 +171,69 @@ export function parseReason(form: FormData, field = "reason"): Parsed<string> {
 export interface TrackingInput {
   title: string;
   message: string | null;
+  location: string | null;
+  /** The time the event happened, as an ISO instant; null means "now" (the database dates it when it is published). */
+  occurredAt: string | null;
 }
-export function parseTracking(form: FormData): Parsed<TrackingInput> {
+
+/**
+ * A time typed in a `datetime-local` field ("2026-11-22T14:30") is Qatar time (UTC+3, no daylight saving), the time the staff
+ * member is looking at. Returns the ISO instant, or null for anything that is not a real date and time (so 30 February is refused,
+ * not rolled into March).
+ */
+export function parseQatarDateTime(input: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(input.trim());
+  if (!m) return null;
+  const [year, month, day, hour, minute] = m.slice(1).map(Number);
+  const utc = Date.UTC(year, month - 1, day, hour - 3, minute);
+  const check = new Date(utc + 3 * 3600_000);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || check.getUTCHours() !== hour || check.getUTCMinutes() !== minute) return null;
+  return new Date(utc).toISOString();
+}
+
+const FUTURE_SLACK_MS = 24 * 3600_000;
+
+function parseTrackingFields(form: FormData, now: Date): Parsed<TrackingInput> {
   const errors: StaffFieldErrors = {};
   const title = text(form, "title");
   if (title.length < 1 || title.length > 120) errors.title = "Write a short title (up to 120 characters).";
   const message = optional(form, "message", 1000, errors, "The message");
+  const location = optional(form, "location", 120, errors, "The location");
+  let occurredAt: string | null = null;
+  const when = text(form, "occurred_at");
+  if (when !== "") {
+    occurredAt = parseQatarDateTime(when);
+    if (occurredAt === null) errors.occurred_at = "Enter a real date and time, or leave it empty to use the time you publish.";
+    else if (Date.parse(occurredAt) > now.getTime() + FUTURE_SLACK_MS) errors.occurred_at = "The time of an update cannot be in the future.";
+  }
   if (Object.keys(errors).length) return { ok: false, errors };
-  return { ok: true, value: { title, message } };
+  return { ok: true, value: { title, message, location, occurredAt } };
+}
+
+export function parseTracking(form: FormData, now: Date = new Date()): Parsed<TrackingInput> {
+  return parseTrackingFields(form, now);
+}
+
+export interface TrackingCorrectionInput extends TrackingInput {
+  reason: string;
+  /** The update this corrects, when the owner names one. */
+  correctsEventId: string | null;
+}
+export function parseTrackingCorrection(form: FormData, now: Date = new Date()): Parsed<TrackingCorrectionInput> {
+  const base = parseTrackingFields(form, now);
+  const reason = parseReason(form, "reason");
+  const errors: StaffFieldErrors = { ...(base.ok ? {} : base.errors), ...(reason.ok ? {} : reason.errors) };
+  const corrects = text(form, "corrects_event_id");
+  if (corrects !== "" && !isUuid(corrects)) errors.corrects_event_id = "Choose one of the listed updates, or none.";
+  if (Object.keys(errors).length || !base.ok || !reason.ok) return { ok: false, errors };
+  return { ok: true, value: { ...base.value, reason: reason.value, correctsEventId: corrects === "" ? null : corrects } };
+}
+
+export const FULFILLMENT_TYPES = ["custom_pc_build", "parts_only"] as const;
+export function parseFulfillmentType(form: FormData): Parsed<(typeof FULFILLMENT_TYPES)[number]> {
+  const value = text(form, "fulfillment_type");
+  const found = FULFILLMENT_TYPES.find((type) => type === value);
+  return found ? { ok: true, value: found } : { ok: false, errors: { fulfillment_type: "Choose Custom PC build or Parts only." } };
 }
 
 export const CLAIM_CODE_HOURS = [24, 72, 168] as const;

@@ -556,3 +556,104 @@ describe("admin performance fix: Mumbai functions and the loading placeholder (P
     assert.doesNotMatch(code, /requireStaff|redirect\(|signInUrl/);
   });
 });
+
+describe("the order workflow v2 keeps its structure (PLAT-0004)", () => {
+  const WF_MIGRATIONS = ["supabase/migrations/20261122120000_order_workflow_v2_schema.sql", "supabase/migrations/20261122120100_order_workflow_v2_functions.sql"];
+  const sql = (rel) => read(rel).replace(/--.*$/gm, "");
+
+  it("the four new staff calls are fixed admin function calls in the gateway table, and every one of them is a WRITE call", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    const writes = code.slice(code.indexOf("const WRITE_CALLS"), code.indexOf("]);", code.indexOf("const WRITE_CALLS")));
+    for (const name of ["publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow"]) {
+      assert.match(code, new RegExp(`\\b${name}:\\s*"select admin\\.${name}\\(`), `${name} is a fixed call of the admin function of the same name`);
+      assert.ok(writes.includes(`"${name}"`), `${name} must be listed as a write call (so "nothing was changed" is only said when it is true)`);
+    }
+  });
+
+  it("each staff function of the workflow checks its permission BEFORE it reads or discloses anything about an order", () => {
+    const text = sql(WF_MIGRATIONS[1]);
+    for (const fn of ["transition_order", "set_order_fulfillment_type", "publish_tracking_event", "publish_tracking_update", "publish_tracking_correction", "adopt_new_workflow"]) {
+      const start = text.indexOf(`function admin.${fn}(`);
+      assert.ok(start >= 0, fn);
+      const body = text.slice(start, text.indexOf("\n$$;", start));
+      const gate = body.indexOf("private.require_permission(");
+      const firstRead = body.search(/\b(from|into)\s+(public|private)\./);
+      assert.ok(gate > 0 && (firstRead < 0 || gate < firstRead), `${fn}: the permission check must come before the first table read`);
+    }
+  });
+
+  it("the two new permissions are granted to the owner only, in the migration itself", () => {
+    const text = sql(WF_MIGRATIONS[0]);
+    assert.match(text, /\('owner', 'tracking\.correct'\), \('owner', 'orders\.adopt'\)/);
+    assert.doesNotMatch(text, /\('staff', '(tracking\.correct|orders\.adopt)'\)/);
+  });
+
+  it("the migrations are additive: no destructive statement, every new table has row level security, and the earlier statuses are neither deleted nor re-coded", () => {
+    for (const rel of WF_MIGRATIONS) {
+      const text = sql(rel);
+      assert.doesNotMatch(text, /\b(drop\s+(table|schema|view|function|column|trigger)|truncate\s+table|delete\s+from|alter\s+table\s+\S+\s+(drop|rename)\b)/i, rel);
+    }
+    const schema = sql(WF_MIGRATIONS[0]);
+    for (const table of schema.matchAll(/create table if not exists ((?:public|private)\.[a-z_]+)/g)) {
+      assert.match(schema, new RegExp(`alter table ${table[1].replace(".", "\\.")} enable row level security`), `${table[1]} must enable row level security`);
+    }
+    assert.doesNotMatch(schema, /update public\.order_statuses[^;]*\bset\s+code\b/i, "a status code is never renamed");
+    assert.doesNotMatch(schema, /update public\.orders\b/i, "the migration never touches an existing order");
+    // Outside the function bodies (which only run when staff call them) the function migration touches no order.
+    assert.doesNotMatch(sql(WF_MIGRATIONS[1]).replace(/\$\$[\s\S]*?\$\$/g, ""), /update public\.orders\b/i, "the function migration never moves an order by itself");
+    assert.match(schema, /'\{"default_version": 1\}'/, "the release switch ships as the earlier workflow");
+  });
+
+  it("the operator undo script lives outside supabase/migrations, is guarded, and refuses while any order is on the new workflow", () => {
+    const rel = "supabase/release/order_workflow_v2_rollback.sql";
+    assert.ok(existsSync(join(ROOT, rel)));
+    for (const f of readdirSync(join(ROOT, "supabase/migrations"))) assert.doesNotMatch(f, /rollback/i, f);
+    const text = read(rel);
+    assert.match(text, /M1W02/);
+    assert.match(text, /M1W01/);
+    assert.match(text, /new-website-retired/);
+    assert.doesNotMatch(text.replace(/--.*$/gm, ""), /\b(drop\s+(table|column|schema)|delete\s+from|truncate)\b/i, "the undo deletes nothing");
+  });
+
+  it("the staff page and the customer page draw ONE shared timeline component built from ONE shared model", () => {
+    const staff = read("src/app/admin/orders/[id]/page.tsx");
+    const customer = read("src/app/account/orders/[ref]/page.tsx");
+    for (const [name, text] of [["staff", staff], ["customer", customer]]) {
+      assert.match(text, /from "@\/components\/workflow\/WorkflowTimeline"/, `${name} page uses the shared component`);
+      assert.match(text, /from "@\/lib\/workflow\/timeline"/, `${name} page uses the shared model`);
+    }
+    assert.match(staff, /audience="staff"/);
+    assert.match(customer, /audience="customer"/);
+    // A customer page carries no staff control: it imports nothing from the admin area and passes no staff slot.
+    assert.doesNotMatch(customer, /@\/components\/admin|@\/lib\/staff|updateExtras|trackingFooter|branchNote/);
+  });
+
+  it("the timeline component is a plain server component: no client state, no script, a native details element for the expand/collapse", () => {
+    const text = read("src/components/workflow/WorkflowTimeline.tsx");
+    assert.doesNotMatch(text, /^\s*["']use client["']/m);
+    assert.doesNotMatch(text, /\b(useState|useEffect|useReducer|onClick|dangerouslySetInnerHTML)\b/);
+    assert.match(text, /<details[\s\S]*<summary/);
+    assert.doesNotMatch(text.replace(/\/\*[\s\S]*?\*\//g, ""), /from "@\/lib\/staff|from "@\/components\/admin/, "it knows no staff code");
+  });
+
+  it("the status vocabulary stays data: the shared model names no status except the two exceptional ones, and the stage that owns the nested updates comes from the stage table", () => {
+    const code = strip(read("src/lib/workflow/timeline.ts"));
+    const named = [...code.matchAll(/["'](pending_confirmation|awaiting_deposit|deposit_received|order_confirmed|live_tracking|arrived_in_qatar|carrier_delivering|building|quality_check|items_arrived|awaiting_scheduling|ready_for_delivery|delivered|sourcing|in_transit)["']/g)];
+    assert.deepEqual(named.map((m) => m[1]), [], "no stage code is written into the model");
+    assert.match(code, /shows_tracking/);
+    assert.match(code, /new Set\(\["on_hold", "cancelled"\]\)/);
+  });
+
+  it("the shared types live outside src/lib/staff, so a client form can use them without importing staff server code", () => {
+    assert.ok(existsSync(join(ROOT, "src/lib/workflow/types.ts")));
+    const forms = read("src/components/admin/forms.tsx");
+    assert.match(forms, /from "@\/lib\/workflow\/types"/);
+    assert.doesNotMatch(forms, /from "@\/lib\/staff\/types"/);
+  });
+
+  it("the customer pages that list orders pass each order's stage list, so 'Stage n of m' counts the order's own workflow", () => {
+    for (const rel of ["src/app/account/orders/page.tsx", "src/app/account/page.tsx", "src/app/account/payments/page.tsx", "src/app/account/orders/[ref]/page.tsx"]) {
+      assert.match(read(rel), /loadWorkflowStages/, rel);
+    }
+  });
+});

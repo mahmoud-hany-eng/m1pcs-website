@@ -21,7 +21,7 @@ export default async function AdminOverview() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[1fr_1fr_1.1fr_1fr_1.6fr]" data-testid="overview-stats">
         <Stat label="Total orders" value={summary.total_orders} href={can("orders.read") ? "/admin/orders" : undefined} />
         <Stat label="Awaiting deposit" value={summary.awaiting_deposit} tone="gold" href={can("orders.read") ? "/admin/orders?status=awaiting_deposit" : undefined} />
-        <Stat label="Under assembly" value={underAssembly} hint="Sourcing, in transit, building, final checks" href={can("orders.read") ? "/admin/orders?status=building" : undefined} />
+        <Stat label="Under assembly" value={underAssembly} hint="Building and final checks" href={can("orders.read") ? "/admin/orders?status=building" : undefined} />
         <Stat label="Ready for delivery" value={summary.ready_for_delivery} href={can("orders.read") ? "/admin/orders?status=ready_for_delivery" : undefined} />
         {summary.outstanding_balance_minor !== undefined ? (
           <Stat label="Outstanding balances" value={<Money minor={summary.outstanding_balance_minor} />} tone="red" hint={`${summary.orders_with_balance ?? 0} orders with a balance`} />
@@ -29,6 +29,14 @@ export default async function AdminOverview() {
           <Stat label="Customers" value={summary.customers} />
         )}
       </div>
+
+      {summary.live_tracking !== undefined ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4" data-testid="workflow-stats">
+          <Stat label="Order confirmed" value={summary.order_confirmed ?? 0} href={can("orders.read") ? "/admin/orders?status=order_confirmed" : undefined} />
+          <Stat label="Live tracking" value={summary.live_tracking} tone="red" hint="Shipments being followed" href={can("orders.read") ? "/admin/orders?status=live_tracking" : undefined} />
+          <Stat label="Awaiting scheduling" value={summary.awaiting_scheduling ?? 0} hint="Parts at M1, pickup or delivery to arrange" href={can("orders.read") ? "/admin/orders?status=awaiting_scheduling" : undefined} />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <Stat label="Awaiting confirmation" value={summary.awaiting_confirmation} />

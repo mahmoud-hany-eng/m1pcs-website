@@ -28,6 +28,9 @@ const suite = haveServer ? describe : describe.skip;
 
 const M16 = "20261121120000_transition_order_permission_first.sql";
 const M17 = "20261121120100_idempotency_expand.sql";
+// The order-workflow pair (PLAT-0004) comes AFTER this release and is exercised by workflow.v2.db.test.mjs, not here.
+const W1 = "20261122120000_order_workflow_v2_schema.sql";
+const W2 = "20261122120100_order_workflow_v2_functions.sql";
 const migration = (name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8");
 const release = (name) => readFileSync(join(ROOT, "supabase/release", name), "utf8");
 const CONFIRM_CONTRACT = "set m1.confirm_contract = 'old-website-retired';";
@@ -101,7 +104,8 @@ suite("release sequence: expand -> new website -> contract, with undo scripts (P
       assert.equal(hasKeyTable(db), false);
       assert.equal(functionExists(db, "admin.similar_orders(uuid, jsonb, text)"), false);
       assert.equal(functionExists(db, "admin.record_payment(uuid, text, bigint, text, timestamptz, text, text, text)"), true);
-      assert.deepEqual(names.filter((f) => f >= M16), [M16, M17], "this release adds exactly two migrations, and the contract step is NOT among them");
+      assert.deepEqual(names.filter((f) => f >= M16 && f < W1), [M16, M17], "this release adds exactly two migrations, and the contract step is NOT among them");
+      assert.deepEqual(names.filter((f) => f >= W1), [W1, W2], "the order-workflow pair is the next release and comes after it");
     });
 
     it("this release's operator scripts live outside supabase/migrations, so no pipeline applies them by itself", () => {

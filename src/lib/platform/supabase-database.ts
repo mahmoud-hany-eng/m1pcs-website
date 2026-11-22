@@ -18,6 +18,7 @@ import type {
   OrderRow,
   OrderStatusRow,
   OrderTrackingEventRow,
+  OrderWorkflowStageRow,
   PaymentRow,
   QuotationLineRow,
   QuotationRow,
@@ -44,6 +45,7 @@ export type Database = {
       quotations: ReadOnlyTable<QuotationRow>;
       quotation_lines: ReadOnlyTable<QuotationLineRow>;
       order_statuses: ReadOnlyTable<OrderStatusRow>;
+      order_workflow_stages: ReadOnlyTable<OrderWorkflowStageRow>;
       orders: ReadOnlyTable<OrderRow>;
       order_items: ReadOnlyTable<OrderItemRow>;
       order_tracking_events: ReadOnlyTable<OrderTrackingEventRow>;
