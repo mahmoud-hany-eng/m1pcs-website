@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { register } from "node:module";
 import { after, before, describe, it } from "node:test";
 import { findPgBin } from "./harness.mjs";
-import { ID, startDatabase } from "./fixtures.mjs";
+import { AS, ID, startDatabase } from "./fixtures.mjs";
 import { ROOT } from "./support/browser.mjs";
 import { CUST_C, ONE, SESSION, makeHelpers, newKey, seedIdempotencyFixtures, sleep } from "./support/idempotency-helpers.mjs";
 
@@ -393,8 +393,14 @@ suite("the website's own gateway code, over a real connection: accurate messages
       for (const [k, v] of Object.entries(fields)) data.set(k, v);
       return data;
     };
+    // The order form also carries the two figures its Pricing & Rewards section showed (the net payable amount and the deposit); the database
+    // checks them against its own. Up to QAR 3,000 the deposit is 15% of the whole total, a half rounding up.
+    const shown = (price) => {
+      const minor = /^[0-9]+(\.[0-9]{1,2})?$/.test(price) ? Math.round(Number(price) * 100) : 0;
+      return { expected_net_minor: String(minor), expected_deposit_minor: String(Math.floor((minor * 1500 + 5000) / 10000)) };
+    };
     const orderForm = (key, description, { price = "123.00", confirm = false, customer = CUST_C } = {}) =>
-      form({ customer_id: customer, idempotency_key: key, item_description_0: description, item_quantity_0: "1", item_price_0: price, item_kind_0: "component", prices_verified: "yes", ...(confirm ? { confirm_duplicate: "yes" } : {}) });
+      form({ customer_id: customer, idempotency_key: key, item_description_0: description, item_quantity_0: "1", item_price_0: price, item_kind_0: "component", prices_verified: "yes", ...shown(price), ...(confirm ? { confirm_duplicate: "yes" } : {}) });
     const payForm = (order, key, { amount = "250.00", expected = "0", extra = {} } = {}) =>
       form({ order_id: order, idempotency_key: key, expected_paid_minor: expected, purpose: "deposit", amount, method: "cash", received_confirmed: "yes", ...extra });
     const spy = () => {
@@ -410,6 +416,7 @@ suite("the website's own gateway code, over a real connection: accurate messages
       }
     };
     const real = () => api.staffApi(staff("sam"));
+    const ownerApi = () => api.staffApi(staff());
     const ordersCount = () => h.count("select count(*) from public.orders");
 
     it("a first order says 'created', refreshes the order list and opens the new order; the same form again (a retry) says 'already created' and opens the SAME order", async () => {
@@ -456,20 +463,96 @@ suite("the website's own gateway code, over a real connection: accurate messages
     it("the duplicate check is advice: if it cannot run the order is still created; a permission failure still stops it", async () => {
       await reset();
       const { revalidate } = spy();
-      const unavailable = { similarOrders: async () => { throw new gateway.StaffUnavailableError("down"); }, createOrder: real().createOrder };
+      const unavailable = { similarOrders: async () => { throw new gateway.StaffUnavailableError("down"); }, createOrderPriced: real().createOrderPriced };
       const made = await orderActions.createOrderWork(unavailable, orderForm(newKey("act"), "Advice failure item"), revalidate);
       assert.equal(made.status, "success");
-      const denied = { similarOrders: async () => { throw new gateway.StaffPermissionError(); }, createOrder: async () => assert.fail("must not create") };
+      const denied = { similarOrders: async () => { throw new gateway.StaffPermissionError(); }, createOrderPriced: async () => assert.fail("must not create") };
       const stopped = await shell(() => orderActions.createOrderWork(denied, orderForm(newKey("act"), "Advice failure item 2"), revalidate));
       assert.equal(stopped.status, "error");
       assert.equal(stopped.message, outcomes.DENIED);
+    });
+
+    it("PLAT-0005: the Pricing & Rewards fields travel through the action: an owner's discount and points create the order together, a repeat spends nothing twice, and a stale figure creates nothing", async () => {
+      await reset();
+      const { paths, revalidate } = spy();
+      db.commit(`${AS.olivia}select admin.adjust_loyalty('${CUST_C}', 500, 'test points for the action body');`);
+      const balance = () => h.count(`select coalesce(sum(points), 0) from public.loyalty_ledger where customer_id = '${CUST_C}'`);
+      const start = balance();
+      const priced = (key, { net = "420705", deposit = "108764", discount = true } = {}) => {
+        const f = orderForm(key, "Priced action item", { price: "4350.55" });
+        f.set("expected_net_minor", net);
+        f.set("expected_deposit_minor", deposit);
+        if (discount) {
+          f.set("discount_mode", "fixed");
+          f.set("discount_amount", "100");
+          f.set("discount_reason", "Returning customer");
+        }
+        f.set("redeem_points", "435");
+        return f;
+      };
+      // a stale figure (the screen showed a different net payable amount): nothing is created and no point is spent
+      const stale = await shell(() => orderActions.createOrderWork(ownerApi(), priced(newKey("act"), { net: "435055" }), revalidate));
+      assert.equal(stale.status, "error");
+      assert.match(stale.message, /the amount payable is now QAR 4,207\.05 but the screen showed QAR 4,350\.55; nothing was created/);
+      assert.equal(balance(), start);
+      // the real thing
+      const key = newKey("act");
+      const first = await orderActions.createOrderWork(ownerApi(), priced(key), revalidate);
+      assert.equal(first.status, "success", JSON.stringify(first));
+      assert.equal(balance(), start - 435);
+      const id = /\/admin\/orders\/([0-9a-f-]{36})/.exec(first.href)[1];
+      assert.equal(h.scalar(`select discount_minor || '|' || loyalty_credit_minor || '|' || net_payable_minor || '|' || deposit_required_minor || '|' || total_minor from public.orders where id = '${id}'`), "10000|4350|420705|108764|435055");
+      // the same form again (a double click or a retry): the SAME order, and the points are spent once
+      const again = await orderActions.createOrderWork(ownerApi(), priced(key), revalidate);
+      assert.equal(again.status, "success");
+      assert.equal(again.href, first.href);
+      assert.match(again.message, /already/i);
+      assert.equal(balance(), start - 435);
+      assert.ok(paths.includes("/admin/orders"));
+    });
+
+    it("PLAT-0005: a staff member's crafted discount or points are refused by the database (owner only), and nothing is created or spent", async () => {
+      await reset();
+      const { revalidate } = spy();
+      db.commit(`${AS.olivia}select admin.adjust_loyalty('${CUST_C}', 500, 'test points for the crafted request');`);
+      const before = [ordersCount(), h.count(`select coalesce(sum(points), 0) from public.loyalty_ledger where customer_id = '${CUST_C}'`)];
+      for (const extra of [{ discount_mode: "fixed", discount_amount: "10", discount_reason: "crafted" }, { redeem_points: "10" }]) {
+        const f = orderForm(newKey("act"), "Crafted pricing item");
+        f.set("expected_net_minor", "12300");
+        f.set("expected_deposit_minor", "1845");
+        for (const [k, v] of Object.entries(extra)) f.set(k, v);
+        const out = await shell(() => orderActions.createOrderWork(real(), f, revalidate));
+        assert.equal(out.status, "error");
+        assert.equal(out.message, outcomes.DENIED);
+      }
+      assert.deepEqual([ordersCount(), h.count(`select coalesce(sum(points), 0) from public.loyalty_ledger where customer_id = '${CUST_C}'`)], before);
+    });
+
+    it("PLAT-0005: pricing field errors and a missing figure are refused BEFORE any database call", async () => {
+      await reset();
+      const { revalidate } = spy();
+      let calls = 0;
+      const counting = { similarOrders: async () => { calls += 1; return []; }, createOrderPriced: async () => { calls += 1; return { id: "x", replayed: false }; } };
+      const noReason = orderForm(newKey("act"), "Pricing field item");
+      noReason.set("discount_mode", "fixed");
+      noReason.set("discount_amount", "10");
+      const r1 = await orderActions.createOrderWork(counting, noReason, revalidate);
+      assert.equal(r1.status, "error");
+      assert.ok(r1.fieldErrors?.discount_reason);
+      const badPoints = orderForm(newKey("act"), "Pricing field item");
+      badPoints.set("redeem_points", "1.5");
+      assert.ok((await orderActions.createOrderWork(counting, badPoints, revalidate)).fieldErrors?.redeem_points);
+      const noFigures = orderForm(newKey("act"), "Pricing field item");
+      noFigures.delete("expected_net_minor");
+      assert.equal((await orderActions.createOrderWork(counting, noFigures, revalidate)).message, "This form is out of date. Reload the page and try again. Nothing was changed.");
+      assert.equal(calls, 0);
     });
 
     it("a stale or incomplete form is refused BEFORE any database call", async () => {
       await reset();
       const { paths, revalidate } = spy();
       let calls = 0;
-      const counting = { similarOrders: async () => { calls += 1; return []; }, createOrder: async () => { calls += 1; return { id: "x", replayed: false }; }, recordPayment: async () => { calls += 1; return { id: "x", replayed: false }; } };
+      const counting = { similarOrders: async () => { calls += 1; return []; }, createOrderPriced: async () => { calls += 1; return { id: "x", replayed: false }; }, recordPayment: async () => { calls += 1; return { id: "x", replayed: false }; } };
       const bad = [
         orderForm("short", "Stale form item"), // key shape
         orderForm(newKey("act"), "Stale form item", { customer: "not-a-uuid" }),

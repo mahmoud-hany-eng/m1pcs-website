@@ -77,7 +77,21 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               cell: (r) => ((r.workflow_version ?? 1) >= 2 ? (r.fulfillment_type === "custom_pc_build" ? "Custom PC build" : r.fulfillment_type === "parts_only" ? "Parts only" : "Not chosen") : "Earlier workflow"),
               hideOnCard: true,
             },
-            { key: "total", header: "Total", cell: (r) => <Money minor={r.total_minor} />, align: "right" },
+            {
+              key: "total",
+              header: "Total",
+              cell: (r) => (
+                <span>
+                  <Money minor={r.total_minor} />
+                  {(r.discount_minor ?? 0) + (r.loyalty_credit_minor ?? 0) > 0 ? (
+                    <span className="block text-xs text-text-muted">
+                      pays <Money minor={r.net_payable_minor ?? r.total_minor} />
+                    </span>
+                  ) : null}
+                </span>
+              ),
+              align: "right",
+            },
             { key: "paid", header: "Paid", cell: (r) => <Money minor={r.amount_paid_minor} />, align: "right" },
             { key: "balance", header: "Balance", cell: (r) => <Money minor={r.balance_due_minor} />, align: "right" },
             { key: "date", header: "Placed", cell: (r) => formatDay(r.created_at), hideOnCard: true },

@@ -25,8 +25,8 @@ export function OrderCard({ order }: { order: OrderSummaryView }) {
       <ProgressSteps status={order.status} />
       <dl className="grid grid-cols-3 gap-3 text-sm">
         <div>
-          <dt className="text-text-muted">Total</dt>
-          <dd className="font-semibold text-white">{order.total}</dd>
+          <dt className="text-text-muted">{order.adjusted ? "Total payable" : "Total"}</dt>
+          <dd className="font-semibold text-white">{order.adjusted ? order.netPayable : order.total}</dd>
         </div>
         <div>
           <dt className="text-text-muted">Paid</dt>
@@ -46,6 +46,30 @@ export function OrderCard({ order }: { order: OrderSummaryView }) {
 }
 
 export function MoneySummary({ order }: { order: OrderSummaryView }) {
+  // An order with a discount or redeemed points is shown as a STATEMENT: the order value, what was taken off and why it is not a payment,
+  // what is payable, what has been received and what is left. The deposit is a rule about the order value before the discount.
+  if (order.adjusted) {
+    return (
+      <div className="flex flex-col gap-4" data-testid="order-statement">
+        <dl className="flex flex-col divide-y divide-border text-sm">
+          {order.statement.map((line) => (
+            <div key={line.key} className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+              <dt className={`min-w-0 ${line.emphasis ? "font-semibold text-white" : "text-text-secondary"}`}>
+                {line.label}
+                {line.note ? <span className="block text-xs font-normal text-text-muted">{line.note}</span> : null}
+              </dt>
+              <dd className={`shrink-0 tabular-nums ${line.emphasis ? "font-display text-lg font-semibold text-white" : "text-white"} ${line.key === "balance" && order.fullyPaid ? "!text-success" : ""}`} data-testid={`statement-${line.key}`}>
+                {line.key === "balance" && order.fullyPaid ? "Paid in full" : line.amount}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-sm text-text-secondary" data-testid="statement-deposit">
+          Deposit required: <span className="font-semibold text-white">{order.depositRequired}</span>. It is worked out from the order value before the discount, so a discount or loyalty credit does not lower it.
+        </p>
+      </div>
+    );
+  }
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
       <div>

@@ -292,7 +292,7 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const text = read(p);
       if (!/^\s*["']use client["']/.test(text)) continue;
       seen += 1;
-      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form)/, `${p}: a client component may import only the staff form helpers and server actions`);
       assert.doesNotMatch(text, /from\s+["']pg["']/, p);
     }
     assert.ok(seen >= 8);
@@ -655,5 +655,74 @@ describe("the order workflow v2 keeps its structure (PLAT-0004)", () => {
     for (const rel of ["src/app/account/orders/page.tsx", "src/app/account/page.tsx", "src/app/account/payments/page.tsx", "src/app/account/orders/[ref]/page.tsx"]) {
       assert.match(read(rel), /loadWorkflowStages/, rel);
     }
+  });
+});
+
+describe("pricing and rewards keep their structure (PLAT-0005)", () => {
+  const M1 = "supabase/migrations/20261123120000_pricing_rewards_schema.sql";
+  const M2 = "supabase/migrations/20261123120100_pricing_rewards_functions.sql";
+  const M3 = "supabase/migrations/20261123120200_pricing_rewards_policies.sql";
+  const sql = (rel) => read(rel).replace(/--.*$/gm, "");
+
+  it("the two new staff calls are fixed admin function calls in the gateway table; the order call is a keyed WRITE call", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    assert.match(code, /\bcreate_order_priced:\s*"with c as materialized \(select admin\.create_order\(\$1::uuid, \$2::jsonb, null::uuid, 'admin'::text, \$3::text, \$4::text, \$5::text, \$6::jsonb, \$7::bigint, \$8::bigint, \$9::bigint\) as r\)/);
+    assert.match(code, /\border_pricing_context:\s*"select admin\.order_pricing_context\(\$1::uuid\) as r"/);
+    const writes = code.slice(code.indexOf("const WRITE_CALLS"), code.indexOf("]);", code.indexOf("const WRITE_CALLS")));
+    assert.ok(writes.includes('"create_order_priced"'), "create_order_priced must be a write call");
+    const keyed = code.slice(code.indexOf("const KEYED_CALLS"), code.indexOf(");", code.indexOf("const KEYED_CALLS")));
+    assert.ok(keyed.includes('"create_order_priced"'), "create_order_priced must be a keyed call (a lost answer is reported as repeat-safe)");
+  });
+
+  it("the policy migration is DATA only: it creates and alters nothing, and it stops instead of overwriting an owner's later edit", () => {
+    const text = sql(M3);
+    assert.doesNotMatch(text, /\b(create|alter|drop|grant|revoke)\s+(table|function|trigger|index|type|schema|view|policy)\b/i);
+    assert.match(text, /raise exception 'the orders\.deposit policy is not the schedule this migration replaces/);
+    assert.match(text, /raise exception 'the loyalty\.earning_base policy is not the rule this migration replaces/);
+    assert.equal((text.match(/^\s*do \$\$/gm) ?? []).length, 1, "one statement, so it is atomic however it is applied");
+  });
+
+  it("the schema and functions migrations never touch the workflow release switch, an order's money, a payment or the loyalty history", () => {
+    for (const rel of [M1, M2, M3]) {
+      const text = sql(rel);
+      assert.doesNotMatch(text, /(update\s+private\.business_policies[^;]*orders\.workflow|set_policy\(\s*'orders\.workflow'|default_workflow_version)/i, `${rel} must not read or change the release switch (the validator may name the key, nothing may set it)`);
+      assert.doesNotMatch(text, /^\s*(delete\s+from|truncate\s+(table\s+)?[a-z_.]+\s*;)/im, `${rel}: no statement deletes or truncates data`);
+      assert.doesNotMatch(text, /\bupdate\s+public\.(payments|loyalty_ledger)\b/i, rel);
+    }
+    assert.doesNotMatch(sql(M1), /\bupdate\s+public\.orders\b/i, "the schema migration changes no order");
+  });
+
+  it("every new staff function checks its permission before it describes or reads anything about the customer or the order", () => {
+    const text = sql(M2);
+    for (const fn of ["create_order(\n  p_customer_id uuid,\n  p_items jsonb,\n  p_quotation_id uuid,\n  p_placed_via text,\n  p_delivery_method text,\n  p_delivery_address text,\n  p_idempotency_key text,\n  p_discount jsonb", "order_pricing_context("]) {
+      const start = text.indexOf(`function admin.${fn}`);
+      assert.ok(start >= 0, fn);
+      const body = text.slice(start, text.indexOf("\n$$;", start));
+      const gate = body.indexOf("private.require_permission('orders.create')");
+      const firstRead = body.search(/\b(from|into)\s+(public|private)\./);
+      assert.ok(gate >= 0 && gate < firstRead, `${fn.slice(0, 20)}: the permission comes first`);
+    }
+    // the discount and redemption permissions are checked BEFORE the idempotency claim, so a repeat can never skip them
+    const create = text.slice(text.indexOf("function admin.create_order(\n  p_customer_id uuid,\n  p_items jsonb,\n  p_quotation_id uuid,\n  p_placed_via text,\n  p_delivery_method text,\n  p_delivery_address text,\n  p_idempotency_key text,\n  p_discount jsonb"));
+    const claim = create.indexOf("private.idempotency_claim(");
+    for (const perm of ["orders.discount", "loyalty.redeem"]) {
+      const at = create.indexOf(`private.require_permission('${perm}')`);
+      assert.ok(at >= 0 && at < claim, `${perm} is required before the claim`);
+    }
+  });
+
+  it("the operator undo script lives outside supabase/migrations, refuses without a stated confirmation, and deletes nothing", () => {
+    const rollback = read("supabase/release/pricing_rewards_rollback.sql");
+    assert.match(rollback, /m1\.confirm_pricing_rollback/);
+    assert.match(rollback, /errcode = 'M1P02'/);
+    assert.match(rollback, /errcode = 'M1P01'/);
+    assert.doesNotMatch(rollback.replace(/--.*$/gm, ""), /\b(drop\s+(table|column|schema|function)|delete\s+from|truncate)\b/i);
+    assert.ok(!readdirSync(join(ROOT, "supabase/migrations")).some((f) => /rollback/i.test(f)));
+  });
+
+  it("the screens that show an order's money read the pricing fields from the database rows and use the shared statement", () => {
+    assert.match(read("src/lib/accounts/shared/view-models.ts"), /orderStatement\(/);
+    assert.match(read("src/app/admin/orders/[id]/page.tsx"), /orderStatement\(/);
+    assert.match(read("src/lib/platform/database.types.ts"), /net_payable_minor: MinorUnits;/);
   });
 });

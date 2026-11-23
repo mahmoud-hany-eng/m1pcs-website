@@ -96,6 +96,12 @@ const CALLS = {
   // The three keyed calls also report whether the answer is a REPEAT of an earlier request (the database sets the
   // transaction-local flag m1.replayed), so the screen can say "already recorded" instead of "recorded".
   create_order: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  // The order form with a Pricing & Rewards section: the same order, plus its discount ($6, owner only), the points to redeem ($7, owner
+  // only) and the net payable amount and deposit the screen showed ($8, $9), which the database checks against its own figures. The
+  // idempotency key covers all of it: sending the form twice can neither create a second order nor spend the points twice. `create_order`
+  // above is the earlier release's statement, kept until the contract step; the screens now use this one.
+  create_order_priced: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text, $6::jsonb, $7::bigint, $8::bigint, $9::bigint) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  order_pricing_context: "select admin.order_pricing_context($1::uuid) as r",
   similar_orders: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.similar_orders($1::uuid, $2::jsonb, $3::text) t",
   transition_order: "select admin.transition_order($1::uuid, $2::text, $3::text)::text as r",
   publish_tracking_event: "select admin.publish_tracking_event($1::uuid, $2::text, $3::text, $4::text) as r",
@@ -118,11 +124,11 @@ export type StaffCallName = keyof typeof CALLS;
 
 /** The calls that change data. For these, "nothing was changed" must be TRUE whenever the screen says it. */
 const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
-  "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "transition_order", "publish_tracking_event",
+  "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "create_order_priced", "transition_order", "publish_tracking_event",
   "publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow", "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
 ]);
 /** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
-const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "record_payment"]);
+const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "create_order_priced", "record_payment"]);
 export const isWriteCall = (name: StaffCallName): boolean => WRITE_CALLS.has(name);
 
 /** Client-side limit for one query; the database's own statement_timeout (10 s) normally answers first. */

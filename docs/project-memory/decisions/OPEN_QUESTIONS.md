@@ -46,17 +46,18 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Source:** Phase 0 platform report, decision 6.
 
 ### OQ-0007 — What spending earns points, and rounding
-- **Status:** open
-- **Blocks:** PH-7
+- **Status:** resolved
+- **Resolution:** HD-0021
+- **Blocks:** none
+- **Outcome:** Points are earned on the net final amount payable (the order total less any discount and less any redeemed credit), 1 point per QAR 10, rounded down, once, when the order is completed and fully settled. Nothing is earned on discounted or credited money. Delivery fees are part of the order total as the items make it. (Policy `loyalty.earning_base` = `net_payable`, floor.)
 - **Question:** Do delivery fees, discounts, redeemed points or deposits count towards the QAR 10 earning base? How are amounts rounded?
-- **Recommendation:** Round down per order.
 - **Source:** Phase 0 platform report, decision 7.
 
 ### OQ-0008 — Redemption rules
 - **Status:** open
 - **Blocks:** PH-7
-- **Question:** Minimum and maximum redemption, a cap per order, whether points can pay a deposit, stacking with discounts, expiry, transferability.
-- **Source:** Phase 0 platform report, decision 8.
+- **Question:** Partly answered by HD-0021: points may be redeemed against an order, in part or in full, never beyond the balance or the price left after the discount, by the owner only for now, as an order credit and not a payment. Still open: a minimum or maximum redemption, a cap per order or per day, expiry, transferability, whether points can pay a deposit (today they cannot: the deposit stays in cash), and stacking limits with discounts.
+- **Source:** Phase 0 platform report, decision 8; HD-0021.
 
 ### OQ-0009 — Returns, refunds and points
 - **Status:** open
@@ -271,3 +272,22 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** (a) The 140 Instagram files stay in the published history of `claude-dev` and of the OPS-0002 and OPS-0003 branches after they are removed from the branch tip. Rewriting that published history (and force-pushing) would change every later commit id, break the recorded CI run and review-packet hashes, and still not remove forks or caches. Does the owner want it? (b) After the originals are archived and the archive is confirmed, should the local `claude-dev` branch with the eight unpublished Reel commits be kept as a local archive branch that is never pushed, or reset to `origin/claude-dev`?
 - **Recommendation:** (a) no rewrite; the scan found no credential or customer data, and `main` has never contained these files. (b) Keep the local branch until the archive is confirmed, then decide; the commits are preserved by the bundle either way. Neither is done without the owner's explicit message.
 - **Source:** OPS-0004 correction; HD-0019; [INSTAGRAM_SEPARATION_PLAN.md](../roadmap/INSTAGRAM_SEPARATION_PLAN.md).
+
+### OQ-0040 — An order whose discount and loyalty credit leave less to pay than the cash deposit
+- **Status:** open
+- **Blocks:** nothing now (the case is blocked, with an explanation, at creation and at confirmation)
+- **Question:** The deposit is a cash amount taken from the original gross total (HD-0021). A large discount, or points worth a lot, can leave a net payable amount below it (for example a QAR 1,000.00 order with a QAR 910.00 discount leaves QAR 90.00 against a QAR 150.00 deposit). Today such an order cannot be created or confirmed. Should it stay blocked, or should the deposit be fixed at the net amount, or should an order paid wholly by discount and points be allowed with no cash at all?
+- **Recommendation:** Keep it blocked until the owner states which; it is one function (`private.order_pricing_quote`) and one constraint (`orders_confirmed_deposit_within_net`).
+- **Source:** HD-0021 part D; [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md) section 6.
+
+### OQ-0041 — The legacy "Discount" line item
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** Orders could carry a negative "Discount" item line, which lowers the gross total and therefore the deposit. The new order form no longer offers it and the new `create_order` refuses it; the earlier entry points still accept it and existing orders keep theirs. Should the item kind be retired from the database, and what should be done about existing orders that carry one?
+- **Source:** HD-0021; [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md) section 6.
+
+### OQ-0042 — Who may see a customer's loyalty balance when creating an order, and limits on discounts
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** Today the balance is shown to the owner and to anyone with `loyalty.read`; discounts and redemption are owner only. When other roles may discount or redeem (the owner said "initially"), should there be a maximum discount (a percentage or an amount) per role, and a reason list rather than free text?
+- **Source:** HD-0021.

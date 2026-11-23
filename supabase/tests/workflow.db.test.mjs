@@ -44,7 +44,7 @@ const one = (price, qty = 1) => [{ kind: "component", description: "Test item", 
 
 // ---- the confirmed rules, restated in exact integer (BigInt) arithmetic so the database is checked against ONE
 //      independent implementation. Deposit tiers apply to the WHOLE total: <= 300 000 -> 15 %, <= 500 000 -> 25 %, above -> 35 %.
-const tierBps = (total) => (total <= 300000n ? 1500n : total <= 500000n ? 2500n : 3500n);
+const tierBps = (total) => (total <= 300000n ? 1500n : total <= 500000n ? 2500n : total <= 1000000n ? 3500n : total <= 1500000n ? 5000n : 6000n); // the owner's five tiers (PLAT-0005)
 const expectedDeposit = (total) => (total * tierBps(total) + 5000n) / 10000n; // nearest minor unit, a half rounds up
 const expectedPoints = (total) => total / 1000n; // 1 point per QAR 10.00, rounded down  [ASSUMPTION OQ-0007: base and rounding]
 
@@ -136,34 +136,34 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       const preview = JSON.parse(read(`select admin.preview_deposit(435055)::text`, AS.sam));
       assert.equal(preview.amount_minor, 108764);
       assert.equal(preview.rate_bps, 2500);
-      assert.equal(preview.policy_version, 3);
+      assert.equal(preview.policy_version, 4);
       assert.equal(orderRow(S.id), "435055|108764|null|null|f|0|435055|pending_confirmation");
     });
 
-    it("3. confirm: moving to awaiting_deposit FIXES the deposit (amount, 25 % rate, policy version 3) and audits it", () => {
+    it("3. confirm: moving to awaiting_deposit FIXES the deposit (amount, 25 % rate, policy version 4) and audits it", () => {
       move(S.id, "awaiting_deposit");
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|0|435055|awaiting_deposit");
-      assert.equal(read(`select details ->> 'deposit_minor' || '|' || (details ->> 'deposit_rate_bps') || '|' || (details ->> 'policy_version') from private.audit_log where action = 'order.transition' and entity_id = '${S.id}'`), "108764|2500|3");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|0|435055|awaiting_deposit");
+      assert.equal(read(`select details ->> 'deposit_minor' || '|' || (details ->> 'deposit_rate_bps') || '|' || (details ->> 'policy_version') from private.audit_log where action = 'order.transition' and entity_id = '${S.id}'`), "108764|2500|4");
       // [ASSUMPTION OQ-0005] the status vocabulary is a placeholder; the transition names are pinned as they are today.
     });
 
     it("4. the deposit gate refuses with nothing paid; a PART payment is not enough", () => {
       refused(attempt(AS.sam, `select admin.transition_order('${S.id}', 'deposit_received')`), /the deposit has not been fully paid \(0 of 108764 QAR minor units\)/, "nothing paid");
       pay(S.id, 50000, { extra: `, now(), null, '${SENTINEL.reference}', 'internal payment note'` }); // QAR 500.00 cash
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|50000|385055|awaiting_deposit");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|50000|385055|awaiting_deposit");
       refused(attempt(AS.sam, `select admin.transition_order('${S.id}', 'deposit_received')`), /\(50000 of 108764 QAR minor units\)/, "part paid");
     });
 
     it("5. an over-payment is refused and records nothing", () => {
       refused(attempt(AS.olivia, `select admin.record_payment('${S.id}', 'balance', 400000, 'cash')`), /this payment would exceed the order total/, "over total");
       assert.deepEqual(paymentsOf(S.id), ["50000:cash:deposit"]);
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|50000|385055|awaiting_deposit");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|50000|385055|awaiting_deposit");
     });
 
     it("6. the rest of the deposit by Fawran (58 764) completes it exactly; the gate now opens", () => {
       pay(S.id, 58764, { method: "fawran" });
       assert.equal(50000n + 58764n, 108764n);
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|108764|326291|awaiting_deposit");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|108764|326291|awaiting_deposit");
       move(S.id, "deposit_received");
       assert.match(orderRow(S.id), /deposit_received$/);
     });
@@ -178,13 +178,13 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       move(S.id, "quality_check");
       move(S.id, "ready_for_delivery");
       assert.deepEqual(ledgerOf(S.id), [], "no points at any step before delivery");
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|108764|326291|ready_for_delivery");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|108764|326291|ready_for_delivery");
     });
 
     it("8. the final payment (326 291) leaves a balance of exactly 0, and STILL no points: the order is not delivered", () => {
       pay(S.id, 326291, { purpose: "balance" });
       assert.equal(108764n + 326291n, 435055n);
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|435055|0|ready_for_delivery");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|435055|0|ready_for_delivery");
       assert.deepEqual(ledgerOf(S.id), []);
       refused(attempt(AS.olivia, `select admin.record_payment('${S.id}', 'balance', 1, 'cash')`), /exceed the order total/, "one dirham more");
     });
@@ -226,7 +226,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         `update private.audit_log set action = 'x' where entity_id = '${S.id}'`,
       ]) refused(attempt("", sql), /is append-only: (UPDATE|DELETE) is not allowed/, sql);
       assert.deepEqual(ledgerOf(S.id), ["award:435"]);
-      assert.equal(orderRow(S.id), "435055|108764|2500|3|t|435055|0|delivered");
+      assert.equal(orderRow(S.id), "435055|108764|2500|4|t|435055|0|delivered");
     });
 
     it("12. the customer's own view (Alice): exactly her order, items, payments, timeline and points; nothing private", () => {
@@ -254,11 +254,11 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
     it("1. delivered with a balance still due: 0 points, and the owner cannot award them by hand", () => {
       S.id = make(one(200000), { customer: ID.custA }); // QAR 2,000.00 -> 15 % tier -> deposit 30 000
       move(S.id, "awaiting_deposit");
-      assert.equal(orderRow(S.id), "200000|30000|1500|3|t|0|200000|awaiting_deposit");
+      assert.equal(orderRow(S.id), "200000|30000|1500|4|t|0|200000|awaiting_deposit");
       pay(S.id, 30000);
       for (const s of FULL_PATH.slice(1)) move(S.id, s);
       move(S.id, "delivered"); // allowed: no status requires full payment today (orders.full_payment is null)  [ASSUMPTION OQ-0006]
-      assert.equal(orderRow(S.id), "200000|30000|1500|3|t|30000|170000|delivered");
+      assert.equal(orderRow(S.id), "200000|30000|1500|4|t|30000|170000|delivered");
       assert.deepEqual(ledgerOf(S.id), []);
       const manual = read(`select admin.award_loyalty_for_order('${S.id}') is null`, AS.olivia);
       assert.equal(lines(manual).pop(), "t", "the manual award runs the SAME conditions: it cannot bypass them");
@@ -270,7 +270,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       assert.equal(expectedPoints(200000n), 200n);
       assert.deepEqual(ledgerOf(S.id), ["award:200"]);
       assert.equal(read(`select (select created_at from public.loyalty_ledger where order_id = '${S.id}') = (select created_at from public.payments where order_id = '${S.id}' and amount_minor = 170000)`), "t", "same transaction");
-      assert.equal(orderRow(S.id), "200000|30000|1500|3|t|200000|0|delivered");
+      assert.equal(orderRow(S.id), "200000|30000|1500|4|t|200000|0|delivered");
     });
 
     it("3. repeating the payment or the award changes nothing: the payment is refused, the award returns the SAME entry", () => {
@@ -286,7 +286,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
     it("4. [OBSERVED] reversing the final payment AFTER the award leaves the points in place and the order delivered (decision D3)", () => {
       const payId = read(`select id from public.payments where order_id = '${S.id}' and amount_minor = 170000`);
       act(AS.olivia, `select admin.reverse_payment('${payId}', 'bank returned the payment');`);
-      assert.equal(orderRow(S.id), "200000|30000|1500|3|t|30000|170000|delivered", "the money is owed again");
+      assert.equal(orderRow(S.id), "200000|30000|1500|4|t|30000|170000|delivered", "the money is owed again");
       assert.deepEqual(ledgerOf(S.id), ["award:200"], "the points are NOT clawed back automatically");
       refused(attempt(AS.olivia, `select admin.reverse_payment('${payId}', 'again')`), /already been reversed/, "second reversal");
       const reversalId = read(`select id from public.payments where reverses_payment_id = '${payId}'`);
@@ -388,11 +388,11 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         assert.equal(expectedDeposit(BigInt(total)), BigInt(deposit), "independent integer arithmetic agrees");
         assert.equal(tierBps(BigInt(total)), BigInt(bps));
         const preview = JSON.parse(read(`select admin.preview_deposit(${total})::text`, AS.sam));
-        assert.deepEqual([preview.amount_minor, preview.rate_bps, preview.policy_version], [deposit, bps, 3], "the preview");
+        assert.deepEqual([preview.amount_minor, preview.rate_bps, preview.policy_version], [deposit, bps, 4], "the preview");
         const id = make(one(total), { customer: CUST_C });
         assert.equal(read(`select deposit_required_minor from public.orders where id = '${id}'`), String(deposit), "provisional figure at creation");
         move(id, "awaiting_deposit");
-        assert.equal(orderRow(id), `${total}|${deposit}|${bps}|3|t|0|${total}|awaiting_deposit`, "fixed at confirmation, with its rate and version");
+        assert.equal(orderRow(id), `${total}|${deposit}|${bps}|4|t|0|${total}|awaiting_deposit`, "fixed at confirmation, with its rate and version");
         // The gate is exactly the deposit: one dirham short is refused, the full amount opens it.
         pay(id, deposit - 1);
         refused(attempt(AS.sam, `select admin.transition_order('${id}', 'deposit_received')`), new RegExp(`\\(${deposit - 1} of ${deposit} QAR minor units\\)`), "one dirham short");
@@ -405,11 +405,11 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
     it("the deposit never moves after confirmation, even when the policy changes afterwards", () => {
       const id = make(one(400000), { customer: CUST_C });
       move(id, "awaiting_deposit");
-      assert.equal(orderRow(id), "400000|100000|2500|3|t|0|400000|awaiting_deposit");
+      assert.equal(orderRow(id), "400000|100000|2500|4|t|0|400000|awaiting_deposit");
       const out = read(`${AS.olivia}select admin.set_policy('orders.deposit', '{"percent_bps": 9000, "minimum_minor": 0, "required_before_status": "deposit_received"}'::jsonb,
         'unconfirmed_default', 'TEST: a changed policy must not touch a confirmed order');
         reset role; select deposit_required_minor || '|' || deposit_rate_bps || '|' || deposit_policy_version from public.orders where id = '${id}';`);
-      assert.equal(lines(out).pop(), "100000|2500|3", "the order keeps the schedule it was confirmed under");
+      assert.equal(lines(out).pop(), "100000|2500|4", "the order keeps the schedule it was confirmed under");
     });
   });
 
@@ -450,7 +450,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       pay(id, 20000);
       pay(id, 20000); // two identical direct calls with no key, as an owner at a SQL prompt could make
       assert.deepEqual(paymentsOf(id), ["20000:cash:deposit", "20000:cash:deposit"]);
-      assert.equal(orderRow(id), "200000|30000|1500|3|t|40000|160000|awaiting_deposit");
+      assert.equal(orderRow(id), "200000|30000|1500|4|t|40000|160000|awaiting_deposit");
     });
 
     it("a repeated payment WITH a receipt number is refused: the number is unique, so supplying it makes a retry safe", () => {
@@ -497,7 +497,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       const [a, b] = await Promise.all([asyncPsql(first), sleep(500).then(() => asyncPsql(second))]);
       assert.equal([a.ok, b.ok].filter(Boolean).length, 1, `exactly one succeeds: ${JSON.stringify({ a, b })}`);
       assert.match((a.ok ? b : a).err, /this payment would exceed the order total/);
-      assert.equal(orderRow(id), "100000|15000|2500|3|t|100000|0|awaiting_deposit".replace("2500", "1500"));
+      assert.equal(orderRow(id), "100000|15000|2500|4|t|100000|0|awaiting_deposit".replace("2500", "1500"));
       assert.equal(paymentsOf(id).length, 1);
     });
 
@@ -512,7 +512,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         ]);
         assert.ok(a.ok && b.ok, `${first} first: ${JSON.stringify({ a, b })}`);
         assert.deepEqual(ledgerOf(id), ["award:300"], `${first} first`);
-        assert.equal(orderRow(id), "300000|45000|1500|3|t|300000|0|delivered");
+        assert.equal(orderRow(id), "300000|45000|1500|4|t|300000|0|delivered");
       }
     });
 
@@ -577,7 +577,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         for (const sql of [`select admin.list_payments(10, 0)`, `select admin.list_orders(null, null, 5, 0)`, `select admin.record_payment('${id}', 'deposit', 100, 'cash')`, `select admin.transition_order('${id}', 'on_hold')`, `select admin.create_customer('X', null, null, 'walk_in', 'en', null)`, `select admin.list_audit(5)`])
           refused(attempt(who, sql), /permission denied/, sql);
       }
-      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "23");
+      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "25");
       assert.equal(read(`select count(*) from admin.my_permissions()`, AS.sam), "10");
     });
 

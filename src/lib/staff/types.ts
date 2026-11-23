@@ -1,4 +1,5 @@
 import type { AdoptionOption, FulfillmentType, NextStatus, TrackingPhase, WorkflowStageEntry } from "@/lib/workflow/types";
+import type { DepositPolicy } from "@/lib/platform/pricing";
 export type { AdoptionOption, FulfillmentType, NextStatus, TrackingPhase, WorkflowStageEntry };
 
 /** The shapes the staff functions return (all money in integer QAR minor units). Hand-maintained, like the other row types. */
@@ -103,6 +104,11 @@ export interface OrderListRow {
   /** Present once the order workflow migration is applied; an earlier database leaves them out. */
   workflow_version?: number;
   fulfillment_type?: FulfillmentType | null;
+  /** Present once the pricing migration is applied. `total_minor` is always the GROSS order value; what has to be paid is `net_payable_minor`. */
+  discount_minor?: number;
+  loyalty_points_redeemed?: number;
+  loyalty_credit_minor?: number;
+  net_payable_minor?: number;
 }
 export interface OrderItemDetail {
   position: number;
@@ -191,6 +197,41 @@ export interface OrderDetail {
   adoption_options?: AdoptionOption[] | null;
   /** Present only for someone who may read payments. */
   payments?: PaymentEntry[];
+  /**
+   * The money, kept apart (present once the pricing migration is applied). `total_minor` is the GROSS value and never changes; the deposit is
+   * taken from it. What the customer has to pay is `net_payable_minor`; `balance_due_minor` is that less the cash received.
+   */
+  discount_minor?: number;
+  loyalty_points_redeemed?: number;
+  loyalty_credit_minor?: number;
+  net_payable_minor?: number;
+  cash_balance_after_deposit_minor?: number;
+  /** Who authorized the discount and why (staff only). Null when the order has no discount. */
+  discount_record?: {
+    mode: "fixed" | "percent";
+    percent_bps: number | null;
+    amount_minor: number;
+    base_minor: number;
+    reason: string;
+    authorized_by: string | null;
+    authorized_at: string;
+  } | null;
+  /** The points spent on the order. `returned` is true once a cancellation gave them back. */
+  redemption_record?: { points: number; credit_minor: number; at: string; returned: boolean } | null;
+}
+/** What the order form needs for one customer's Pricing & Rewards section (admin.order_pricing_context). */
+export interface OrderPricingContext {
+  point_value_minor: number | null;
+  earn_qar_per_point_minor: number | null;
+  earning_base: string | null;
+  /** False while the loyalty earning rule is not one that counts only payable money: discounts and redemption are switched off. */
+  pricing_enabled: boolean;
+  can_discount: boolean;
+  can_redeem: boolean;
+  /** Null for a staff member who may neither redeem points nor read the loyalty ledger. */
+  points_balance: number | null;
+  deposit_policy: DepositPolicy | null;
+  deposit_policy_version: number | null;
 }
 export interface PaymentListRow {
   id: string;

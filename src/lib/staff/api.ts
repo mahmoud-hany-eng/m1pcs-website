@@ -3,7 +3,7 @@ import "server-only";
 import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } from "./gateway";
 import type {
   AuditRow, ClaimCodeRow, CustomerDetail, CustomerListRow, DashboardSummary, DepositPreview, LoyaltyOverview, OrderDetail,
-  OrderListRow, PaymentListRow, PolicyRow, PolicyVersionRow,
+  OrderListRow, OrderPricingContext, PaymentListRow, PolicyRow, PolicyVersionRow,
 } from "./types";
 
 export interface NewOrderItem {
@@ -12,6 +12,9 @@ export interface NewOrderItem {
   quantity: number;
   unit_price_minor: number;
 }
+
+/** The discount the owner entered, in the shape the database takes (the reason is kept with the record of who authorized it). */
+export type DiscountParam = { mode: "fixed"; amount_minor: number; reason: string } | { mode: "percent"; percent_bps: number; reason: string };
 
 /** One of the customer's recent orders with the same items as the one being created: evidence for a warning, never a block. */
 export interface SimilarOrder {
@@ -51,6 +54,19 @@ export function staffApi(staff: VerifiedStaff) {
       const { value, replayed } = await staffCallMeta<string>(staff, "create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]);
       return { id: value, replayed };
     },
+    // The order with its Pricing & Rewards: a discount (owner only) and points to redeem (owner only), created together or not at all. The
+    // net payable amount and the deposit are the figures the screen SHOWED: the database refuses the order if it works out something else.
+    createOrderPriced: async (
+      customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string,
+      discount: DiscountParam | null, redeemPoints: number, expectedNetMinor: number, expectedDepositMinor: number,
+    ): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "create_order_priced", [
+        customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey,
+        discount ? JSON.stringify(discount) : null, redeemPoints, expectedNetMinor, expectedDepositMinor,
+      ]);
+      return { id: value, replayed };
+    },
+    orderPricingContext: (customerId: string) => call<OrderPricingContext>("order_pricing_context", [customerId]),
     // Read-only evidence for the duplicate-order warning. The order this key already created is never listed.
     similarOrders: (customerId: string, items: readonly NewOrderItem[], idempotencyKey: string) =>
       call<SimilarOrder[]>("similar_orders", [customerId, JSON.stringify(items), idempotencyKey]),

@@ -103,7 +103,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
         customer_accounts: "customer_id,linked_at,linked_via,user_id",
         quotations: "additional_notes,category,created_at,customer_id,guest_email,guest_name,guest_phone,id,product_preference,quantity,quote_ref,quoted_total_minor,requested_budget_minor,requested_specs,source,specific_model,status,updated_at,valid_until",
         quotation_lines: "description,id,line_total_minor,position,quantity,quotation_id,unit_price_minor",
-        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,fulfillment_type,id,order_ref,placed_via,quotation_id,status,total_minor,updated_at,workflow_version",
+        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,discount_minor,fulfillment_type,id,loyalty_credit_minor,loyalty_points_redeemed,net_payable_minor,order_ref,placed_via,quotation_id,status,total_minor,updated_at,workflow_version",
         order_items: "description,id,kind,line_total_minor,order_id,position,quantity,unit_price_minor",
         order_tracking_events: "corrects_event_id,event_kind,id,location,message,occurred_at,order_id,published_at,status_code,title",
         payments: "amount_minor,created_at,currency,entry_type,id,method,order_id,purpose,receipt_number,received_at,reverses_payment_id",
@@ -328,11 +328,11 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
       db.denied(`insert into private.business_policies (key, value, description) values ('made.up', '{}', 'a policy nobody validates');`, AS.superuser, /business_policies_value_valid/);
     });
 
-    it("every policy that the code reads exists, and only the two confirmed loyalty rates are marked confirmed", () => {
+    it("every policy that the code reads exists, and only the three confirmed loyalty rules are marked confirmed (PLAT-0005 confirmed the earning base)", () => {
       assert.equal(db.ok("select string_agg(key, ',' order by key) from private.business_policies;", AS.superuser),
         "admin.mfa,loyalty.award_trigger,loyalty.earn_rate,loyalty.earning_base,loyalty.negative_balance,loyalty.point_value,orders.deposit,orders.full_payment,orders.workflow");
       assert.equal(db.ok("select string_agg(key, ',' order by key) from private.business_policies where confirmation = 'confirmed_by_owner';", AS.superuser),
-        "loyalty.earn_rate,loyalty.point_value");
+        "loyalty.earn_rate,loyalty.earning_base,loyalty.point_value");
     });
 
     it("every status named by a transition or a policy exists; only the two earlier-workflow-only statuses are still flagged provisional", () => {
@@ -536,7 +536,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
   // =================================================================================================================
   describe("staff authorization is decided on the server from the staff tables", () => {
     it("lists the permissions of a role", () => {
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "23");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "25");
       assert.equal(db.ok("select string_agg(p, ',' order by p) from admin.my_permissions() p;", AS.sam),
         "customers.manage,customers.read,notes.read,notes.write,orders.create,orders.read,orders.transition,quotations.manage,quotations.read,tracking.publish");
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.alice), "0");
@@ -585,12 +585,12 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("the second-factor rule: a staff session without aal2 has no permission while the policy requires it", () => {
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.oliviaAal1), "0");
       db.denied(newOrder({ items: oneItem(100), who: AS.oliviaAal1 }), "", /permission denied: orders\.create/);
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "23");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "25");
     });
 
     it("the second-factor rule fails closed when its policy row is missing, and can be relaxed only by the owner's policy", () => {
       assert.equal(db.ok("delete from private.business_policies where key = 'admin.mfa'; reset role;" + AS.oliviaAal1 + "select count(*) from admin.my_permissions();", AS.superuser), "0");
-      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "23");
+      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "25");
     });
 
     it("a staff member row alone is what grants access: removing it removes every permission", () => {
@@ -859,15 +859,15 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("each change bumps the version and keeps the previous value", () => {
       const out = db.ok(`${AS.olivia}${setDeposit(3000)}${setDeposit(4000)}${AS.superuser}
         select (select version from private.business_policies where key = 'orders.deposit') || ',' || count(*) || ',' || max(changed_by::text) from private.business_policy_versions where key = 'orders.deposit';`);
-      // v1 is the Phase 1 placeholder, v2 the migration that withdrew it, v3 the owner-confirmed schedule (migration 14),
-      // v4 the test-example fixture, v5 and v6 this test.
-      assert.equal(out.split("\n").pop(), `6,6,${ID.olivia}`);
+      // v1 is the Phase 1 placeholder, v2 the migration that withdrew it, v3 the owner-confirmed three-tier schedule (migration 14),
+      // v4 the owner's five-tier schedule (PLAT-0005), v5 the test-example fixture, v6 and v7 this test.
+      assert.equal(out.split("\n").pop(), `7,7,${ID.olivia}`);
     });
 
     it("the policy list tells the owner which values are still unconfirmed placeholders", () => {
-      assert.equal(db.ok("select count(*) from admin.list_policies() where confirmation = 'unconfirmed_default';", AS.olivia), "7");
+      assert.equal(db.ok("select count(*) from admin.list_policies() where confirmation = 'unconfirmed_default';", AS.olivia), "6");
       assert.equal(db.ok("select string_agg(key, ',' order by key) from admin.list_policies() where open_question is not null;", AS.olivia),
-        "loyalty.earn_rate,loyalty.earning_base,loyalty.award_trigger,loyalty.negative_balance,loyalty.point_value,orders.full_payment".split(",").sort().join(","));
+        "loyalty.earn_rate,loyalty.award_trigger,loyalty.negative_balance,loyalty.point_value,orders.full_payment".split(",").sort().join(","));
     });
   });
 
@@ -1108,9 +1108,13 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
       db.denied("insert into public.loyalty_balances (customer_id, balance_points, entries) values (:'custA', 99999, 1);", AS.alice, /permission denied|cannot insert/);
     });
 
-    it("redemption does not exist yet: no entry type and no function spends points", () => {
-      db.denied("select private.set_write_ctx(true); insert into public.loyalty_ledger (customer_id, entry_type, points, description) values (:'custA', 'redemption', -10, 'x');", AS.superuser, /loyalty_ledger_entry_type_check/);
-      assert.equal(db.ok("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('admin','public','private') and p.proname ~* 'redeem|redemption|spend';", AS.superuser), "0");
+    it("redemption is a ledger entry type (PLAT-0005): no API role can write one, no staff function but order creation spends points, and it can never overdraw", () => {
+      // the table itself refuses an inconsistent redemption (no order, or more points than the balance), even to the database superuser
+      db.denied("select private.set_write_ctx(true); insert into public.loyalty_ledger (customer_id, entry_type, points, description) values (:'custA', 'redemption', -10, 'x');", AS.superuser, /(loyalty_award_has_order|not enough loyalty points)/);
+      db.denied("insert into public.loyalty_ledger (customer_id, entry_type, points, description) values (:'custA', 'redemption', -10, 'x');", AS.alice, /permission denied/);
+      // the only functions that spend or return points are private helpers; the one staff entry point that uses them is admin.create_order
+      assert.equal(db.ok("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('admin','public') and p.proname ~* 'redeem|redemption|spend';", AS.superuser), "0");
+      assert.equal(db.ok("select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname ~* 'redeem|redemption|spend';", AS.superuser), "redeem_points_for_order,restore_redeemed_points");
     });
   });
 

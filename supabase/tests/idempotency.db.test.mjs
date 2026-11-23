@@ -557,7 +557,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
       const created = createOrder(SAM, ID.custA, [{ kind: "component", description: "A", quantity: 1, unit_price_minor: 215000 }, { kind: "component", description: "B", quantity: 1, unit_price_minor: 130055 }, { kind: "build_service", description: "C", quantity: 1, unit_price_minor: 80000 }, { kind: "delivery", description: "D", quantity: 1, unit_price_minor: 10000 }], key);
       assert.ok(created.ok, created.err);
       db.commit(`${AS.sam}select admin.transition_order('${created.id}', 'awaiting_deposit');`);
-      assert.equal(scalar(`select total_minor || '|' || deposit_required_minor || '|' || deposit_rate_bps || '|' || deposit_policy_version from public.orders where id = '${created.id}'`), "435055|108764|2500|3");
+      assert.equal(scalar(`select total_minor || '|' || deposit_required_minor || '|' || deposit_rate_bps || '|' || deposit_policy_version from public.orders where id = '${created.id}'`), "435055|108764|2500|4");
       assert.ok(pay(OLIVIA, created.id, 108763, newKey("tier")).ok);
       refused(attempt(AS.sam, `select admin.transition_order('${created.id}', 'deposit_received')`), /\(108763 of 108764 QAR minor units\)/);
       assert.ok(pay(OLIVIA, created.id, 1, newKey("tier")).ok);
@@ -644,7 +644,7 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
       assert.match(order, /confirm_duplicate/);
       assert.match(order, /return duplicateWarning\(similar\)/);
       assert.match(order, /catch \(error\) \{\s*if \(error instanceof StaffPermissionError\) throw error;/, "only a permission failure stops the order; the advice failing does not");
-      assert.ok(order.indexOf("duplicateWarning") < order.indexOf("api.createOrder("), "the warning comes before the create");
+      assert.ok(order.indexOf("duplicateWarning") < order.indexOf("api.createOrderPriced("), "the warning comes before the create");
     });
   });
 });

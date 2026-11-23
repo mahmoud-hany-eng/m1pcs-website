@@ -24,12 +24,12 @@ export default async function PoliciesPage() {
   const deposit = policies.find((p) => p.key === "orders.deposit");
   const versions = deposit ? await api.policyVersions("orders.deposit") : [];
   const tiers = tiersOf(deposit);
+  // The editor starts from the schedule in force, tier by tier, whatever the number of tiers (the owner's current schedule has five).
   const defaults: ScheduleDefaults = {
-    firstUpTo: tiers?.[0]?.up_to_minor !== undefined ? plainAmount(tiers[0].up_to_minor) : "3000.00",
-    secondUpTo: tiers?.[1]?.up_to_minor !== undefined ? plainAmount(tiers[1].up_to_minor) : "5000.00",
-    percent1: tiers ? percentLabel(tiers[0].percent_bps).replace("%", "") : "",
-    percent2: tiers ? percentLabel(tiers[1].percent_bps).replace("%", "") : "",
-    percent3: tiers ? percentLabel(tiers[2].percent_bps).replace("%", "") : "",
+    tiers: (tiers ?? []).map((tier) => ({
+      upTo: tier.up_to_minor !== undefined ? plainAmount(tier.up_to_minor) : "",
+      percent: percentLabel(tier.percent_bps).replace("%", ""),
+    })),
   };
   return (
     <AdminShell
@@ -47,7 +47,7 @@ export default async function PoliciesPage() {
         {tiers ? (
           <div className="mb-5">
             <p className="mb-3 text-sm text-text-secondary">
-              The deposit is a percentage of the <span className="font-semibold text-white">whole order total</span>, chosen by the total, rounded to the nearest dirham (a half rounds up). It is recorded as paid only after a staff member confirms receipt.
+              The deposit is a percentage of the <span className="font-semibold text-white">whole original order total</span> (before any discount or redeemed loyalty points, which never lower it), chosen by that total, rounded to the nearest dirham (a half rounds up). It is recorded as paid only after a staff member confirms receipt.
             </p>
             <DataTable
               rows={tiers.map((tier, index) => ({ tier, index }))}

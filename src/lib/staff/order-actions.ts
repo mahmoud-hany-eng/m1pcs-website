@@ -9,7 +9,7 @@ import type { StaffApi } from "./api";
 import { StaffPermissionError } from "./gateway";
 import type { StaffFormState } from "./form-state";
 import { duplicateWarning, orderSuccessMessage, paymentSuccessMessage } from "./outcomes";
-import { isUuid, parseExpectedPaid, parseIdempotencyKey, parseOrder, parsePayment, STALE_FORM_MESSAGE } from "./validation";
+import { isUuid, parseExpectedPaid, parseIdempotencyKey, parseOrder, parsePayment, parsePricing, STALE_FORM_MESSAGE } from "./validation";
 
 export type Revalidate = (path: string) => void;
 
@@ -18,11 +18,19 @@ const field = (form: FormData, name: string): string => {
   return typeof value === "string" ? value.trim() : "";
 };
 
-export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "createOrder">, formData: FormData, revalidate: Revalidate): Promise<StaffFormState> {
+export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "createOrderPriced">, formData: FormData, revalidate: Revalidate): Promise<StaffFormState> {
   const customerId = field(formData, "customer_id");
   if (!isUuid(customerId)) return { status: "error", fieldErrors: { customer_id: "Choose the customer first." } };
   const parsed = parseOrder(formData, customerId);
-  if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+  // The Pricing & Rewards fields are read in the same pass, so one answer carries every field error the form has.
+  const pricing = parsePricing(formData);
+  if (!parsed.ok || !pricing.ok) {
+    if (!pricing.ok && "stale" in pricing && parsed.ok) return { status: "error", message: STALE_FORM_MESSAGE };
+    return {
+      status: "error",
+      fieldErrors: { ...(parsed.ok ? {} : parsed.errors), ...(!pricing.ok && "errors" in pricing ? pricing.errors : {}) },
+    };
+  }
   const idempotencyKey = parseIdempotencyKey(formData);
   if (!idempotencyKey) return { status: "error", message: STALE_FORM_MESSAGE };
   // A WARNING, never a block: if this customer already has an order with the same items from the last day, say so and
@@ -38,9 +46,14 @@ export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "cre
     }
     if (similar.length) return duplicateWarning(similar);
   }
-  // The order's total is worked out by the database from these lines; the form never supplies it. A repeat with the
-  // same key (a double click, a retry after a timeout) returns the order that was already created and says so.
-  const { id, replayed } = await api.createOrder(parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey);
+  // The order's total is worked out by the database from these lines; the form never supplies it. The discount and the points are
+  // applied in the same transaction as the order, owner only (the database checks the permission), and the order is refused if the
+  // net payable amount or the deposit the person saw is not what the database now works out. A repeat with the same key (a double
+  // click, a retry after a timeout) returns the order that was already created, spends the points once, and says so.
+  const { id, replayed } = await api.createOrderPriced(
+    parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey,
+    pricing.value.discount, pricing.value.redeemPoints, pricing.value.expectedNetMinor, pricing.value.expectedDepositMinor,
+  );
   revalidate("/admin/orders");
   return { status: "success", message: orderSuccessMessage(replayed), href: `/admin/orders/${id}` };
 }

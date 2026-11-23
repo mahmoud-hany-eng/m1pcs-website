@@ -5,6 +5,7 @@
  * business rules stay in the database where the owner can change them.
  */
 import { formatQar } from "@/lib/platform/money";
+import { orderStatement } from "@/lib/platform/pricing";
 import { stagesForOrder, type StageRowInput } from "@/lib/workflow/timeline";
 import type {
   CustomerRow,
@@ -85,11 +86,27 @@ export function buildStatusView(code: string, statuses: readonly OrderStatusRow[
 
 // ----- orders ---------------------------------------------------------------------------------------------------
 
+/** One line of an order's statement, as text. A discount and a loyalty credit are negative lines; a credit is never called a payment. */
+export interface StatementLineView {
+  key: "gross" | "discount" | "credit" | "net" | "paid" | "balance";
+  label: string;
+  amount: string;
+  note?: string;
+  emphasis?: boolean;
+}
+
 export interface OrderSummaryView {
   ref: string;
   placedOn: string;
   status: StatusView;
+  /** The order value BEFORE any discount or loyalty credit (the gross value). The deposit is worked out from it. */
   total: string;
+  /** True when a discount or redeemed points reduce what is payable. */
+  adjusted: boolean;
+  /** What has to be paid after the discount and the loyalty credit (equal to `total` when nothing was taken off). */
+  netPayable: string;
+  /** The statement lines, in the order a receipt or a statement shows them. */
+  statement: StatementLineView[];
   depositRequired: string;
   paid: string;
   balanceDue: string;
@@ -102,11 +119,24 @@ export interface OrderSummaryView {
 export function buildOrderSummary(order: OrderRow, statuses: readonly OrderStatusRow[], stageRows: readonly StageRowInput[] = []): OrderSummaryView {
   const outstanding = order.deposit_required_minor - order.amount_paid_minor;
   const pathCodes = stagesForOrder(order, stageRows, statuses).map((stage) => stage.code);
+  // An earlier database has none of the pricing columns: then nothing was taken off and the net payable amount is the total.
+  const discount = order.discount_minor ?? 0;
+  const credit = order.loyalty_credit_minor ?? 0;
+  const net = order.net_payable_minor ?? order.total_minor - discount - credit;
   return {
     ref: order.order_ref,
     placedOn: formatDate(order.created_at),
     status: buildStatusView(order.status, statuses, pathCodes),
     total: formatQar(order.total_minor),
+    adjusted: discount > 0 || credit > 0,
+    netPayable: formatQar(net),
+    statement: orderStatement({ ...order, discount_minor: discount, loyalty_credit_minor: credit, net_payable_minor: net }).map((line) => ({
+      key: line.key,
+      label: line.label,
+      amount: formatQar(line.amountMinor),
+      note: line.note,
+      emphasis: line.emphasis,
+    })),
     depositRequired: formatQar(order.deposit_required_minor),
     paid: formatQar(order.amount_paid_minor),
     balanceDue: formatQar(order.balance_due_minor),
@@ -206,7 +236,13 @@ export function ledgerMatchesOrder(order: OrderRow, payments: readonly PaymentRo
 
 // ----- loyalty --------------------------------------------------------------------------------------------------
 
-const LOYALTY_TYPE: Record<string, string> = { award: "Points earned", reversal: "Points reversed", adjustment: "Adjustment" };
+const LOYALTY_TYPE: Record<string, string> = {
+  award: "Points earned",
+  reversal: "Points reversed",
+  adjustment: "Adjustment",
+  redemption: "Points used on an order",
+  redemption_restore: "Points returned",
+};
 
 export interface LoyaltyEntryView {
   id: string;

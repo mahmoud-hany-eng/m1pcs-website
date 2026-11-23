@@ -106,13 +106,15 @@ describe("order form parsing", { skip }, () => {
     assert.equal(zero.ok, false);
     assert.ok(zero.errors.items);
   });
-  test("a negative amount is allowed only for a discount and is stored as negative", () => {
+  test("no item can be negative, and a discount is not an item: it is entered under Pricing & Rewards (PLAT-0005)", () => {
     const bad = v.parseOrder(orderForm({ item_price_0: "-10" }), "c1");
     assert.equal(bad.ok, false);
-    assert.ok(bad.errors.item_price_0);
-    const ok = v.parseOrder(orderForm({ item_description_1: "Discount", item_price_1: "100", item_kind_1: "discount" }), "c1");
-    assert.equal(ok.ok, true);
-    assert.equal(ok.value.items[1].unit_price_minor, -10000);
+    assert.match(bad.errors.item_price_0, /Pricing & Rewards/);
+    const line = v.parseOrder(orderForm({ item_description_1: "Discount", item_price_1: "100", item_kind_1: "discount" }), "c1");
+    assert.equal(line.ok, false);
+    assert.match(line.errors.item_kind_1, /A discount is not an item/);
+    assert.deepEqual([...v.NEW_ORDER_ITEM_KINDS], ["component", "build_service", "delivery", "other"]);
+    assert.ok(v.ITEM_KINDS.includes("discount"), "the legacy kind is still known, for displaying older orders");
   });
   test("rejects inexact money, floats, exponents and silly quantities", () => {
     for (const price of ["12.345", "1e3", "abc", "1,25", "  ", "0x10"]) {
@@ -167,17 +169,33 @@ describe("other staff inputs", { skip }, () => {
   });
 });
 
-describe("deposit schedule form", { skip }, () => {
-  const ok = { first_up_to: "3,000", second_up_to: "5000", percent_1: "15", percent_2: "25", percent_3: "35", reason: "Owner confirmed schedule", confirmed_by_owner: "yes", typed_confirmation: "CHANGE DEPOSIT SCHEDULE" };
-  test("parses percentages to basis points and builds the tiered policy value", () => {
-    const r = v.parseDepositSchedule(form(ok), "confirmed");
+describe("deposit schedule form (any number of tiers; the owner's five tiers are the default since PLAT-0005)", { skip }, () => {
+  const five = {
+    tier_count: "5", up_to_0: "3,000", up_to_1: "5000", up_to_2: "10,000", up_to_3: "15000",
+    percent_0: "15", percent_1: "25", percent_2: "35", percent_3: "50", percent_4: "60",
+    reason: "Owner confirmed schedule", confirmed_by_owner: "yes", typed_confirmation: "CHANGE DEPOSIT SCHEDULE",
+  };
+  test("parses five tiers to basis points and builds the tiered policy value in the shape the database validates", () => {
+    const r = v.parseDepositSchedule(form(five), "confirmed");
     assert.equal(r.ok, true);
     assert.deepEqual(v.depositPolicyValue(r.value), {
       mode: "tiered",
       minimum_minor: 0,
       required_before_status: "confirmed",
-      tiers: [{ up_to_minor: 300000, percent_bps: 1500 }, { up_to_minor: 500000, percent_bps: 2500 }, { percent_bps: 3500 }],
+      tiers: [
+        { up_to_minor: 300000, percent_bps: 1500 }, { up_to_minor: 500000, percent_bps: 2500 }, { up_to_minor: 1000000, percent_bps: 3500 },
+        { up_to_minor: 1500000, percent_bps: 5000 }, { percent_bps: 6000 },
+      ],
     });
+  });
+  test("still builds the earlier three-tier shape, and a single flat tier", () => {
+    const three = { tier_count: "3", up_to_0: "3000", up_to_1: "5000", percent_0: "15", percent_1: "25", percent_2: "35", reason: "Owner confirmed schedule", confirmed_by_owner: "yes", typed_confirmation: "CHANGE DEPOSIT SCHEDULE" };
+    const r = v.parseDepositSchedule(form(three), "confirmed");
+    assert.equal(r.ok, true);
+    assert.equal(v.depositPolicyValue(r.value).tiers.length, 3);
+    const one = v.parseDepositSchedule(form({ tier_count: "1", percent_0: "20", reason: "flat", confirmed_by_owner: "yes", typed_confirmation: "CHANGE DEPOSIT SCHEDULE" }), "confirmed");
+    assert.equal(one.ok, true);
+    assert.deepEqual(v.depositPolicyValue(one.value).tiers, [{ percent_bps: 2000 }]);
   });
   test("percent parsing is exact and bounded", () => {
     assert.equal(v.parsePercentToBps("12.5"), 1250);
@@ -185,14 +203,64 @@ describe("deposit schedule form", { skip }, () => {
     assert.equal(v.parsePercentToBps("100"), 10000);
     for (const bad of ["100.01", "101", "-1", "1.234", "", "abc", "1e2"]) assert.equal(v.parsePercentToBps(bad), null, bad);
   });
-  test("needs ascending limits, a reason and the typed confirmation", () => {
-    assert.equal(v.parseDepositSchedule(form({ ...ok, second_up_to: "3000" }), "confirmed").ok, false);
-    assert.equal(v.parseDepositSchedule(form({ ...ok, reason: "" }), "confirmed").ok, false);
-    assert.equal(v.parseDepositSchedule(form({ ...ok, typed_confirmation: "yes" }), "confirmed").ok, false);
-    assert.equal(v.parseDepositSchedule(form({ ...ok, percent_2: "x" }), "confirmed").ok, false);
-    const unconfirmed = v.parseDepositSchedule(form({ ...ok, confirmed_by_owner: "" }), "confirmed");
+  test("needs ascending limits, a reason, the typed confirmation and a sensible number of tiers", () => {
+    assert.equal(v.parseDepositSchedule(form({ ...five, up_to_1: "3000" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, up_to_3: "9000" }), "confirmed").ok, false, "a limit below the one before it");
+    assert.equal(v.parseDepositSchedule(form({ ...five, reason: "" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, typed_confirmation: "yes" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, percent_2: "x" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, tier_count: "0" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, tier_count: "9" }), "confirmed").ok, false);
+    assert.equal(v.parseDepositSchedule(form({ ...five, tier_count: "x" }), "confirmed").ok, false);
+    const unconfirmed = v.parseDepositSchedule(form({ ...five, confirmed_by_owner: "" }), "confirmed");
     assert.equal(unconfirmed.ok, false);
     assert.ok(unconfirmed.errors.confirmed_by_owner);
+  });
+});
+
+describe("Pricing & Rewards fields of the order form (PLAT-0005)", { skip }, () => {
+  const seen = { expected_net_minor: "420705", expected_deposit_minor: "108764" };
+  test("no discount and no points: only the two figures the screen showed are required", () => {
+    const r = v.parsePricing(form(seen));
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.value, { discount: null, redeemPoints: 0, expectedNetMinor: 420705, expectedDepositMinor: 108764 });
+  });
+  test("a form without the figures it showed is stale (never guessed)", () => {
+    for (const bad of [{}, { expected_net_minor: "420705" }, { expected_deposit_minor: "108764" }, { expected_net_minor: "-1", expected_deposit_minor: "5" }, { expected_net_minor: "1.5", expected_deposit_minor: "5" }, { expected_net_minor: "x", expected_deposit_minor: "5" }]) {
+      const r = v.parsePricing(form(bad));
+      assert.equal(r.ok, false);
+      assert.equal(r.stale, true);
+    }
+  });
+  test("a fixed discount is an exact QAR amount with a reason, in minor units", () => {
+    const r = v.parsePricing(form({ ...seen, discount_mode: "fixed", discount_amount: "100", discount_reason: "Returning customer" }));
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.value.discount, { mode: "fixed", amount_minor: 10000, reason: "Returning customer" });
+    const cents = v.parsePricing(form({ ...seen, discount_mode: "fixed", discount_amount: "1,250.50", discount_reason: "Goodwill" }));
+    assert.equal(cents.value.discount.amount_minor, 125050);
+  });
+  test("a percentage discount is basis points from 0.01 to 100 percent", () => {
+    const r = v.parsePricing(form({ ...seen, discount_mode: "percent", discount_percent: "12.5", discount_reason: "Returning customer" }));
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.value.discount, { mode: "percent", percent_bps: 1250, reason: "Returning customer" });
+    assert.equal(v.parsePricing(form({ ...seen, discount_mode: "percent", discount_percent: "100", discount_reason: "Gift" })).ok, true);
+    for (const bad of ["0", "0.00", "100.01", "-5", "abc", "1.234", ""]) {
+      const e = v.parsePricing(form({ ...seen, discount_mode: "percent", discount_percent: bad, discount_reason: "Returning customer" }));
+      assert.equal(e.ok, false, bad);
+      assert.ok(e.errors.discount_percent, bad);
+    }
+  });
+  test("a discount needs a reason (it is kept with the record of who authorized it), an exact amount, and a known mode", () => {
+    assert.ok(v.parsePricing(form({ ...seen, discount_mode: "fixed", discount_amount: "100", discount_reason: "ab" })).errors.discount_reason);
+    assert.ok(v.parsePricing(form({ ...seen, discount_mode: "fixed", discount_amount: "100" })).errors.discount_reason);
+    for (const bad of ["", "0", "-5", "1e3", "12.345", "abc"]) assert.ok(v.parsePricing(form({ ...seen, discount_mode: "fixed", discount_amount: bad, discount_reason: "Returning customer" })).errors.discount_amount, bad);
+    assert.ok(v.parsePricing(form({ ...seen, discount_mode: "bogus", discount_reason: "Returning customer" })).errors.discount_mode);
+  });
+  test("points to redeem are a whole number; blank means none", () => {
+    assert.equal(v.parsePricing(form({ ...seen, redeem_points: "435" })).value.redeemPoints, 435);
+    assert.equal(v.parsePricing(form({ ...seen, redeem_points: "" })).value.redeemPoints, 0);
+    assert.equal(v.parsePricing(form({ ...seen, redeem_points: "0" })).value.redeemPoints, 0);
+    for (const bad of ["-1", "1.5", "1e3", "abc", "1234567890"]) assert.ok(v.parsePricing(form({ ...seen, redeem_points: bad })).errors.redeem_points, bad);
   });
 });
 

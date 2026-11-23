@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/forms";
 import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
 import { fulfillmentLabel } from "@/lib/workflow/labels";
+import { orderStatement } from "@/lib/platform/pricing";
 import { buildWorkflowTimeline } from "@/lib/workflow/timeline";
 import { entryLabel, formatDay, formatWhen, methodLabel, percentLabel, plainAmount, purposeLabel } from "@/lib/staff/format";
 import { StaffOperationError } from "@/lib/staff/gateway";
@@ -35,6 +36,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   }
   const fixed = order.deposit_fixed_at !== null;
   const payments = order.payments;
+  // A discount or redeemed points make the amount payable differ from the order total (the gross value, which never changes).
+  const adjusted = (order.discount_minor ?? 0) > 0 || (order.loyalty_credit_minor ?? 0) > 0;
+  const statement = orderStatement(order);
   const defaultPurpose = order.deposit_outstanding_minor > 0 ? "deposit" : "balance";
   const defaultAmount = plainAmount(order.deposit_outstanding_minor > 0 ? order.deposit_outstanding_minor : Math.max(order.balance_due_minor, 0));
   // The staff dashboard and the customer tracker draw the SAME model (src/lib/workflow/timeline.ts) from the same stage data.
@@ -83,8 +87,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </div>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" data-testid="order-money">
-        <Money3 label="Order total" minor={order.total_minor} />
+      <div className={`grid gap-3 sm:grid-cols-2 sm:gap-4 ${adjusted ? "xl:grid-cols-5" : "xl:grid-cols-4"}`} data-testid="order-money">
+        <Money3 label={adjusted ? "Order total (before discount)" : "Order total"} minor={order.total_minor} />
+        {adjusted ? <Money3 label="Final amount payable" minor={order.net_payable_minor ?? order.total_minor} hint="After the discount and loyalty credit" /> : null}
         <Money3 label={fixed ? "Deposit required" : "Deposit (provisional)"} minor={order.deposit_required_minor} hint={fixed ? `Fixed ${formatDay(order.deposit_fixed_at)}` : "Fixed when the order is confirmed"} />
         {payments !== undefined ? <Money3 label="Received" minor={order.amount_paid_minor} /> : null}
         {payments !== undefined ? <Money3 label="Balance due" minor={order.balance_due_minor} tone="red" /> : null}
@@ -209,12 +214,46 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             />
           </Section>
 
+          {adjusted ? (
+            <Section title="Price breakdown">
+              <dl className="flex flex-col divide-y divide-white/10 text-sm" data-testid="price-breakdown">
+                {statement.map((line) => (
+                  <div key={line.key} className={`flex items-baseline justify-between gap-4 py-2 ${line.emphasis ? "font-semibold text-white" : "text-text-secondary"}`}>
+                    <dt className="min-w-0">
+                      {line.label}
+                      {line.note ? <span className="block text-xs font-normal text-text-muted">{line.note}</span> : null}
+                    </dt>
+                    <dd className="shrink-0 tabular-nums text-white" data-testid={`price-${line.key}`}>
+                      <Money minor={line.amountMinor} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {order.discount_record ? (
+                <p className="mt-3 text-xs text-text-muted" data-testid="discount-record">
+                  Discount {order.discount_record.mode === "percent" && order.discount_record.percent_bps !== null ? `of ${percentLabel(order.discount_record.percent_bps)} ` : ""}authorized by{" "}
+                  <span className="text-text-secondary">{order.discount_record.authorized_by ?? "the owner"}</span> on {formatWhen(order.discount_record.authorized_at)}. Reason: {order.discount_record.reason}
+                </p>
+              ) : null}
+              {order.redemption_record ? (
+                <p className="mt-2 text-xs text-text-muted" data-testid="redemption-record">
+                  {order.redemption_record.points.toLocaleString("en-US")} loyalty points redeemed when the order was created.{" "}
+                  {order.redemption_record.returned ? "The order was cancelled and the points were returned to the customer." : "They are returned to the customer if the order is cancelled."}
+                </p>
+              ) : null}
+              <p className="mt-2 text-xs text-text-muted">
+                The deposit below is worked out from the order total before any discount or loyalty credit. After the deposit,{" "}
+                <span className="text-text-secondary"><Money minor={order.cash_balance_after_deposit_minor ?? 0} /></span> is still to pay in cash or Fawran.
+              </p>
+            </Section>
+          ) : null}
+
           <Section title="Deposit">
             {fixed ? (
               <div className="flex flex-col gap-2 text-sm">
                 <p className="text-text-secondary">
                   Fixed at <span className="font-semibold text-white"><Money minor={order.deposit_required_minor} /></span>
-                  {order.deposit_rate_bps !== null ? ` (${percentLabel(order.deposit_rate_bps)} of the whole total)` : ""}, using version {order.deposit_policy_version ?? "—"} of the schedule.
+                  {order.deposit_rate_bps !== null ? ` (${percentLabel(order.deposit_rate_bps)} of the whole original total)` : ""}, using version {order.deposit_policy_version ?? "—"} of the schedule.
                 </p>
                 {order.deposit_rule ? <p className="text-xs text-text-muted">{order.deposit_rule}</p> : null}
                 <p className="text-xs text-text-muted">A later change to the schedule does not change this order.</p>

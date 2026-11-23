@@ -11,12 +11,12 @@ export default async function LoyaltyPage() {
   const loyalty = buildLoyalty(balances, ledger);
 
   return (
-    <AccountShell active="loyalty" email={user.email} title="Loyalty points" description="Points you have earned with M1. Every change is recorded below.">
+    <AccountShell active="loyalty" email={user.email} title="Loyalty points" description="Points you have earned with M1 and the points you have used. Every change is recorded below.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard label="Your points" value={String(loyalty.balance)} hint={`${loyalty.entryCount} entr${loyalty.entryCount === 1 ? "y" : "ies"} in your history`} tone="gold" />
         <div className="glass glass-flat flex flex-col justify-center gap-2 p-5 text-sm text-text-secondary">
           <p className="font-semibold text-white">How points work</p>
-          <p>Points are added once, after an order is complete. Spending points is not available yet, and M1 will tell you before it is.</p>
+          <p>You earn 1 point for every QAR 10 you pay on a completed order, added once the order is delivered and paid in full. Each point is worth QAR 0.10 off a new order. Ask M1 to use your points when you place an order; points you use are recorded below, and they come back if that order is cancelled.</p>
         </div>
       </div>
 

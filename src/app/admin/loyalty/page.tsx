@@ -4,6 +4,15 @@ import { DataTable, Section } from "@/components/admin/ui";
 import { formatWhen } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 
+/** How each ledger entry type reads to staff. A redemption is an order credit (not a payment); a restoration gives the points of a cancelled order back. */
+const ENTRY_LABEL: Record<string, string> = {
+  award: "award",
+  reversal: "reversal",
+  adjustment: "adjustment",
+  redemption: "redeemed on an order",
+  redemption_restore: "returned (order cancelled)",
+};
+
 export default async function LoyaltyPage() {
   const { staff, api, can } = await requireStaff("/admin/loyalty");
   if (!can("loyalty.read")) return <AdminMissing active="loyalty" email={staff.email} can={can} />;
@@ -39,7 +48,7 @@ export default async function LoyaltyPage() {
           columns={[
             { key: "when", header: "When", cell: (e) => formatWhen(e.created_at), primary: true },
             { key: "customer", header: "Customer", cell: (e) => e.full_name },
-            { key: "type", header: "Type", cell: (e) => e.entry_type.replace(/_/g, " ") },
+            { key: "type", header: "Type", cell: (e) => ENTRY_LABEL[e.entry_type] ?? e.entry_type.replace(/_/g, " ") },
             { key: "points", header: "Points", cell: (e) => <span className="tabular-nums">{e.points > 0 ? `+${e.points}` : e.points}</span>, align: "right" },
             { key: "order", header: "Order", cell: (e) => e.order_ref ?? "—" },
             { key: "note", header: "Note", cell: (e) => e.description, hideOnCard: true },

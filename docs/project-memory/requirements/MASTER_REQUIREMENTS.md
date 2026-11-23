@@ -47,6 +47,8 @@ Nothing may be added to this file unless a human said it. A worker or model that
 - **REQ-LOY-003** (confirmed) — Each point has a redemption value of QAR 0.10. _Source: HD-0003._
 - **REQ-LOY-004** (confirmed) — Points are awarded only after an order is fulfilled. What counts as fulfilled is not yet decided (OQ-0006). _Source: HD-0003._
 - **REQ-LOY-005** (confirmed) — The system must prevent duplicate point awards. _Source: HD-0003._
+- **REQ-LOY-006** (confirmed) — Points are earned on the net final amount payable (excluding discounts and redeemed credit); a redeemed point is an order credit, not a payment; redemption is recorded in the append-only ledger, atomically with the order, and a cancellation returns the points by a compensating entry. Discounts and redemption are applied by the owner only, initially. _Source: HD-0021._
+- **REQ-ORD-004** (confirmed) — The deposit is a percentage of the original gross order total by five tiers (15, 25, 35, 50 and 60 percent at QAR 3,000, 5,000, 10,000 and 15,000), rounded to the nearest QAR 0.01; discounts and redeemed points never reduce it; a deposit already fixed on a confirmed order never changes. _Source: HD-0021._
 
 ### 1.7 How the automated development system must behave
 

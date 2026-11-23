@@ -42,6 +42,7 @@ In a SQL editor or any tool that runs one multi-statement string, paste the `set
 | `idempotency_contract_rollback.sql` | the three PLAT-0003 write functions exactly as deployed (the old website works again) | never; safe to repeat |
 | `idempotency_expand_rollback.sql` | removes the four keyed/evidence functions and the claim helper. **Keeps** `private.idempotency_keys` and its rows (they stop a key from ever being accepted twice; re-running the expand migration reuses them) | `M1C03`: you have not stated `set m1.confirm_expand_rollback = 'new-website-retired';` (the new website calls these functions); `M1C04`: the contract is still applied (run the contract rollback first) |
 | `transition_order_rollback.sql` | `admin.transition_order` as deployed in PLAT-0003 (this reintroduces the "order checked before permission" defect that migration `20261121120000` fixes) | never |
+| `pricing_rewards_rollback.sql` | the eight functions of migration `20261123120100` exactly as deployed, takes away the right to run the two new staff functions, and puts the two policies of migration `20261123120200` back as new versions (an owner's later edit is left alone) | any order carries a discount or redeemed points, or the confirmation `set m1.confirm_pricing_rollback = 'new-website-retired';` is missing (SQLSTATE `M1P01`, `M1P02`) |
 
 The normal recovery for a bad website release is **not** a database undo: redeploy the previous website. Because the expand step
 only adds, the previous website works against the expanded database.
@@ -132,3 +133,7 @@ select count(*) from private.order_status_history where order_id = (select id fr
 Before step 2, the earlier functions must have exactly these fingerprints (`md5(pg_get_functiondef(oid))`, identical on the hosted development database and on a local build of the
 migrations up to the idempotency expand): `transition_order` ce5fd8fbaf9c0b0b97ef496b06fdc146, `publish_tracking_event` 43d3ef4b5bc019b15adc26261a9af7f4, `get_order` 6e27cf9b3a4bc4eae8e98410e34378d7,
 `list_orders` 01f5bbc4da54cdaad0b314dcbf34c604, `dashboard_summary` a3f45d9ef90cdc16a608c609b3675e1e (the rollback script restores exactly these five).
+
+## Pricing and rewards (PLAT-0005): three migrations, applied in order
+
+`20261123120000` (schema) and `20261123120100` (functions) are additive and safe for the website that is live today; `20261123120200` is DATA ONLY and is the moment the five deposit tiers and the net-payable earning rule start for NEW orders, so it is the last step and can be held back. It stops (changing nothing) if either policy was edited since. The staged sequence and the rollback are in `docs/project-memory/architecture/PRICING_AND_REWARDS.md` section 7. Nothing of this release has been applied to a hosted database.

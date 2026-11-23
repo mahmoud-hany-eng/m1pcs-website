@@ -31,7 +31,7 @@ export default async function PaymentsPage() {
                     Order {view.ref}
                   </Link>
                   <p className="text-text-muted">
-                    {view.status.label} · Total {view.total} · Paid {view.paid}
+                    {view.status.label} · {view.adjusted ? `Total payable ${view.netPayable}` : `Total ${view.total}`} · Paid {view.paid}
                   </p>
                   {view.depositOutstanding ? <p className="text-warning">Deposit still to pay: {view.depositOutstanding}</p> : null}
                 </div>

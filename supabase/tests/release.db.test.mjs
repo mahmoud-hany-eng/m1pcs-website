@@ -105,7 +105,9 @@ suite("release sequence: expand -> new website -> contract, with undo scripts (P
       assert.equal(functionExists(db, "admin.similar_orders(uuid, jsonb, text)"), false);
       assert.equal(functionExists(db, "admin.record_payment(uuid, text, bigint, text, timestamptz, text, text, text)"), true);
       assert.deepEqual(names.filter((f) => f >= M16 && f < W1), [M16, M17], "this release adds exactly two migrations, and the contract step is NOT among them");
-      assert.deepEqual(names.filter((f) => f >= W1), [W1, W2], "the order-workflow pair is the next release and comes after it");
+      assert.deepEqual(names.filter((f) => f >= W1 && f < "20261123"), [W1, W2], "the order-workflow pair is the next release and comes after it");
+      assert.deepEqual(names.filter((f) => f >= "20261123"), ["20261123120000_pricing_rewards_schema.sql", "20261123120100_pricing_rewards_functions.sql", "20261123120200_pricing_rewards_policies.sql"],
+        "the pricing and rewards migrations (PLAT-0005) are the release after that");
     });
 
     it("this release's operator scripts live outside supabase/migrations, so no pipeline applies them by itself", () => {

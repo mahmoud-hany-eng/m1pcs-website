@@ -23,7 +23,7 @@ const suite = haveServer ? describe : describe.skip;
 const CUST = "00000000-0000-4000-8000-0000000000c9"; // a walk-in customer without a sign-in: the mechanics orders
 const one = (price) => [{ kind: "component", description: "Test item", quantity: 1, unit_price_minor: price }];
 const lines = (out) => out.split("\n").filter((l) => l !== "");
-const tierBps = (total) => (total <= 300000n ? 1500n : total <= 500000n ? 2500n : 3500n);
+const tierBps = (total) => (total <= 300000n ? 1500n : total <= 500000n ? 2500n : total <= 1000000n ? 3500n : total <= 1500000n ? 5000n : 6000n); // the owner's five tiers (PLAT-0005)
 const deposit = (total) => (total * tierBps(total) + 5000n) / 10000n;
 
 const V2_COMMON = ["pending_confirmation", "awaiting_deposit", "deposit_received", "order_confirmed", "live_tracking", "arrived_in_qatar", "carrier_delivering"];
@@ -788,7 +788,7 @@ suite("order workflow v2: database layer (real PostgreSQL 16, real migrations, r
       setSwitch(2);
       move(id, "awaiting_deposit");
       assert.equal(read(`select deposit_required_minor || '|' || deposit_rate_bps || '|' || deposit_rule from public.orders where id = '${id}'`),
-        "108764|2500|tier 2 of 3: 25.00% of the whole order total, to the nearest dirham (a half rounds up)");
+        "108764|2500|tier 2 of 5: 25.00% of the whole order total, to the nearest dirham (a half rounds up)");
       act(AS.olivia, `select admin.record_payment('${id}', 'deposit', 108764, 'fawran');`);
       for (const s of ["deposit_received", "sourcing", "in_transit"]) move(id, s);
       for (const [title, msg] of [["Synthetic update 1", "one"], ["Synthetic update 2", "two"], ["Synthetic update 3", "three"], ["Synthetic update 4", "four"]]) {
@@ -945,22 +945,30 @@ suite("order workflow v2: database layer (real PostgreSQL 16, real migrations, r
     });
 
     it("the migrations are RERUNNABLE: applying both again changes no definition, no row count and no privilege", () => {
-      const snapshot = () => read(`select md5(string_agg(x, '|' order by x)) from (
-        select pg_get_functiondef(p.oid) as x from pg_proc p where p.pronamespace in ('admin'::regnamespace, 'private'::regnamespace)
-        union all select 'status:' || code || ':' || customer_label || ':' || is_provisional from public.order_statuses
-        union all select 'stage:' || workflow_version || branch || position || status_code from public.order_workflow_stages
-        union all select 'move:' || workflow_version || from_code || to_code || branch from private.order_workflow_transitions
-        union all select 'adopt:' || legacy_status || target_status from private.workflow_adoption_map
-        union all select 'perm:' || role_code || permission_code from private.role_permissions
-        union all select 'acl:' || p.oid::regprocedure::text || coalesce(p.proacl::text, '') from pg_proc p where p.pronamespace = 'admin'::regnamespace) s`);
-      const before = snapshot();
-      const policyVersion = read("select version from private.business_policies where key = 'orders.workflow'");
-      for (const file of ["20261122120000_order_workflow_v2_schema.sql", "20261122120100_order_workflow_v2_functions.sql"]) {
-        const result = db.cluster.psql(readFileSync(join(ROOT, "supabase", "migrations", file), "utf8"));
-        assert.ok(result.ok, `${file}: ${result.err}`);
+      // On the database as this release left it: the pricing migrations (PLAT-0005) replace some of the same functions later, so re-applying
+      // the workflow pair on top of THEM would (rightly) put the older definitions back. Their own rerun test is in pricing.db.test.mjs.
+      const own = startDatabase({ schedule: "confirmed", before: "20261123120000_pricing_rewards_schema.sql" });
+      try {
+        const oread = (sql) => lines(own.ok(/;\s*$/.test(sql) ? sql : `${sql};`)).pop() ?? "";
+        const snapshot = () => oread(`select md5(string_agg(x, '|' order by x)) from (
+          select pg_get_functiondef(p.oid) as x from pg_proc p where p.pronamespace in ('admin'::regnamespace, 'private'::regnamespace)
+          union all select 'status:' || code || ':' || customer_label || ':' || is_provisional from public.order_statuses
+          union all select 'stage:' || workflow_version || branch || position || status_code from public.order_workflow_stages
+          union all select 'move:' || workflow_version || from_code || to_code || branch from private.order_workflow_transitions
+          union all select 'adopt:' || legacy_status || target_status from private.workflow_adoption_map
+          union all select 'perm:' || role_code || permission_code from private.role_permissions
+          union all select 'acl:' || p.oid::regprocedure::text || coalesce(p.proacl::text, '') from pg_proc p where p.pronamespace = 'admin'::regnamespace) s`);
+        const before = snapshot();
+        const policyVersion = oread("select version from private.business_policies where key = 'orders.workflow'");
+        for (const file of ["20261122120000_order_workflow_v2_schema.sql", "20261122120100_order_workflow_v2_functions.sql"]) {
+          const result = own.cluster.psql(readFileSync(join(ROOT, "supabase", "migrations", file), "utf8"));
+          assert.ok(result.ok, `${file}: ${result.err}`);
+        }
+        assert.equal(snapshot(), before);
+        assert.equal(oread("select version from private.business_policies where key = 'orders.workflow'"), policyVersion, "the release switch the owner set is not reset by a rerun");
+      } finally {
+        own.stop();
       }
-      assert.equal(snapshot(), before);
-      assert.equal(read("select version from private.business_policies where key = 'orders.workflow'"), policyVersion, "the release switch the owner set is not reset by a rerun");
     });
   });
 

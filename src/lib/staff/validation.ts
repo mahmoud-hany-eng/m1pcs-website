@@ -22,7 +22,13 @@ const optional = (form: FormData, name: string, max: number, errors: StaffFieldE
 export const CUSTOMER_SOURCES = ["whatsapp", "instagram", "walk_in", "other"] as const;
 export const PAYMENT_METHODS = ["cash", "fawran"] as const;
 export const PAYMENT_PURPOSES = ["deposit", "balance", "other"] as const;
+/** Every kind an order line can have in the database, including the legacy discount line that older orders may carry (for DISPLAY). */
 export const ITEM_KINDS = ["component", "build_service", "delivery", "discount", "other"] as const;
+/**
+ * The kinds the order form offers and the server accepts for a NEW order. A discount is not an item: it is entered, authorized and recorded
+ * under Pricing & Rewards (owner only), where it cannot lower the deposit. The database refuses a discount line on the same ground.
+ */
+export const NEW_ORDER_ITEM_KINDS = ["component", "build_service", "delivery", "other"] as const;
 export const MAX_ORDER_ITEMS = 30;
 const PHONE = /^\+?[0-9 ()-]{6,24}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,7 +60,7 @@ export function parseCustomer(form: FormData): Parsed<CustomerInput> {
 }
 
 export interface OrderItemInput {
-  kind: (typeof ITEM_KINDS)[number];
+  kind: (typeof NEW_ORDER_ITEM_KINDS)[number];
   description: string;
   quantity: number;
   unit_price_minor: number;
@@ -68,8 +74,8 @@ export interface OrderInput {
 
 /**
  * Item rows arrive as item_description_N, item_quantity_N, item_price_N, item_kind_N. A row with no description and no
- * price is an unused row and is skipped. A negative price is allowed only for a discount, and a discount is always
- * stored as a negative amount. Staff must tick that they checked the prices.
+ * price is an unused row and is skipped. A price is never negative: a discount is entered under Pricing & Rewards, not as a line.
+ * Staff must tick that they checked the prices.
  */
 export function parseOrder(form: FormData, customerId: string): Parsed<OrderInput> {
   const errors: StaffFieldErrors = {};
@@ -79,22 +85,27 @@ export function parseOrder(form: FormData, customerId: string): Parsed<OrderInpu
     const priceText = text(form, `item_price_${i}`);
     if (description === "" && priceText === "") continue;
     const kind = (text(form, `item_kind_${i}`) || "component") as OrderItemInput["kind"];
-    if (!(ITEM_KINDS as readonly string[]).includes(kind)) {
+    if (kind === ("discount" as string)) {
+      errors[`item_kind_${i}`] = "A discount is not an item. Enter it under Pricing & Rewards.";
+      continue;
+    }
+    if (!(NEW_ORDER_ITEM_KINDS as readonly string[]).includes(kind)) {
       errors[`item_kind_${i}`] = "Choose a type.";
       continue;
     }
     if (description.length < 1 || description.length > 200) errors[`item_description_${i}`] = "Describe the item (up to 200 characters).";
     const quantityText = text(form, `item_quantity_${i}`) || "1";
     if (!/^[0-9]{1,4}$/.test(quantityText) || Number(quantityText) < 1) errors[`item_quantity_${i}`] = "Enter a whole quantity from 1 to 9999.";
-    const unsigned = priceText.replace(/^-/, "");
-    const minor = parseQarToMinor(unsigned);
+    if (priceText.startsWith("-")) {
+      errors[`item_price_${i}`] = "A price cannot be negative. Enter a discount under Pricing & Rewards.";
+      continue;
+    }
+    const minor = parseQarToMinor(priceText);
     if (minor === null) {
       errors[`item_price_${i}`] = "Enter an exact amount in QAR, like 1250 or 1,250.50.";
       continue;
     }
-    const negative = priceText.startsWith("-");
-    if (negative && kind !== "discount") errors[`item_price_${i}`] = "Only a discount can be a negative amount.";
-    items.push({ kind, description, quantity: Number(quantityText), unit_price_minor: kind === "discount" ? -Math.abs(minor) : minor });
+    items.push({ kind, description, quantity: Number(quantityText), unit_price_minor: minor });
   }
   if (items.length === 0 && !Object.keys(errors).length) errors.items = "Add at least one item.";
   if (text(form, "prices_verified") !== "yes") errors.prices_verified = "Confirm that you have checked the prices.";
@@ -104,6 +115,52 @@ export function parseOrder(form: FormData, customerId: string): Parsed<OrderInpu
   if (!errors.items && items.length && items.reduce((sum, item) => sum + item.quantity * item.unit_price_minor, 0) <= 0) errors.items = "The order total must be greater than zero.";
   if (Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { customerId, items, deliveryMethod, deliveryAddress } };
+}
+
+/** What the Pricing & Rewards section sends: a discount (owner only), points to redeem (owner only) and the two figures the screen showed. */
+export interface PricingInput {
+  discount: { mode: "fixed"; amount_minor: number; reason: string } | { mode: "percent"; percent_bps: number; reason: string } | null;
+  redeemPoints: number;
+  expectedNetMinor: number;
+  expectedDepositMinor: number;
+}
+
+/**
+ * The expected figures are what the staff member SAW. They are not a price: the database works the real ones out from the items, the customer's
+ * ledger and the owner's policies, and refuses the order if they differ. A form without them is stale or tampered with.
+ * Discount fields: discount_mode ("", "fixed", "percent"), discount_amount (QAR) or discount_percent (0.01 to 100), discount_reason.
+ * Points: redeem_points, a whole number (blank is none).
+ */
+export function parsePricing(form: FormData): Parsed<PricingInput> | { ok: false; stale: true } {
+  const expectedNet = text(form, "expected_net_minor");
+  const expectedDeposit = text(form, "expected_deposit_minor");
+  if (!/^[0-9]{1,13}$/.test(expectedNet) || !/^[0-9]{1,13}$/.test(expectedDeposit)) return { ok: false, stale: true };
+  const errors: StaffFieldErrors = {};
+  let discount: PricingInput["discount"] = null;
+  const mode = text(form, "discount_mode");
+  if (mode === "fixed" || mode === "percent") {
+    const reason = text(form, "discount_reason");
+    if (reason.length < 3 || reason.length > 500) errors.discount_reason = "Give the reason for the discount (3 to 500 characters). It is kept with the record of who authorized it.";
+    if (mode === "fixed") {
+      const amount = parseQarToMinor(text(form, "discount_amount"));
+      if (amount === null || amount < 1) errors.discount_amount = "Enter the discount in QAR, like 100 or 100.50.";
+      else if (!errors.discount_reason) discount = { mode: "fixed", amount_minor: amount, reason };
+    } else {
+      const bps = parsePercentToBps(text(form, "discount_percent"));
+      if (bps === null || bps < 1) errors.discount_percent = "Enter a percentage from 0.01 to 100, with at most two decimals.";
+      else if (!errors.discount_reason) discount = { mode: "percent", percent_bps: bps, reason };
+    }
+  } else if (mode !== "") {
+    errors.discount_mode = "Choose a fixed amount or a percentage.";
+  }
+  let redeemPoints = 0;
+  const pointsText = text(form, "redeem_points");
+  if (pointsText !== "") {
+    if (!/^[0-9]{1,9}$/.test(pointsText)) errors.redeem_points = "Enter a whole number of points.";
+    else redeemPoints = Number(pointsText);
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return { ok: true, value: { discount, redeemPoints, expectedNetMinor: Number(expectedNet), expectedDepositMinor: Number(expectedDeposit) } };
 }
 
 export interface PaymentInput {
@@ -247,52 +304,55 @@ export function parsePercentToBps(input: string): number | null {
 }
 
 export interface DepositScheduleInput {
-  firstUpToMinor: number;
-  secondUpToMinor: number;
-  percentBps: [number, number, number];
+  /** The upper limit of every tier except the last (ascending, in minor units, inclusive). */
+  upToMinor: number[];
+  /** One percentage (basis points) per tier: always one more than upToMinor. */
+  percentBps: number[];
   gate: string;
   reason: string;
 }
 
+export const MIN_DEPOSIT_TIERS = 1;
+export const MAX_DEPOSIT_TIERS = 8;
+
 /**
- * The deposit schedule as three tiers by the whole order total: up to the first limit, above it up to the second,
- * and above that. The percentages apply to the entire total. The gate status is carried over from the current policy.
+ * The deposit schedule as tiers by the whole ORIGINAL (gross) order total: up to the first limit, above it up to the next, and so on, and
+ * above the last limit. The percentages apply to the entire total. The fields are up_to_N (every tier but the last), percent_N (every
+ * tier) and tier_count. The gate status is carried over from the current policy.
  */
 export function parseDepositSchedule(form: FormData, gate: string): Parsed<DepositScheduleInput> {
   const errors: StaffFieldErrors = {};
-  const first = parseQarToMinor(text(form, "first_up_to"));
-  const second = parseQarToMinor(text(form, "second_up_to"));
-  if (first === null || first <= 0) errors.first_up_to = "Enter the first limit in QAR, like 3000.";
-  if (second === null || second <= 0) errors.second_up_to = "Enter the second limit in QAR, like 5000.";
-  if (first !== null && second !== null && second <= first) errors.second_up_to = "The second limit must be higher than the first.";
+  const countText = text(form, "tier_count");
+  const count = /^[0-9]{1,2}$/.test(countText) ? Number(countText) : 0;
+  if (count < MIN_DEPOSIT_TIERS || count > MAX_DEPOSIT_TIERS) return { ok: false, errors: { tier_count: `A schedule has from ${MIN_DEPOSIT_TIERS} to ${MAX_DEPOSIT_TIERS} tiers.` } };
+  const limits: number[] = [];
   const bps: number[] = [];
-  for (const [index, name] of ["percent_1", "percent_2", "percent_3"].entries()) {
-    const value = parsePercentToBps(text(form, name));
-    if (value === null) errors[name] = "Enter a percentage from 0 to 100, with at most two decimals.";
-    else bps[index] = value;
+  for (let i = 0; i < count; i += 1) {
+    const percent = parsePercentToBps(text(form, `percent_${i}`));
+    if (percent === null) errors[`percent_${i}`] = "Enter a percentage from 0 to 100, with at most two decimals.";
+    else bps.push(percent);
+    if (i < count - 1) {
+      const limit = parseQarToMinor(text(form, `up_to_${i}`));
+      if (limit === null || limit <= 0) errors[`up_to_${i}`] = "Enter this limit in QAR, like 3000.";
+      else if (limits.length && limit <= limits[limits.length - 1]) errors[`up_to_${i}`] = "Each limit must be higher than the one before it.";
+      else limits.push(limit);
+    }
   }
   const reason = parseReason(form);
   if (!reason.ok) errors.reason = reason.errors.reason;
   if (text(form, "confirmed_by_owner") !== "yes") errors.confirmed_by_owner = "Only a schedule the owner has confirmed can be saved here.";
   if (text(form, "typed_confirmation") !== "CHANGE DEPOSIT SCHEDULE") errors.typed_confirmation = "Type CHANGE DEPOSIT SCHEDULE to confirm.";
-  if (Object.keys(errors).length || first === null || second === null || !reason.ok) return { ok: false, errors };
-  return {
-    ok: true,
-    value: { firstUpToMinor: first, secondUpToMinor: second, percentBps: [bps[0], bps[1], bps[2]], gate, reason: reason.value },
-  };
+  if (Object.keys(errors).length || !reason.ok || limits.length !== count - 1 || bps.length !== count) return { ok: false, errors };
+  return { ok: true, value: { upToMinor: limits, percentBps: bps, gate, reason: reason.value } };
 }
 
-/** The policy value for the three-tier schedule, in the shape the database validates. */
+/** The policy value for the tiered schedule, in the shape the database validates. */
 export function depositPolicyValue(input: DepositScheduleInput): Record<string, unknown> {
   return {
     mode: "tiered",
     minimum_minor: 0,
     required_before_status: input.gate,
-    tiers: [
-      { up_to_minor: input.firstUpToMinor, percent_bps: input.percentBps[0] },
-      { up_to_minor: input.secondUpToMinor, percent_bps: input.percentBps[1] },
-      { percent_bps: input.percentBps[2] },
-    ],
+    tiers: input.percentBps.map((percent, index) => (index < input.upToMinor.length ? { up_to_minor: input.upToMinor[index], percent_bps: percent } : { percent_bps: percent })),
   };
 }
 

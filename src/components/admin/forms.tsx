@@ -25,8 +25,9 @@ import {
 } from "@/lib/staff/actions";
 import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
-import { ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS } from "@/lib/staff/validation";
-import { ageText } from "@/lib/staff/format";
+import { NEW_ORDER_ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS, MAX_DEPOSIT_TIERS } from "@/lib/staff/validation";
+import { ageText, percentLabel } from "@/lib/staff/format";
+import { EMPTY_PRICING_FORM, derivePricingView, type DiscountMode, type PricingContextView, type PricingFormState, type PricingView } from "@/lib/staff/pricing-form";
 import { TYPE_LABEL, fulfillmentLabel } from "@/lib/workflow/labels";
 import type { AdoptionOption, FulfillmentType, NextStatus } from "@/lib/workflow/types";
 import { useIdempotencyKey } from "./use-idempotency-key";
@@ -236,13 +237,11 @@ interface Row {
 
 const KIND_LABEL: Record<string, string> = { component: "Component", build_service: "Build service", delivery: "Delivery", discount: "Discount", other: "Other" };
 
-/** Works out a row's line total in minor units, or null while it is incomplete. The server works it out again. */
+/** Works out a row's line total in minor units, or null while it is incomplete. The server works it out again. A price is never negative. */
 function lineMinor(row: Row): number | null {
-  const unsigned = row.price.trim().replace(/^-/, "");
-  const minor = parseQarToMinor(unsigned);
+  const minor = parseQarToMinor(row.price.trim());
   if (minor === null || !/^[0-9]{1,4}$/.test(row.quantity.trim() || "1")) return null;
-  const quantity = Number(row.quantity.trim() || "1");
-  return (row.kind === "discount" ? -Math.abs(minor) : minor) * quantity;
+  return minor * Number(row.quantity.trim() || "1");
 }
 
 /**
@@ -277,7 +276,214 @@ function DuplicateOrderWarning({ state }: { state: StaffFormState }) {
   );
 }
 
-export function OrderForm({ customerId, customerName, idempotencyKey }: { customerId: string; customerName: string; idempotencyKey: string }) {
+// ---------------------------------------------------------------------------------------------------------------
+// Pricing & Rewards: the discount, the loyalty points and the summary of what the customer pays
+// ---------------------------------------------------------------------------------------------------------------
+
+const fmt = (minor: number): string => formatQar(minor);
+
+function SummaryRow({ label, value, note, testId, emphasis = false }: { label: string; value: string; note?: string; testId: string; emphasis?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between gap-4 py-2.5 ${emphasis ? "border-t border-primary/40" : ""}`}>
+      <dt className="min-w-0 text-sm text-text-secondary">
+        <span className={emphasis ? "font-semibold text-white" : undefined}>{label}</span>
+        {note ? <span className="mt-0.5 block text-xs text-text-muted">{note}</span> : null}
+      </dt>
+      <dd className={`shrink-0 text-right tabular-nums ${emphasis ? "font-display text-xl font-semibold text-white" : "text-sm text-white"}`} data-testid={testId}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The money of an order, in the order the owner described it: the original total, the discount, the loyalty points, then the final amount
+ * payable, the required deposit and what is left to pay after it. Everything is worked out as it is typed; the database works it out again
+ * and refuses the order if it disagrees with what is shown here.
+ */
+function PricingRewardsSection({
+  state, gross, context, form, setForm, view,
+}: {
+  state: StaffFormState;
+  gross: number | null;
+  context: PricingContextView;
+  form: PricingFormState;
+  setForm: (patch: Partial<PricingFormState>) => void;
+  view: PricingView;
+}) {
+  const figures = view.figures;
+  const problem = view.result && !view.result.ok ? view.result : null;
+  const maxPoints = figures?.maxPoints ?? 0;
+  const pointValue = context.pointValueMinor ?? 0;
+  const discountAmount = figures?.discountMinor ?? 0;
+  const mode = form.discountMode;
+  return (
+    <section aria-labelledby="pricing-heading" data-testid="pricing-rewards" className="flex flex-col gap-5 rounded-glass border border-primary/30 bg-white/[0.03] p-4 sm:p-5">
+      <div>
+        <h3 id="pricing-heading" className="font-display text-lg font-semibold text-white">
+          Pricing &amp; Rewards
+        </h3>
+        <p className="mt-1 text-xs text-text-muted">The deposit is always worked out from the original order total. A discount or redeemed points never lower it.</p>
+      </div>
+
+      <div className="flex flex-col gap-3" data-testid="pricing-discount-block">
+        <h4 className="text-sm font-semibold text-white">Discount</h4>
+        {view.discountLocked ? (
+          <p className="text-sm text-text-muted" data-testid="discount-locked">
+            {view.discountLocked}
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
+              <Field id="pr-mode" label="Type">
+                <select
+                  id="pr-mode"
+                  name="discount_mode"
+                  value={mode === "none" ? "" : mode}
+                  onChange={(e) => setForm({ discountMode: (e.target.value || "none") as DiscountMode })}
+                  className={`${inputClass} cursor-pointer`}
+                >
+                  <option value="">No discount</option>
+                  <option value="fixed">Fixed amount (QAR)</option>
+                  <option value="percent">Percentage (%)</option>
+                </select>
+              </Field>
+              {mode === "fixed" ? (
+                <Field id="pr-amount" label="Discount amount (QAR)" error={view.discountError ?? errorOf(state, "discount_amount")}>
+                  <Input state={state} id="pr-amount" name="discount_amount" inputMode="decimal" placeholder="0.00" value={form.discountAmount} onChange={(e) => setForm({ discountAmount: e.target.value })} maxLength={16} />
+                </Field>
+              ) : null}
+              {mode === "percent" ? (
+                <Field id="pr-percent" label="Discount percentage" hint="From 0.01 to 100." error={view.discountError ?? errorOf(state, "discount_percent")}>
+                  <Input state={state} id="pr-percent" name="discount_percent" inputMode="decimal" placeholder="0" value={form.discountPercent} onChange={(e) => setForm({ discountPercent: e.target.value })} maxLength={6} />
+                </Field>
+              ) : null}
+            </div>
+            {mode !== "none" ? (
+              <>
+                <Field id="pr-reason" label="Reason for the discount" hint="Kept with the record of who authorized it." error={view.reasonError ?? errorOf(state, "discount_reason")}>
+                  <Input state={state} id="pr-reason" name="discount_reason" value={form.discountReason} onChange={(e) => setForm({ discountReason: e.target.value })} maxLength={500} />
+                </Field>
+                <p className="text-sm text-text-secondary" aria-live="polite">
+                  Amount taken off: <span className="font-semibold text-white tabular-nums" data-testid="discount-amount">{discountAmount > 0 ? fmt(discountAmount) : "—"}</span>
+                </p>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3" data-testid="pricing-loyalty-block">
+        <h4 className="text-sm font-semibold text-white">Loyalty points</h4>
+        {view.pointsAvailable !== null ? (
+          <p className="text-sm text-text-secondary" data-testid="points-available">
+            Available: <span className="font-semibold text-white tabular-nums">{view.pointsAvailable.toLocaleString("en-US")} points</span>
+            {view.pointsAvailableMinor !== null && pointValue > 0 ? <> (worth {fmt(view.pointsAvailableMinor)}; 1 point = {fmt(pointValue)})</> : null}
+          </p>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.redeemOn}
+            aria-labelledby="pr-redeem-label"
+            data-testid="redeem-toggle"
+            disabled={view.redeemLocked !== null}
+            onClick={() => setForm({ redeemOn: !form.redeemOn, points: "" })}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${form.redeemOn && view.redeemLocked === null ? "border-primary bg-primary" : "border-border-strong bg-white/10"}`}
+          >
+            <span aria-hidden="true" className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.redeemOn && view.redeemLocked === null ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+          <span id="pr-redeem-label" className={`text-sm font-medium ${view.redeemLocked ? "text-text-muted" : "text-white"}`}>
+            Redeem loyalty points
+          </span>
+        </div>
+        {view.redeemLocked ? (
+          <p className="text-sm text-text-muted" data-testid="redeem-locked">
+            {view.redeemLocked}
+          </p>
+        ) : null}
+        {form.redeemOn && view.redeemLocked === null ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <Field
+                id="pr-points"
+                label="Points to redeem"
+                hint={`Up to ${maxPoints.toLocaleString("en-US")} points on this order (${fmt(maxPoints * pointValue)}). Never more than the balance, or than what is left to pay after the discount.`}
+                error={view.pointsError ?? errorOf(state, "redeem_points")}
+              >
+                <Input state={state} id="pr-points" name="redeem_points" inputMode="numeric" value={form.points} onChange={(e) => setForm({ points: e.target.value.replace(/[^0-9]/g, "") })} maxLength={9} />
+              </Field>
+              <button
+                type="button"
+                data-testid="use-max"
+                disabled={maxPoints < 1}
+                onClick={() => setForm({ points: String(maxPoints) })}
+                className="btn-sheen btn-glass inline-flex min-h-[2.75rem] items-center justify-center rounded-full px-5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Use Maximum
+              </button>
+            </div>
+            {figures && figures.pointsRedeemed > 0 ? (
+              <p className="text-sm text-text-secondary" aria-live="polite" data-testid="points-after">
+                Credit applied: <span className="font-semibold text-white tabular-nums">{fmt(figures.creditMinor)}</span> · Points left after redemption:{" "}
+                <span className="font-semibold text-white tabular-nums">{Math.max(figures.pointsBalanceAfter, 0).toLocaleString("en-US")}</span>
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-1 rounded-glass-sm border border-border bg-black/20 p-3 sm:p-4" data-testid="pricing-summary">
+        <h4 className="text-sm font-semibold text-white">Summary</h4>
+        {gross === null || gross <= 0 || !figures ? (
+          <p className="text-sm text-text-muted" data-testid="pricing-empty">
+            {gross !== null && gross > 0 ? "The deposit schedule has not been set by the owner, so this order cannot be priced yet." : "Add priced items to see the summary."}
+          </p>
+        ) : (
+          <dl className="divide-y divide-white/10">
+            <SummaryRow testId="pricing-gross" label="Original order total" value={fmt(figures.grossMinor)} />
+            <SummaryRow testId="pricing-discount" label="Discount" value={figures.discountMinor > 0 ? `− ${fmt(figures.discountMinor)}` : "None"} />
+            <SummaryRow
+              testId="pricing-credit"
+              label={figures.pointsRedeemed > 0 ? `Loyalty credit (${figures.pointsRedeemed.toLocaleString("en-US")} points)` : "Loyalty credit"}
+              value={figures.creditMinor > 0 ? `− ${fmt(figures.creditMinor)}` : "None"}
+              note={figures.creditMinor > 0 ? "A credit on this order, not a payment." : undefined}
+            />
+            <SummaryRow testId="pricing-net" label="Final amount payable" value={fmt(figures.netPayableMinor)} emphasis />
+            <SummaryRow
+              testId="pricing-deposit"
+              label="Required deposit"
+              value={fmt(figures.depositMinor)}
+              note={`${figures.depositRateBps !== null ? percentLabel(figures.depositRateBps) : "A fixed amount"} of the original order total${figures.depositTier ? ` (tier ${figures.depositTier})` : ""}. Not reduced by the discount or by points.`}
+            />
+            <SummaryRow testId="pricing-after-deposit" label="Remaining balance after deposit" value={fmt(figures.cashBalanceAfterDepositMinor)} note="Cash or Fawran still to pay once the deposit is paid." />
+            {view.pointsToEarn !== null ? (
+              <SummaryRow testId="pricing-earn" label="Points earned when completed and paid in full" value={view.pointsToEarn.toLocaleString("en-US")} note="On the final amount payable only, never on discounted or credited money." />
+            ) : null}
+          </dl>
+        )}
+      </div>
+
+      {problem ? (
+        <div role="alert" data-testid="pricing-problem" className="rounded-glass-sm border border-error/50 bg-error/10 p-3 text-sm text-error">
+          {problem.code === "net_below_deposit" ? <p className="mb-1 font-semibold">Owner decision needed</p> : null}
+          <p>{problem.problem}</p>
+          {problem.code === "net_below_deposit" && figures && figures.maxPointsKeepingDeposit < figures.pointsRedeemed ? (
+            <p className="mt-2 text-text-secondary">
+              To keep the deposit payable in cash, redeem at most {figures.maxPointsKeepingDeposit.toLocaleString("en-US")} points ({fmt(figures.maxPointsKeepingDeposit * pointValue)}) with this discount.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <input type="hidden" name="expected_net_minor" value={view.expectedNet} />
+      <input type="hidden" name="expected_deposit_minor" value={view.expectedDeposit} />
+    </section>
+  );
+}
+
+export function OrderForm({ customerId, customerName, idempotencyKey, pricing }: { customerId: string; customerName: string; idempotencyKey: string; pricing: PricingContextView }) {
   const [state, action, pending] = useStaffForm(createOrderAction);
   // An order has no balance to bind the key to: the customer is part of the scope, and the items are part of the request.
   const key = useIdempotencyKey(`order:${customerId}`, idempotencyKey, "", state);
@@ -287,6 +493,7 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
   const [nextId, setNextId] = useState(2);
   const [preview, setPreview] = useState<string | null>(null);
   const [previewing, startPreview] = useTransition();
+  const [pricingForm, setPricingForm] = useState<PricingFormState>(EMPTY_PRICING_FORM);
 
   const total = useMemo(() => {
     let sum = 0;
@@ -298,6 +505,11 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
     }
     return sum;
   }, [rows]);
+
+  // Everything the Pricing & Rewards section shows, worked out from the items and what has been typed in it. A change of any input works the
+  // figures out again at once; a customer is fixed for the life of this form (a different customer is a different page, with its own balance).
+  const pricingView = useMemo(() => derivePricingView(pricingForm, total, pricing), [pricingForm, total, pricing]);
+  const patchPricing = (patch: Partial<PricingFormState>) => setPricingForm((current) => ({ ...current, ...patch }));
 
   const update = (id: number, patch: Partial<Row>) => {
     setPreview(null);
@@ -321,7 +533,7 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
             <div className="grid gap-3 sm:grid-cols-[9rem_1fr_5rem_9rem_auto] sm:items-end">
               <Field id={`i-kind-${row.id}`} label="Type" error={errorOf(state, `item_kind_${index}`)}>
                 <Select state={state} id={`i-kind-${row.id}`} name={`item_kind_${index}`} value={row.kind} onChange={(e) => update(row.id, { kind: e.target.value })}>
-                  {ITEM_KINDS.map((k) => (
+                  {NEW_ORDER_ITEM_KINDS.map((k) => (
                     <option key={k} value={k}>
                       {KIND_LABEL[k]}
                     </option>
@@ -376,6 +588,8 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
         </p>
       </div>
 
+      <PricingRewardsSection state={state} gross={total} context={pricing} form={pricingForm} setForm={patchPricing} view={pricingView} />
+
       <div className="flex flex-wrap items-center gap-3 rounded-glass-sm border border-border bg-white/[0.025] p-3 text-sm">
         <button
           type="button"
@@ -391,7 +605,7 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
           {previewing ? "Working it out…" : "Check the deposit"}
         </button>
         <span aria-live="polite" className="min-w-0 text-text-secondary" data-testid="deposit-preview">
-          {preview ?? "A preview only. The deposit is fixed, once, when the order is confirmed."}
+          {preview ?? "Asks the server for the deposit on the original total. It is fixed, once, when the order is confirmed."}
         </span>
       </div>
 
@@ -412,10 +626,15 @@ export function OrderForm({ customerId, customerName, idempotencyKey }: { custom
         I have checked every price against the current supplier price and the customer&apos;s agreed quotation.
       </Check>
       {state.status === "error" && state.duplicates?.length ? <DuplicateOrderWarning state={state} /> : null}
-      <div>
-        <Submit pending={pending} disabled={created} pendingLabel="Creating…">
+      <div className="flex flex-wrap items-center gap-3">
+        <Submit pending={pending} disabled={created || !pricingView.canSubmit} pendingLabel="Creating…">
           {created ? "Order created" : "Create order"}
         </Submit>
+        {!created && pricingView.submitHint ? (
+          <p className="min-w-0 text-sm text-text-muted" data-testid="submit-hint">
+            {pricingView.submitHint}
+          </p>
+        ) : null}
       </div>
       </fieldset>
     </form>
@@ -743,39 +962,65 @@ export function ReversePaymentForm({ orderId, paymentId, scope = "t" }: { orderI
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface ScheduleDefaults {
-  firstUpTo: string;
-  secondUpTo: string;
-  percent1: string;
-  percent2: string;
-  percent3: string;
+  /** One entry per tier, in order. `upTo` is the inclusive upper limit in QAR; the last tier has none (it covers everything above). */
+  tiers: { upTo: string; percent: string }[];
 }
 
 export function DepositScheduleForm({ defaults }: { defaults: ScheduleDefaults }) {
   const [state, action, pending] = useStaffForm(setDepositScheduleAction);
+  const [tiers, setTiers] = useState(() => (defaults.tiers.length > 0 ? defaults.tiers : [{ upTo: "", percent: "" }]));
+  const count = tiers.length;
+  const patch = (index: number, change: Partial<{ upTo: string; percent: string }>) => setTiers((current) => current.map((t, i) => (i === index ? { ...t, ...change } : t)));
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <Feedback state={state} />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field id="d-p1" label="Tier 1: percent of the whole total" hint="For orders up to and including the first limit." error={errorOf(state, "percent_1")}>
-          <Input state={state} id="d-p1" name="percent_1" inputMode="decimal" defaultValue={defaults.percent1} maxLength={6} />
-        </Field>
-        <Field id="d-l1" label="First limit (QAR)" error={errorOf(state, "first_up_to")}>
-          <Input state={state} id="d-l1" name="first_up_to" inputMode="decimal" defaultValue={defaults.firstUpTo} maxLength={16} />
-        </Field>
-        <span className="hidden sm:block" />
-        <Field id="d-p2" label="Tier 2: percent of the whole total" hint="Above the first limit, up to and including the second." error={errorOf(state, "percent_2")}>
-          <Input state={state} id="d-p2" name="percent_2" inputMode="decimal" defaultValue={defaults.percent2} maxLength={6} />
-        </Field>
-        <Field id="d-l2" label="Second limit (QAR)" error={errorOf(state, "second_up_to")}>
-          <Input state={state} id="d-l2" name="second_up_to" inputMode="decimal" defaultValue={defaults.secondUpTo} maxLength={16} />
-        </Field>
-        <span className="hidden sm:block" />
-        <Field id="d-p3" label="Tier 3: percent of the whole total" hint="Above the second limit." error={errorOf(state, "percent_3")}>
-          <Input state={state} id="d-p3" name="percent_3" inputMode="decimal" defaultValue={defaults.percent3} maxLength={6} />
-        </Field>
+      <input type="hidden" name="tier_count" value={count} />
+      <ol className="flex flex-col gap-3" aria-label="Deposit tiers">
+        {tiers.map((tier, index) => {
+          const last = index === count - 1;
+          const above = index > 0 && tiers[index - 1].upTo.trim() !== "" ? `QAR ${tiers[index - 1].upTo.trim()}` : "the previous limit";
+          return (
+            <li key={index} data-testid={`deposit-tier-${index + 1}`} className="grid gap-3 rounded-glass-sm border border-border bg-white/[0.025] p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <Field
+                id={`d-p${index}`}
+                label={`Tier ${index + 1}: percent of the whole total`}
+                hint={index === 0 ? "For orders up to and including the first limit." : last ? `For orders above ${above}.` : `Above ${above}, up to and including the limit.`}
+                error={errorOf(state, `percent_${index}`)}
+              >
+                <Input state={state} id={`d-p${index}`} name={`percent_${index}`} inputMode="decimal" value={tier.percent} onChange={(e) => patch(index, { percent: e.target.value })} maxLength={6} />
+              </Field>
+              {last ? (
+                <p className="pb-2 text-sm text-text-muted">No upper limit: this tier covers every order above the previous limit.</p>
+              ) : (
+                <Field id={`d-l${index}`} label="Up to and including (QAR)" error={errorOf(state, `up_to_${index}`)}>
+                  <Input state={state} id={`d-l${index}`} name={`up_to_${index}`} inputMode="decimal" value={tier.upTo} onChange={(e) => patch(index, { upTo: e.target.value })} maxLength={16} />
+                </Field>
+              )}
+              <button
+                type="button"
+                onClick={() => setTiers((current) => current.filter((_, i) => i !== index).map((t, i, all) => (i === all.length - 1 ? { ...t, upTo: "" } : t)))}
+                disabled={count <= 1}
+                aria-label={`Remove tier ${index + 1}`}
+                className="rounded-full border border-border-strong px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-error disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <div>
+        <button
+          type="button"
+          onClick={() => setTiers((current) => [...current.slice(0, -1), { upTo: "", percent: "" }, current[current.length - 1]])}
+          disabled={count >= MAX_DEPOSIT_TIERS}
+          className="btn-sheen btn-glass inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          Add a tier
+        </button>
       </div>
       <p className="text-xs text-text-muted">
-        The percentage applies to the entire order total, not to the part above a limit. The deposit is rounded to the nearest dirham (a half rounds up). Orders whose deposit is already fixed are not changed.
+        The percentage applies to the entire ORIGINAL order total (before any discount or redeemed points), not to the part above a limit. The deposit is rounded to the nearest dirham (a half rounds up). Orders whose deposit is already fixed are not changed.
       </p>
       <Field id="d-reason" label="Reason for the change" error={errorOf(state, "reason")}>
         <Input state={state} id="d-reason" name="reason" maxLength={500} />

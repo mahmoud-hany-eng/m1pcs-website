@@ -128,6 +128,16 @@ export interface OrderRow {
   deposit_gate_status: string | null;
   deposit_fixed_at: Timestamp | null;
   amount_paid_minor: MinorUnits;
+  /**
+   * `total_minor` is the GROSS order value and is never reduced by a discount or a redemption; the deposit is taken from it. The two amounts
+   * below are what the order was sold for after them. A redeemed point is an order credit, not a payment: `amount_paid_minor` is cash received.
+   */
+  discount_minor: MinorUnits;
+  loyalty_points_redeemed: MinorUnits;
+  loyalty_credit_minor: MinorUnits;
+  /** Generated: total - discount - loyalty credit. What the customer has to pay. */
+  net_payable_minor: MinorUnits;
+  /** Generated: net payable - amount paid. */
   balance_due_minor: MinorUnits;
   delivery_method: DeliveryMethod | null;
   delivery_address: string | null;
@@ -205,7 +215,8 @@ export interface PaymentRow {
   created_at: Timestamp;
 }
 
-export type LoyaltyEntryType = "award" | "reversal" | "adjustment";
+/** `redemption` spends points on an order (an order credit, not a payment); `redemption_restore` gives them back when that order is cancelled. */
+export type LoyaltyEntryType = "award" | "reversal" | "adjustment" | "redemption" | "redemption_restore";
 
 /** table: public.loyalty_ledger (append-only; the staff reason is private) */
 export interface LoyaltyLedgerRow {
@@ -213,7 +224,7 @@ export interface LoyaltyLedgerRow {
   customer_id: Uuid;
   order_id: Uuid | null;
   entry_type: LoyaltyEntryType;
-  /** Positive for an award, negative for a reversal, either sign for an adjustment. Never zero. */
+  /** Positive for an award or a restoration, negative for a reversal or a redemption, either sign for an adjustment. Never zero. */
   points: number;
   reverses_entry_id: Uuid | null;
   description: string;
