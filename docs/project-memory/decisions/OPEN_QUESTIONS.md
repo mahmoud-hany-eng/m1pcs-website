@@ -56,7 +56,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 ### OQ-0008 — Redemption rules
 - **Status:** open
 - **Blocks:** PH-7
-- **Question:** Partly answered by HD-0021: points may be redeemed against an order, in part or in full, never beyond the balance or the price left after the discount, by the owner only for now, as an order credit and not a payment. Still open: a minimum or maximum redemption, a cap per order or per day, expiry, transferability, whether points can pay a deposit (today they cannot: the deposit stays in cash), and stacking limits with discounts.
+- **Question:** Partly answered by HD-0021: points may be redeemed against an order, in part or in full, never beyond the balance or the price left after the discount, by the owner only for now, as an order credit and not a payment. Decided for this release by HD-0022: no expiry for now, and no cap beyond the available points and the eligible order amount. Still open for later: a minimum, a cap per order or per day, transferability, whether points can pay a deposit (today they cannot: the deposit stays in cash), and stacking limits with discounts.
 - **Source:** Phase 0 platform report, decision 8; HD-0021.
 
 ### OQ-0009 — Returns, refunds and points
@@ -283,7 +283,7 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 ### OQ-0041 — The legacy "Discount" line item
 - **Status:** open
 - **Blocks:** nothing now
-- **Question:** Orders could carry a negative "Discount" item line, which lowers the gross total and therefore the deposit. The new order form no longer offers it and the new `create_order` refuses it; the earlier entry points still accept it and existing orders keep theirs. Should the item kind be retired from the database, and what should be done about existing orders that carry one?
+- **Question:** Orders could carry a negative "Discount" item line, which lowers the gross total and therefore the deposit. The new order form no longer offers it and the new `create_order` refuses it; the earlier entry points still accept it and existing orders keep theirs. Should the item kind be retired from the database, and what should be done about existing orders that carry one? (The final financial review reproduced that the earlier signatures still let any staff member create such a line with no owner authorization; `supabase/release/pricing_legacy_orders_contract.sql` closes them once the website deployed before the pricing release is retired. It is prepared and tested, and not applied.)
 - **Source:** HD-0021; [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md) section 6.
 
 ### OQ-0042 — Who may see a customer's loyalty balance when creating an order, and limits on discounts
@@ -291,3 +291,10 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Blocks:** nothing now
 - **Question:** Today the balance is shown to the owner and to anyone with `loyalty.read`; discounts and redemption are owner only. When other roles may discount or redeem (the owner said "initially"), should there be a maximum discount (a percentage or an amount) per role, and a reason list rather than free text?
 - **Source:** HD-0021.
+
+### OQ-0043 — Points already earned on an order whose payment is later reversed
+- **Status:** open
+- **Blocks:** nothing now (the owner decided not to implement clawback in this release; HD-0022)
+- **Question:** Points are awarded once, when an order is completed and its net payable amount is fully paid. If a payment on that order is reversed afterwards (a refund, a bounced transfer), the order is no longer fully paid but the points stay with the customer, and the database does not take them back. Should earned points be taken back, partly or fully, when a payment is reversed; should a customer ever be allowed a negative points balance as a result (today the ledger refuses one); and how should points that were already spent be handled? Until the owner decides, a reversal changes the order's balance and the cash ledger only, never the points.
+- **Recommendation:** Keep as is. If clawback is wanted, add it as a compensating ledger entry that is created only by an explicit owner action, never automatically, and decide first what happens when the points are already spent.
+- **Source:** HD-0022; related OQ-0009, OQ-0010; [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md) section 6.

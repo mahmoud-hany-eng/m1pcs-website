@@ -72,7 +72,7 @@ export function makeHelpers(db) {
     return match[1];
   };
   const gatewayCall = (who, name, params, sql = productionSql(name)) =>
-    `${gatewayPrefix(who.sub, who.sid)}prepare q as ${sql};\nexecute q(${params.map(lit).join(", ")});\n`;
+    `${gatewayPrefix(who.sub, who.sid)}prepare q as ${sql};\nexecute q${params.length ? `(${params.map(lit).join(", ")})` : ""};\n`; // a statement without parameters is `execute q`, not `execute q()`
   const OLIVIA = { sub: ID.olivia, sid: SESSION.olivia };
   const SAM = { sub: ID.sam, sid: SESSION.sam };
   const PATRICK = { sub: PAT, sid: SESSION.pat };

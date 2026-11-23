@@ -487,6 +487,25 @@ suite("order pricing and rewards (PLAT-0005): five deposit tiers, discounts, loy
       assert.equal(r2.ok, true, "the same key can be used once the figures are right");
     });
 
+    it("a refused attempt leaves no trace, so the same form (same key) can be corrected and sent again with a DIFFERENT discount and different points", () => {
+      const c = newCustomer(500);
+      const key = newKey("corrected");
+      const first = place(OLIVIA, c, ONE(435055), { discount: fixed(10000), points: 435, key, net: 111111, deposit: 108764 });
+      assert.equal(first.ok, false);
+      assert.equal(first.code, "M1K03");
+      assert.equal(count(`select count(*) from private.idempotency_keys where idempotency_key = '${key}'`), 0, "the refusal left no key behind");
+      const second = place(OLIVIA, c, ONE(435055), { discount: fixed(5000), points: 100, key });
+      assert.ok(second.ok, second.err);
+      assert.equal(orderRow(second.id).discount_minor, 5000);
+      assert.equal(orderRow(second.id).loyalty_points_redeemed, 100);
+      assert.equal(balanceOf(c), 400);
+      // and only now is the key bound to what was created: another change under it is a different request
+      const third = place(OLIVIA, c, ONE(435055), { discount: fixed(9000), points: 100, key });
+      assert.equal(third.ok, false);
+      assert.equal(third.code, "M1K01");
+      assert.equal(balanceOf(c), 400);
+    });
+
     it("a failure AFTER the points were spent undoes everything: no order, no discount record, no ledger entry, no claimed key", () => {
       const c = newCustomer(500);
       db.commit(`create function public.zz_fail_after() returns trigger language plpgsql as $f$ begin raise exception 'injected failure at the very end'; end $f$;
@@ -625,6 +644,19 @@ suite("order pricing and rewards (PLAT-0005): five deposit tiers, discounts, loy
       assert.equal(ledgerOf(id), "award:100");
     });
 
+    it("the amount payable is the earning base whatever the rule is called: if the owner switches the rule back to the earlier 'order total' placeholder, a discounted order STILL earns on what was payable (97, not 100)", () => {
+      const c = newCustomer();
+      const id = placeOk(OLIVIA, c, ONE(100000), { discount: fixed(2500) });
+      pay(id, 97500);
+      db.commit(`${AS.olivia}select admin.set_policy('loyalty.earning_base', '{"base": "order_total", "rounding": "floor"}'::jsonb, 'confirmed_by_owner', 'review test: the earlier placeholder rule');`);
+      try {
+        walkToDelivered(id);
+        assert.equal(ledgerOf(id), "award:97");
+      } finally {
+        db.commit(`${AS.olivia}select admin.set_policy('loyalty.earning_base', '{"base": "net_payable", "rounding": "floor"}'::jsonb, 'confirmed_by_owner', 'review test: restored');`);
+      }
+    });
+
     it("points are awarded once only, however often the rule is evaluated again", () => {
       const c = newCustomer();
       const id = placeOk(OLIVIA, c, ONE(100000), { discount: fixed(2500) });
@@ -740,6 +772,21 @@ suite("order pricing and rewards (PLAT-0005): five deposit tiers, discounts, loy
       assert.equal(ledgerOf(id), "award:97");
       db.commit(`${AS.olivia}select admin.reverse_payment('${payId}', 'bank returned the transfer');`);
       assert.equal(ledgerOf(id), "award:97");
+    });
+
+    it("cancelling an order that redeemed points works whatever reason is typed: 'ok' (too short for the points entry), nothing, or a normal sentence; the points come back once", () => {
+      for (const reason of ["ok", "", "customer changed their mind"]) {
+        const c = newCustomer(300);
+        const id = placeOk(OLIVIA, c, ONE(200000), { points: 100 });
+        assert.equal(balanceOf(c), 200);
+        const r = db.cluster.psql(`begin;\n${AS.sam}select admin.transition_order('${id}', 'cancelled', ${reason === "" ? "null" : `'${reason}'`});\ncommit;`);
+        assert.ok(r.ok, `reason ${JSON.stringify(reason)}: ${r.err}`);
+        assert.equal(orderRow(id).status, "cancelled");
+        assert.equal(balanceOf(c), 300, `reason ${JSON.stringify(reason)}: the points are back`);
+        assert.equal(ledgerOf(id), "redemption:-100,redemption_restore:100");
+        const kept = lines(h.read(`select r.reason from private.loyalty_entry_reasons r join public.loyalty_ledger l on l.id = r.entry_id where l.order_id = '${id}' and l.entry_type = 'redemption_restore'`)).pop();
+        assert.equal(kept, reason.length >= 3 ? reason : "order cancelled", `the reason kept with the points entry for ${JSON.stringify(reason)}`);
+      }
     });
   });
 
@@ -1090,6 +1137,96 @@ suite("order pricing and rewards (PLAT-0005): five deposit tiers, discounts, loy
       }
     });
 
+    // Each condition below is proven on its OWN fresh database. (The shared database of this file already holds many priced orders, so a refusal
+    // there could not tell which condition caused it.)
+    const itemsJson = JSON.stringify(ONE(100000));
+    const discountJson = JSON.stringify(fixed(1000));
+    const createPriced = (database, { discount = false, points = 0 } = {}) =>
+      lines(database.commit(`${AS.olivia}select admin.create_order('${ID.custA}', '${itemsJson}'::jsonb, null, 'admin', null, null, null, ${discount ? `'${discountJson}'::jsonb` : "null"}, ${points}, null, null) as o \\gset\nselect :'o';`)).pop().trim();
+    const refusedOn = (database, label) => {
+      const before = defs(database);
+      const r = database.cluster.psql(`\\set VERBOSITY verbose\n${confirm}${script()}`);
+      assert.equal(r.ok, false, `${label}: the undo must refuse`);
+      assert.match(r.err, /M1P01/, label);
+      assert.match(r.err, /NOTHING WAS CHANGED/, label);
+      assert.equal(defs(database), before, `${label}: nothing changed`);
+      assert.equal(lines(database.ok("select has_function_privilege('m1_staff_gateway', 'admin.create_order(uuid, jsonb, uuid, text, text, text, text, jsonb, bigint, bigint, bigint)', 'execute');")).pop(), "t", `${label}: the new function is still callable`);
+    };
+    const onFresh = (fn) => {
+      const own = startDatabase({ schedule: "confirmed" });
+      try {
+        return fn(own);
+      } finally {
+        own.stop();
+      }
+    };
+
+    it("refuses on its own for a DISCOUNT alone (no points involved)", () => {
+      onFresh((own) => {
+        createPriced(own, { discount: true });
+        refusedOn(own, "discount only");
+      });
+    });
+
+    it("refuses on its own for REDEEMED POINTS alone (no discount involved)", () => {
+      onFresh((own) => {
+        own.commit(`${AS.olivia}select admin.adjust_loyalty('${ID.custA}', 500, 'points for the undo test');`);
+        createPriced(own, { points: 100 });
+        refusedOn(own, "points only");
+      });
+    });
+
+    it("keeps refusing after the priced order was CANCELLED and its points returned: that history is a financial record", () => {
+      onFresh((own) => {
+        own.commit(`${AS.olivia}select admin.adjust_loyalty('${ID.custA}', 500, 'points for the undo test');`);
+        const id = createPriced(own, { discount: true, points: 100 });
+        own.commit(`${AS.sam}select admin.transition_order('${id}', 'cancelled', 'cancelled before the undo');`);
+        assert.equal(lines(own.ok(`select count(*) from public.loyalty_ledger where order_id = '${id}' and entry_type = 'redemption_restore';`)).pop(), "1");
+        refusedOn(own, "cancelled priced order");
+      });
+    });
+
+    it("an order made by the NEW function WITHOUT a discount or points does not block the undo, and the earlier functions then handle it correctly", () => {
+      onFresh((own) => {
+        const id = createPriced(own);
+        const r = own.cluster.psql(`${confirm}${script()}`);
+        assert.ok(r.ok, r.err);
+        own.commit(`${AS.olivia}select admin.record_payment('${id}', 'deposit', 100000, 'cash');`);
+        assert.equal(lines(own.ok(`select amount_paid_minor || ',' || balance_due_minor from public.orders where id = '${id}';`)).pop(), "100000,0");
+      });
+    });
+
+    it("RACE: an order with a discount that is still being created when the undo starts: the undo WAITS for it, then refuses (it cannot slip in between the check and the replacement)", async () => {
+      const own = startDatabase({ schedule: "confirmed" });
+      try {
+        const hh = makeHelpers(own);
+        const before = defs(own);
+        const inflight = hh.asyncPsql(`begin;\n${AS.olivia}select admin.create_order('${ID.custA}', '${itemsJson}'::jsonb, null, 'admin', null, null, null, '${discountJson}'::jsonb, 0, null, null);\nselect pg_sleep(1.6);\ncommit;`);
+        await new Promise((r) => setTimeout(r, 500));
+        const started = Date.now();
+        const undo = await hh.asyncPsql(`\\set VERBOSITY verbose\n${confirm}${script()}`);
+        const waited = Date.now() - started;
+        const created = await inflight;
+        assert.ok(created.ok, created.err);
+        assert.equal(undo.ok, false);
+        assert.match(undo.err, /M1P01/);
+        assert.ok(waited >= 600, `the undo waited for the order in flight (waited ${waited} ms)`);
+        assert.equal(lines(own.ok("select count(*) from public.orders where discount_minor <> 0;")).pop(), "1", "the discounted order exists");
+        assert.equal(defs(own), before, "and the earlier functions were NOT put back over it");
+      } finally {
+        own.stop();
+      }
+    });
+
+    it("the undo script states its limits and inspects every kind of pricing history", () => {
+      const text = script();
+      assert.match(text, /ONLY BEFORE THE FIRST PRICING AND REWARDS TRANSACTION/);
+      assert.match(text, /There is NO undo of this kind|NO undo of this kind/);
+      assert.match(text, /from private\.order_discounts/);
+      assert.match(text, /entry_type in \('redemption', 'redemption_restore'\)/);
+      assert.match(text, /lock table public\.orders, public\.loyalty_ledger, private\.order_discounts in share row exclusive mode/);
+    });
+
     it("the earlier rules are back in force: after the undo a payment is limited by the TOTAL again, as it was before this release", () => {
       const own = startDatabase({ schedule: "confirmed" });
       try {
@@ -1098,6 +1235,122 @@ suite("order pricing and rewards (PLAT-0005): five deposit tiers, discounts, loy
         assert.ok(r.ok, r.err);
         own.commit(`${AS.olivia}select admin.record_payment('${id}', 'deposit', 100000, 'cash');`);
         assert.equal(lines(own.ok(`select amount_paid_minor from public.orders where id = '${id}';`)).pop(), "100000");
+      } finally {
+        own.stop();
+      }
+    });
+  });
+
+  // =================================================================================================================
+  describe("J. the contract script for the EARLIER order-creation functions (supabase/release/pricing_legacy_orders_contract.sql): prepared, never applied", () => {
+    const SCRIPT = "supabase/release/pricing_legacy_orders_contract.sql";
+    const script = () => readFileSync(join(ROOT, SCRIPT), "utf8");
+    const confirm = "set m1.confirm_legacy_order_contract = 'old-website-retired';\n";
+    const LEGACY = ["admin.create_order(uuid, jsonb, uuid, text, text, text)", "admin.create_order(uuid, jsonb, uuid, text, text, text, text)"];
+    const NEW11 = "admin.create_order(uuid, jsonb, uuid, text, text, text, text, jsonb, bigint, bigint, bigint)";
+    const can = (database, role, fn) => lines(database.ok(`select has_function_privilege('${role}', '${fn}', 'execute');`)).pop() === "t";
+    const withDiscountLine = JSON.stringify([
+      { kind: "component", description: "Contract test part", quantity: 1, unit_price_minor: 400000 },
+      { kind: "discount", description: "Manual discount line", quantity: 1, unit_price_minor: -100000 },
+    ]);
+    const asStaff = (database, sql) => database.cluster.psql(`\\set VERBOSITY verbose\nbegin;\n${AS.sam}${sql}\ncommit;`);
+
+    it("is an operator script outside supabase/migrations, and it deletes nothing", () => {
+      assert.equal(readdirSync(join(ROOT, "supabase/migrations")).some((f) => /contract|rollback/i.test(f)), false);
+      assert.doesNotMatch(script().replace(/--.*$/gm, ""), /\b(drop\s+(table|column|schema|function)|delete\s+from|truncate)\b/i);
+      assert.match(script(), /m1\.confirm_legacy_order_contract/);
+      assert.match(script(), /errcode = 'M1P03'/);
+      assert.match(script(), /errcode = 'M1P04'/);
+    });
+
+    it("BEFORE it: any staff member can still create an order with a negative discount line through an earlier signature, with no owner authorization, and the deposit follows the LOWERED total (the hole this step closes)", () => {
+      const own = startDatabase({ schedule: "confirmed" });
+      try {
+        const r = asStaff(own, `select admin.create_order('${ID.custA}', '${withDiscountLine}'::jsonb, null, 'admin', null, null, null) as o \\gset\nselect total_minor || ':' || deposit_required_minor || ':' || discount_minor from public.orders where id = :'o';`);
+        assert.ok(r.ok, r.err);
+        assert.equal(lines(r.out).pop(), "300000:45000:0", "total 3,000.00, deposit 15 % of the lowered total, no discount record");
+      } finally {
+        own.stop();
+      }
+    });
+
+    it("refuses without the confirmation (M1P03), and changes nothing", () => {
+      const own = startDatabase({ schedule: "confirmed" });
+      try {
+        const r = own.cluster.psql(`\\set VERBOSITY verbose\n${script()}`);
+        assert.equal(r.ok, false);
+        assert.match(r.err, /M1P03/);
+        assert.match(r.err, /set m1\.confirm_legacy_order_contract = 'old-website-retired'/);
+        for (const fn of LEGACY) assert.equal(can(own, "m1_staff_gateway", fn), true, `${fn} is still open`);
+      } finally {
+        own.stop();
+      }
+    });
+
+    it("refuses (M1P04) when the 11-argument create_order is not there, so it can never leave the database with no way to create an order", () => {
+      const before = startDatabase({ schedule: "confirmed", before: "20261123120100_pricing_rewards_functions.sql" });
+      try {
+        const r = before.cluster.psql(`\\set VERBOSITY verbose\n${confirm}${script()}`);
+        assert.equal(r.ok, false);
+        assert.match(r.err, /M1P04/);
+        for (const fn of LEGACY) assert.equal(can(before, "m1_staff_gateway", fn), true, `${fn} is still open`);
+      } finally {
+        before.stop();
+      }
+    });
+
+    it("AFTER it: the earlier signatures are closed to staff, the gateway and anon (permission denied), the 11-argument function and the website's own statement still create orders, and nothing was deleted", () => {
+      const own = startDatabase({ schedule: "confirmed" });
+      try {
+        seedIdempotencyFixtures(own);
+        const oh = makeHelpers(own);
+        // history that must survive: a legacy order with a discount line made BEFORE the contract
+        const legacyOrder = lines(own.commit(`${AS.sam}select admin.create_order('${ID.custA}', '${withDiscountLine}'::jsonb, null, 'admin', null, null, null) as o \\gset\nselect :'o';`)).pop().trim();
+        const digest = () => lines(own.ok(`select md5(coalesce((select string_agg(to_jsonb(o)::text, ',' order by id) from public.orders o), '') || '|' || coalesce((select string_agg(to_jsonb(i)::text, ',' order by id) from public.order_items i), ''));`)).pop();
+        const before = digest();
+
+        const r = own.cluster.psql(`${confirm}${script()}`);
+        assert.ok(r.ok, r.err);
+        assert.equal(digest(), before, "no order or item was changed");
+        for (const fn of LEGACY) {
+          for (const role of ["authenticated", "m1_staff_gateway", "anon"]) assert.equal(can(own, role, fn), false, `${role} cannot run ${fn}`);
+        }
+        assert.equal(can(own, "m1_staff_gateway", NEW11), true);
+        assert.equal(can(own, "authenticated", NEW11), true);
+
+        // the discount-line route is shut for staff, through both signatures
+        for (const call of [
+          `select admin.create_order('${ID.custA}', '${withDiscountLine}'::jsonb, null, 'admin', null, null, null);`,
+          `select admin.create_order('${ID.custA}', '${withDiscountLine}'::jsonb, null, 'admin', null, null);`,
+        ]) {
+          const denied = asStaff(own, call);
+          assert.equal(denied.ok, false);
+          assert.match(denied.err, /42501|permission denied/i);
+        }
+        // the earlier website's own "Create order" statement is refused too (the reason to run this only when that website is retired)
+        const old = oh.viaGateway(oh.SAM, "create_order", [ID.custA, JSON.stringify(ONE(100000)), null, null, newKey("legacy-after")]);
+        assert.equal(old.ok, false);
+        assert.equal(old.code, "42501");
+
+        // the new route still works: an ordinary order for staff, a discounted order for the owner, through the website's own statement
+        const plain = oh.viaGateway(oh.SAM, "create_order_priced", [ID.custA, JSON.stringify(ONE(100000)), null, null, newKey("plain"), null, 0, "100000", "15000"]);
+        assert.ok(plain.ok, plain.err);
+        const discounted = oh.viaGateway(oh.OLIVIA, "create_order_priced", [ID.custA, JSON.stringify(ONE(100000)), null, null, newKey("disc"), JSON.stringify(fixed(1000)), 0, "99000", "15000"]);
+        assert.ok(discounted.ok, discounted.err);
+        // and staff still cannot discount through it
+        const staffDiscount = oh.viaGateway(oh.SAM, "create_order_priced", [ID.custA, JSON.stringify(ONE(100000)), null, null, newKey("sd"), JSON.stringify(fixed(1000)), 0, "99000", "15000"]);
+        assert.equal(staffDiscount.ok, false);
+        assert.ok(lines(own.ok(`select count(*) from public.orders where id = '${legacyOrder}';`)).pop() === "1", "the earlier order is still there");
+
+        // a second run is harmless
+        const again = own.cluster.psql(`${confirm}${script()}`);
+        assert.ok(again.ok, again.err);
+        for (const fn of LEGACY) assert.equal(can(own, "m1_staff_gateway", fn), false);
+
+        // the undo returns the right (and only that)
+        const undo = own.cluster.psql(`grant execute on function ${LEGACY[0]} to authenticated, m1_staff_gateway;\ngrant execute on function ${LEGACY[1]} to authenticated, m1_staff_gateway;`);
+        assert.ok(undo.ok, undo.err);
+        for (const fn of LEGACY) assert.equal(can(own, "m1_staff_gateway", fn), true);
       } finally {
         own.stop();
       }

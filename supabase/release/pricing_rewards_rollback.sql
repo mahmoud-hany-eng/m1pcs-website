@@ -16,8 +16,15 @@
 -- What it does NOT do: it deletes nothing. The new columns, the discount record table, the ledger entry types, the permissions and the new functions
 -- STAY (they are additive and harmless to the earlier website). No order, payment, loyalty entry or deposit is touched.
 --
--- It REFUSES (SQLSTATE M1P01) while any order carries a discount or redeemed points, or any redemption entry exists: the earlier functions do not
--- know the net payable amount (a payment limit, "paid in full", the loyalty award), so those orders could be mis-handled. Keep the new functions in that case.
+-- WHEN IT IS SAFE: ONLY BEFORE THE FIRST PRICING AND REWARDS TRANSACTION. It REFUSES (SQLSTATE M1P01), permanently, as soon as ANY of these exists:
+-- an order with a discount, a loyalty credit or redeemed points; a discount record; a redemption or a redemption-restore entry in the points ledger
+-- (a cancelled redemption counts: its history is a financial record). The earlier functions do not know the net payable amount (a payment limit,
+-- "paid in full", the loyalty award), so such orders could be mis-handled, and this history must never be hidden behind functions that cannot read it.
+-- After the first discount or redemption there is NO undo of this kind: the recovery is a forward fix (a new migration), or redeploying the previous
+-- WEBSITE (the new database functions are additive and the previous website keeps working against them). Nothing here makes financial history reversible.
+-- Before it checks, the script locks the orders table, the points ledger and the discount table against writers (SHARE ROW EXCLUSIVE, 10 s limit), so an
+-- order being created at the same moment either commits first (and the script then refuses) or waits until the script has finished; the earlier
+-- functions are then back and the new create_order is no longer callable. If the lock cannot be had in 10 s the script fails and changes nothing.
 -- It also refuses (SQLSTATE M1P02) unless the same session first states what it is about to do:
 --
 --     set m1.confirm_pricing_rollback = 'new-website-retired';
@@ -32,10 +39,16 @@ begin
     raise exception 'REFUSED: this restores the earlier staff functions and would break the pricing and rewards website. NOTHING WAS CHANGED. If the new website is retired, run: set m1.confirm_pricing_rollback = ''new-website-retired'';'
       using errcode = 'M1P02';
   end if;
+  -- Writers are held off while the history is inspected and the functions are replaced (an in-flight order cannot slip in between).
+  perform set_config('lock_timeout', '10s', true);
+  lock table public.orders, public.loyalty_ledger, private.order_discounts in share row exclusive mode;
   if exists (select 1 from public.orders where discount_minor <> 0 or loyalty_credit_minor <> 0 or loyalty_points_redeemed <> 0)
+     or exists (select 1 from private.order_discounts)
      or exists (select 1 from public.loyalty_ledger where entry_type in ('redemption', 'redemption_restore')) then
-    raise exception 'REFUSED: % order(s) carry a discount or redeemed points, and the earlier functions do not know the net payable amount. NOTHING WAS CHANGED.',
-      (select count(*) from public.orders where discount_minor <> 0 or loyalty_credit_minor <> 0 or loyalty_points_redeemed <> 0) using errcode = 'M1P01';
+    raise exception 'REFUSED: pricing and rewards history already exists (% order(s) with a discount or redeemed points, % discount record(s), % redemption or restore entr(ies)). The earlier functions do not know the net payable amount and this history must not be hidden from them. There is no undo after the first discount or redemption: use a forward fix, or redeploy the previous website. NOTHING WAS CHANGED.',
+      (select count(*) from public.orders where discount_minor <> 0 or loyalty_credit_minor <> 0 or loyalty_points_redeemed <> 0),
+      (select count(*) from private.order_discounts),
+      (select count(*) from public.loyalty_ledger where entry_type in ('redemption', 'redemption_restore')) using errcode = 'M1P01';
   end if;
 
   -- private.transition_block_reason (as in the workflow release)

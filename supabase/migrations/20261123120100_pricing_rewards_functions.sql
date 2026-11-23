@@ -270,7 +270,10 @@ begin
     return entry_id;
   end if;
   insert into private.loyalty_entry_reasons (entry_id, reason, recorded_by)
-  values (entry_id, coalesce(nullif(btrim(p_reason), ''), 'order cancelled'), (select auth.uid()));
+  -- The reason kept with the entry must be 3 to 500 characters; the cancel form allows any length from 0 to 500, so a shorter or longer
+  -- reason is replaced by a standard one here (the order's own history keeps the reason exactly as typed). Otherwise cancelling an
+  -- order that redeemed points would fail for a reason such as "ok".
+  values (entry_id, case when char_length(btrim(coalesce(p_reason, ''))) between 3 and 500 then btrim(p_reason) else 'order cancelled' end, (select auth.uid()));
   perform private.audit('loyalty.redemption_restored', 'order', o.id::text,
     jsonb_build_object('points', -red.points, 'redemption_entry', red.id, 'restore_entry', entry_id));
   return entry_id;
@@ -308,9 +311,10 @@ begin
     raise exception 'the loyalty policies are incomplete' using errcode = '55000';
   end if;
 
-  -- order_total: the gross value; amount_paid: cash received; net_payable: gross less the discount and the redeemed credit. Points
-  -- are never earned on money that was discounted or paid with points.
-  base := case base_kind when 'amount_paid' then o.amount_paid_minor when 'net_payable' then o.net_payable_minor else o.total_minor end;
+  -- amount_paid: cash received. Any other base (net_payable, and the earlier placeholder order_total) counts the amount payable: the gross
+  -- value less the discount and the redeemed credit. Points are never earned on money that was discounted or paid with points, whatever
+  -- the policy is called; for an order with nothing taken off the amount payable IS the order total, so earlier orders earn exactly as before.
+  base := case base_kind when 'amount_paid' then o.amount_paid_minor else o.net_payable_minor end;
   pts := case rounding
     when 'floor' then base / rate
     when 'ceil' then (base + rate - 1) / rate

@@ -134,3 +134,9 @@ Append-only log of decisions the human operator has made. Workers and models nev
 - **Implemented locally as:** PLAT-0005 on `claude/plat-0004-order-hardening` (three forward-only migrations, the order form's Pricing & Rewards section, statements). Nothing was applied to a hosted database or deployed. See [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md).
 - **Source:** Human instruction "M1 Gaming PCs — Update Deposit Policy, Add Order Discounts & Loyalty Redemption", parts A to I.
 - **Affects:** REQ-LOY-002, REQ-LOY-003, REQ-LOY-004, REQ-LOY-005, REQ-LOY-006, REQ-ORD-004, OQ-0007, OQ-0008, OQ-0040, OQ-0041, OQ-0042, HD-0003
+
+### HD-0022 — Release decisions for Pricing & Rewards (final financial review)
+- **Date:** 2026-11-23
+- **Decision:** For this release the owner confirmed: (1) **only the owner** may authorize discounts and loyalty redemption; (2) **no loyalty points expiry** for now; (3) **no separate redemption cap**: only the customer's available points and the eligible order amount limit a redemption; (4) a redemption **must never create a negative points balance**; (5) discounts may be a **fixed QAR amount or a percentage**; (6) **existing legacy orders and their pricing history are preserved**; (7) **new orders use the new Pricing & Rewards system**; (8) **delivery or collection arrangements stay optional** in the dashboard, because the owner manages them through WhatsApp. The owner also decided that **automatic loyalty clawback after a payment reversal is NOT implemented**; that scenario is reported as an unresolved policy decision (OQ-0043).
+- **Source:** Human instruction "M1 Gaming PCs — Pricing & Rewards Final Financial Review", section 4.
+- **Affects:** REQ-LOY-006, REQ-ORD-004, OQ-0008, OQ-0041, OQ-0042, OQ-0043, HD-0021

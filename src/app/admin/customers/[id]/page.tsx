@@ -94,9 +94,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           columns={[
             { key: "ref", header: "Order", cell: (o) => o.order_ref, primary: true },
             { key: "status", header: "Status", cell: (o) => <StatusBadge code={o.status} label={o.status_label} /> },
-            { key: "total", header: "Total", cell: (o) => <Money minor={o.total_minor} />, align: "right" },
+            { key: "total", header: "Order value", cell: (o) => <Money minor={o.total_minor} />, align: "right" },
             { key: "paid", header: "Paid", cell: (o) => <Money minor={o.amount_paid_minor} />, align: "right" },
-            { key: "balance", header: "Balance", cell: (o) => <Money minor={o.balance_due_minor} />, align: "right" },
+            { key: "balance", header: "Balance due", cell: (o) => <Money minor={o.balance_due_minor} />, align: "right" },
             { key: "date", header: "Placed", cell: (o) => formatDay(o.created_at), hideOnCard: true },
           ]}
         />

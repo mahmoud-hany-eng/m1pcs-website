@@ -72,7 +72,7 @@ export default async function AdminOverview() {
             { key: "ref", header: "Order", cell: (r) => r.order_ref, primary: true },
             { key: "customer", header: "Customer", cell: (r) => r.customer_name },
             { key: "status", header: "Status", cell: (r) => <StatusBadge code={r.status} label={r.status_label} /> },
-            { key: "total", header: "Total", cell: (r) => <Money minor={r.total_minor} />, align: "right" },
+            { key: "total", header: "Order value", cell: (r) => <Money minor={r.total_minor} />, align: "right" },
             { key: "date", header: "Placed", cell: (r) => formatDay(r.created_at) },
           ]}
         />

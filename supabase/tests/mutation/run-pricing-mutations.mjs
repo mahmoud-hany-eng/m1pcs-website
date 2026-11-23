@@ -30,7 +30,7 @@ const MUTATIONS = [
     [M1, "perform pg_advisory_xact_lock(hashtextextended('m1.loyalty.balance:' || new.customer_id::text, 0));", "perform pg_advisory_xact_lock(hashtextextended('m1.loyalty.balance:' || new.id::text, 0));"],
     [M1, "$$ select pg_advisory_xact_lock(hashtextextended('m1.loyalty.balance:' || p_customer_id::text, 0)) $$;", "$$ select pg_advisory_xact_lock(hashtextextended('m1.loyalty.balance:' || gen_random_uuid()::text, 0)) $$;"],
   ], [DB]],
-  ["P05", "points are earned on the GROSS total (discounted money earns points)", [[M2, "when 'net_payable' then o.net_payable_minor else o.total_minor end;", "when 'net_payable' then o.total_minor else o.total_minor end;"]], [DB]],
+  ["P05", "points are earned on the GROSS total (discounted money earns points)", [[M2, "else o.net_payable_minor end;\n  pts := case rounding", "else o.total_minor end;\n  pts := case rounding"]], [DB]],
   ["P06", "the award's full-payment rule compares with the gross total", [[M2, "if coalesce((trig ->> 'require_full_payment')::boolean, true) and o.amount_paid_minor < o.net_payable_minor then", "if coalesce((trig ->> 'require_full_payment')::boolean, true) and o.amount_paid_minor < o.total_minor then"]], [DB]],
   ["P07", "a payment may exceed the net payable amount (both record_payment functions)", [[M2, "if o.amount_paid_minor + p_amount_minor > o.net_payable_minor then", "if o.amount_paid_minor + p_amount_minor > o.total_minor then", 2]], [DB]],
   ["P08", "cancelling an order does not give the redeemed points back", [[M2, "    perform private.restore_redeemed_points(o.id, coalesce(nullif(btrim(p_reason), ''), 'order cancelled'));", "    null;"]], [DB, PAGES]],
@@ -66,6 +66,8 @@ const MUTATIONS = [
   ["P31", "form: the redemption switch is never disabled", [[FORMS, "disabled={view.redeemLocked !== null}\n            onClick", "disabled={false}\n            onClick"]], [LIB, PAGES]],
   ["P32", "screen: points are earned on the gross amount in the summary", [[FORM, "pointsEarned(Math.max(figures.netPayableMinor, 0), context.earnQarPerPointMinor)", "pointsEarned(Math.max(figures.grossMinor, 0), context.earnQarPerPointMinor)"]], [LIB]],
   ["P33", "the tracking of a cancelled redemption: the order page does not say the points were returned", [["src/app/admin/orders/[id]/page.tsx", "order.redemption_record.returned ? \"The order was cancelled and the points were returned to the customer.\"", "order.redemption_record.returned ? \"\""]], [PAGES]],
+  ["P34", "an order with a discount earns on the GROSS when the earning rule is the earlier 'order total' placeholder", [[M2, "when 'amount_paid' then o.amount_paid_minor else o.net_payable_minor end;", "when 'amount_paid' then o.amount_paid_minor when 'net_payable' then o.net_payable_minor else o.total_minor end;"]], [DB]],
+  ["P35", "a cancellation reason of 1 or 2 characters blocks the return of redeemed points", [[M2, "case when char_length(btrim(coalesce(p_reason, ''))) between 3 and 500 then btrim(p_reason) else 'order cancelled' end, (select auth.uid()));", "coalesce(nullif(btrim(p_reason), ''), 'order cancelled'), (select auth.uid()));"]], [DB]],
 ];
 
 const only = new Set(process.argv.slice(2));

@@ -12,8 +12,9 @@ import { join } from "node:path";
 import { register } from "node:module";
 import { after, before, describe, test } from "node:test";
 import { findPgBin } from "./harness.mjs";
-import { AS, startDatabase } from "./fixtures.mjs";
+import { AS, ID, startDatabase } from "./fixtures.mjs";
 import { ROOT } from "./support/browser.mjs";
+import { ONE, makeHelpers, newKey, seedIdempotencyFixtures } from "./support/idempotency-helpers.mjs";
 
 register("./support/alias-loader.mjs", import.meta.url);
 
@@ -447,5 +448,121 @@ dbSuite("the screen's pricing agrees with the database's, to the minor unit, ref
       const q = p.depositQuote(Number(t), POLICY);
       assert.deepEqual([q.amountMinor, String(q.rateBps)], [Number(amount), bps], `total ${t}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// THE ROLLOUT STATE BETWEEN MIGRATION 2 AND MIGRATION 3. Migrations 1 and 2 are applied, migration 3 (the five tiers and the net-payable
+// earning rule) is not: the database still holds the three-tier schedule and the "order total" earning rule, and the NEW website is
+// already serving. This proves the new website's own logic and its real write statement are safe in that state: nothing is priced with a
+// schedule the database does not hold, discounts and redemption are refused (screen AND database) with the reason, no point is spent, and an
+// ordinary order is created, confirmed and paid exactly as before.
+dbSuite("the NEW website between migration 2 and migration 3 (three tiers still in force, discounts and redemption switched off)", () => {
+  let db;
+  let h;
+  let OLIVIA;
+  const c = ID.custA;
+  const text = (out) => out.trim().split("\n").pop();
+  const ctxOf = (as) => JSON.parse(text(db.commit(`${as}select admin.order_pricing_context('${c}')::text;`)));
+  const scalar = (sql) => text(db.ok(`${sql};`));
+  const FORM = f?.EMPTY_PRICING_FORM;
+
+  before(() => {
+    db = startDatabase({ schedule: "confirmed", before: "20261123120200_pricing_rewards_policies.sql" });
+    seedIdempotencyFixtures(db);
+    h = makeHelpers(db);
+    ({ OLIVIA } = h);
+    db.commit(`${AS.olivia}select admin.adjust_loyalty('${c}', 500, 'points held while the rules are switched off');`);
+  });
+  after(() => db?.stop());
+
+  test("the database says so: pricing not enabled, the earlier earning rule, the three-tier schedule it still holds", () => {
+    const ctx = ctxOf(AS.olivia);
+    assert.equal(ctx.pricing_enabled, false);
+    assert.equal(ctx.earning_base, "order_total");
+    assert.equal(ctx.deposit_policy.tiers.length, 3);
+    assert.equal(ctx.can_discount, true, "the owner holds the permission; it is the rule that is off");
+    assert.equal(ctx.points_balance, 500);
+  });
+
+  test("the screen, given that real answer, locks both controls with the reason and prices an ordinary order with the schedule IN FORCE (three tiers)", () => {
+    const ctx = f.toContextView(ctxOf(AS.olivia));
+    const v = f.derivePricingView(FORM, 1200000, ctx);
+    assert.match(v.discountLocked, /switched off/);
+    assert.match(v.redeemLocked, /switched off/);
+    assert.equal(v.canSubmit, true);
+    assert.equal(v.figures.depositMinor, 420000, "35 % of QAR 12,000.00 under the schedule the database holds now");
+    assert.equal(v.figures.depositRateBps, 3500);
+    assert.equal(v.expectedNet, "1200000");
+    assert.equal(v.expectedDeposit, "420000");
+    // a form that still carries a discount (typed before the rule was switched off) sends none
+    const typed = f.derivePricingView({ ...FORM, discountMode: "fixed", discountAmount: "100", discountReason: "Returning customer", redeemOn: true, points: "10" }, 1200000, ctx);
+    assert.equal(typed.figures.discountMinor, 0);
+    assert.equal(typed.figures.pointsRedeemed, 0);
+  });
+
+  test("the website's real create statement, with the figures the screen showed, creates the order; the deposit is the three-tier one and is fixed at confirmation", () => {
+    const ctx = f.toContextView(ctxOf(AS.olivia));
+    const v = f.derivePricingView(FORM, 1200000, ctx);
+    const r = h.viaGateway(OLIVIA, "create_order_priced", [c, JSON.stringify(ONE(1200000)), null, null, newKey("interim"), null, 0, v.expectedNet, v.expectedDeposit]);
+    assert.ok(r.ok, r.err);
+    assert.equal(scalar(`select net_payable_minor || ':' || discount_minor || ':' || loyalty_credit_minor || ':' || deposit_required_minor from public.orders where id = '${r.id}'`), "1200000:0:0:420000");
+    db.commit(`${AS.sam}select admin.transition_order('${r.id}', 'awaiting_deposit');`);
+    assert.equal(scalar(`select deposit_required_minor || ':' || deposit_policy_version from public.orders where id = '${r.id}'`).startsWith("420000:"), true);
+    const p1 = h.pay(OLIVIA, r.id, 420000, newKey("interim-pay1"));
+    assert.ok(p1.ok, p1.err);
+    const p2 = h.pay(OLIVIA, r.id, 780000, newKey("interim-pay2"));
+    assert.ok(p2.ok, p2.err);
+    assert.equal(scalar(`select amount_paid_minor || ':' || balance_due_minor from public.orders where id = '${r.id}'`), "1200000:0");
+    const more = h.pay(OLIVIA, r.id, 1, newKey("interim-pay3"));
+    assert.equal(more.ok, false, "a fully settled order cannot be asked for another payment");
+  });
+
+  test("a stale or hand-made figure is still refused (the screen's advice must match the schedule in force)", () => {
+    const r = h.viaGateway(OLIVIA, "create_order_priced", [c, JSON.stringify(ONE(1200000)), null, null, newKey("interim-stale"), null, 0, "1200000", "600000"]);
+    assert.equal(r.ok, false, "600000 is the FIVE-tier deposit, which is not in force yet");
+    assert.match(r.err, /M1K03/, `the refusal must be the stale-figures one, got: ${r.err}`);
+  });
+
+  test("a discount or redeemed points sent anyway are refused by the database with the reason, and nothing is created and no point is spent", () => {
+    const balance = () => scalar(`select coalesce(sum(points), 0) from public.loyalty_ledger where customer_id = '${c}'`);
+    const orders = () => scalar(`select count(*) from public.orders where customer_id = '${c}'`);
+    const before = [balance(), orders()];
+    const withDiscount = h.viaGateway(OLIVIA, "create_order_priced", [c, JSON.stringify(ONE(500000)), null, null, newKey("interim-d"), JSON.stringify({ mode: "fixed", amount_minor: 1000, reason: "Returning customer" }), 0, "499000", "75000"]);
+    assert.equal(withDiscount.ok, false);
+    assert.match(withDiscount.err, /switched off/);
+    const withPoints = h.viaGateway(OLIVIA, "create_order_priced", [c, JSON.stringify(ONE(500000)), null, null, newKey("interim-p"), null, 100, "490000", "75000"]);
+    assert.equal(withPoints.ok, false);
+    assert.match(withPoints.err, /switched off/);
+    assert.deepEqual([balance(), orders()], before, "no order, no points spent");
+    assert.equal(scalar("select count(*) from private.order_discounts"), "0");
+    assert.equal(scalar("select count(*) from public.loyalty_ledger where entry_type in ('redemption','redemption_restore')"), "0");
+  });
+
+  test("the read functions the new pages use return the pricing keys with their neutral values for an ordinary order (get_order and list_orders)", () => {
+    const id = scalar(`select id from public.orders where customer_id = '${c}' order by created_at desc limit 1`);
+    const o = JSON.parse(text(db.commit(`${AS.olivia}select admin.get_order('${id}')::text;`)));
+    for (const key of ["discount_minor", "loyalty_credit_minor", "loyalty_points_redeemed", "net_payable_minor", "balance_due_minor", "deposit_outstanding_minor", "cash_balance_after_deposit_minor", "discount_record"]) {
+      assert.ok(key in o, `get_order answers ${key}`);
+    }
+    assert.deepEqual([o.discount_minor, o.loyalty_credit_minor, o.loyalty_points_redeemed, o.discount_record], [0, 0, 0, null]);
+    assert.equal(o.net_payable_minor, o.total_minor);
+    assert.equal(o.balance_due_minor, o.total_minor - o.amount_paid_minor);
+    const rows = JSON.parse(text(db.commit(`${AS.olivia}select admin.list_orders(null, null, 25, 0)::text;`)));
+    assert.ok(Array.isArray(rows) && rows.length >= 1);
+    for (const row of rows) {
+      assert.equal(row.net_payable_minor, row.total_minor, "no order has a discount or credit in this state");
+      assert.equal(row.balance_due_minor, row.total_minor - row.amount_paid_minor);
+    }
+  });
+
+  test("the staff member's context is the same locked state: no rights are gained by the rollout", () => {
+    const ctx = ctxOf(AS.sam);
+    assert.equal(ctx.can_discount, false);
+    assert.equal(ctx.can_redeem, false);
+    assert.equal(ctx.points_balance === null || typeof ctx.points_balance === "number", true);
+    const v = f.derivePricingView(FORM, 435055, f.toContextView(ctx));
+    assert.match(v.discountLocked, /owner only/);
+    assert.match(v.redeemLocked, /owner only/);
   });
 });
