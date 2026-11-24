@@ -149,6 +149,7 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       await page.locator("#quote-category").selectOption({ label: "Other Tech Product" });
       await page.fill("#fullName", "Test Customer");
       await page.fill("#mobile", "55550001");
+      await page.fill("#budget", "5000"); // the budget is mandatory since the Production quotation hotfix (8a123b1)
       await page.getByText("Find me the best option for my requirements", { exact: true }).click();
       for (let i = 0; i < 6 && links.length === 0; i += 1) {
         await page.click("button[type=submit]");
