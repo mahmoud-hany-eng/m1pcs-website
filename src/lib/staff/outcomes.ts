@@ -51,3 +51,17 @@ export function duplicateWarning(similar: readonly SimilarOrderRow[], now: Date 
     duplicates: evidence,
   };
 }
+
+export const COST_SAVED = "Cost saved. The order's costs were recalculated.";
+export const COST_ALREADY_SAVED = "This cost was already saved earlier, so nothing new was saved. It is in the list below.";
+export const costSavedMessage = (replayed: boolean): string => (replayed ? COST_ALREADY_SAVED : COST_SAVED);
+export const COST_EDITED = "Cost updated. The previous value is kept in the history.";
+export const COST_ALREADY_EDITED = "This change was already saved earlier, so nothing new was saved.";
+export const costEditedMessage = (replayed: boolean): string => (replayed ? COST_ALREADY_EDITED : COST_EDITED);
+export const COST_VOIDED = "The cost entry was removed from the totals. It stays in the history.";
+export const COST_ALREADY_VOIDED = "This entry was already removed, so nothing was changed.";
+export const costVoidedMessage = (replayed: boolean): string => (replayed ? COST_ALREADY_VOIDED : COST_VOIDED);
+export const COSTS_MARKED_COMPLETE = "The costs are marked complete. Any later change to them will mark them incomplete again.";
+export const COSTS_REOPENED = "The costs are marked incomplete again.";
+export const COMPLETION_VERIFIED = "The completion date was recorded. It cannot be changed.";
+export const ORDER_CREATED_WITH_COSTS = "Order created, with its private costs. The deposit is fixed when you confirm it.";

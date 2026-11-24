@@ -599,8 +599,11 @@ suite("idempotency (PLAT-0004): a repeated or retried request never creates a se
     const actions = readFileSync(join(ROOT, "src/lib/staff/order-actions.ts"), "utf8");
     const api = readFileSync(join(ROOT, "src/lib/staff/api.ts"), "utf8");
 
-    it("both forms carry a hidden idempotency_key through the shared hook; the payment form also carries the balance it showed", () => {
-      assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 2, "the payment form and the order form");
+    it("the payment, order and add-cost forms carry a hidden idempotency_key through the shared hook; the payment form also carries the balance it showed", () => {
+      // PLAT-0006 added the third: the add-cost form sends the id of the entry it is creating (chosen once per intended entry, replaced after it is saved),
+      // so sending the same form twice saves one cost. It uses the same hook, bound to the number of entries the page showed.
+      assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 3, "the payment form, the order form and the add-cost form");
+      assert.match(forms, /useIdempotencyKey\(`cost:\$\{orderId\}`, entryId, String\(entries\), state\)/);
       assert.match(forms, /useIdempotencyKey\(`payment:\$\{orderId\}`, idempotencyKey, String\(expectedPaidMinor\), state\)/);
       assert.match(forms, /useIdempotencyKey\(`order:\$\{customerId\}`, idempotencyKey, "", state\)/);
       assert.match(forms, /<input type="hidden" name="expected_paid_minor" value=\{String\(expectedPaidMinor\)\} \/>/);

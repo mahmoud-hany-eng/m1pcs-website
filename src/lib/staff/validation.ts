@@ -4,7 +4,9 @@
  * every list of allowed values is fixed here. The database checks everything again.
  */
 import { parseQarToMinor } from "@/lib/platform/money";
+import { COST_CATEGORIES, COST_KINDS, MAX_NEW_ORDER_COSTS } from "./finance";
 import type { StaffFieldErrors } from "./form-state";
+import type { NewOrderCost } from "./types";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; errors: StaffFieldErrors };
 
@@ -359,3 +361,111 @@ export function depositPolicyValue(input: DepositScheduleInput): Record<string, 
 /** Two ids that must be UUIDs before they go anywhere near a database call. */
 export const isUuid = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Private order costs (owner only). The database validates everything again; these checks give clear messages and keep a crafted
+// request from reaching it. Amounts are typed in QAR and parsed to integer minor units; a negative or inexact amount is refused.
+// ---------------------------------------------------------------------------------------------------------------
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** A real calendar day written YYYY-MM-DD (so 30 February is refused, not rolled into March). */
+export function isRealDay(input: string): boolean {
+  const m = ISO_DAY.exec(input);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 2020 || y > 2100) return false;
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+}
+
+/** One cost entry, reading each field through `name` (so the same rules serve the numbered rows of the order form and the single-entry forms). */
+function parseCostFields(form: FormData, name: (field: string) => string, errors: StaffFieldErrors): NewOrderCost | null {
+  const before = Object.keys(errors).length;
+  const category = text(form, name("category"));
+  if (!COST_CATEGORIES.some((c) => c.value === category)) errors[name("category")] = "Choose a category.";
+  const description = text(form, name("description"));
+  if (description.length < 1 || description.length > 200) errors[name("description")] = "Describe the cost (up to 200 characters).";
+  const amountText = text(form, name("amount"));
+  let amount: number | null = null;
+  if (amountText.startsWith("-")) errors[name("amount")] = "A cost cannot be negative. Enter 0 for an explicit no-cost entry.";
+  else {
+    amount = parseQarToMinor(amountText);
+    if (amount === null) errors[name("amount")] = "Enter an exact amount in QAR, like 1250 or 1,250.50 (0 is allowed).";
+  }
+  const kind = text(form, name("cost_kind"));
+  if (!COST_KINDS.some((k) => k.value === kind)) errors[name("cost_kind")] = "Say whether the amount is estimated or actual.";
+  const supplier = optional(form, name("supplier_ref"), 120, errors, "The supplier or reference");
+  const notes = optional(form, name("notes"), 1000, errors, "The note");
+  const day = text(form, name("incurred_on"));
+  if (day !== "" && !isRealDay(day)) errors[name("incurred_on")] = "Enter a real date (YYYY-MM-DD), or leave it empty for today.";
+  if (Object.keys(errors).length !== before || amount === null) return null;
+  return {
+    category: category as NewOrderCost["category"], description, amount_minor: amount, cost_kind: kind as NewOrderCost["cost_kind"],
+    supplier_ref: supplier, incurred_on: day === "" ? null : day, notes,
+  };
+}
+
+/**
+ * The optional cost rows of the NEW-ORDER form: cost_category_N, cost_description_N, cost_amount_N, cost_kind_N, cost_supplier_ref_N,
+ * cost_incurred_on_N, cost_notes_N. A row with no description and no amount is an unused row and is skipped: costs are never required.
+ */
+export function parseNewOrderCosts(form: FormData): Parsed<NewOrderCost[]> {
+  const errors: StaffFieldErrors = {};
+  const costs: NewOrderCost[] = [];
+  for (let i = 0; i < MAX_NEW_ORDER_COSTS; i += 1) {
+    if (text(form, `cost_description_${i}`) === "" && text(form, `cost_amount_${i}`) === "") continue;
+    const entry = parseCostFields(form, (field) => `cost_${field}_${i}`, errors);
+    if (entry) costs.push(entry);
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return { ok: true, value: costs };
+}
+
+/** The entry id of a new cost: chosen once by the form (a UUID kept like an idempotency key), so a retry of the same form saves nothing twice. */
+export function parseEntryId(form: FormData): string | null {
+  const value = form.get("idempotency_key");
+  return typeof value === "string" && isUuid(value.trim()) ? value.trim() : null;
+}
+
+/** A single cost entry (fields category, description, amount, cost_kind, supplier_ref, incurred_on, notes). */
+export function parseCostEntry(form: FormData): Parsed<NewOrderCost> {
+  const errors: StaffFieldErrors = {};
+  const entry = parseCostFields(form, (field) => field, errors);
+  if (!entry || Object.keys(errors).length) return { ok: false, errors };
+  return { ok: true, value: entry };
+}
+
+/** The version of the entry the screen showed, so the database can refuse an edit made from a stale screen. */
+export function parseExpectedVersion(form: FormData): number | null {
+  const value = form.get("expected_version");
+  if (typeof value !== "string" || !/^[0-9]{1,6}$/.test(value.trim()) || Number(value.trim()) < 1) return null;
+  return Number(value.trim());
+}
+
+export interface CostEditInput {
+  cost: NewOrderCost;
+  reason: string;
+}
+export function parseCostEdit(form: FormData): Parsed<CostEditInput> {
+  const entry = parseCostEntry(form);
+  const reason = parseReason(form, "reason");
+  const errors: StaffFieldErrors = { ...(entry.ok ? {} : entry.errors), ...(reason.ok ? {} : reason.errors) };
+  if (Object.keys(errors).length || !entry.ok || !reason.ok) return { ok: false, errors };
+  return { ok: true, value: { cost: entry.value, reason: reason.value } };
+}
+
+/** The reason, and (for the owner's one-time confirmation of an undated delivery) the date and time, typed in Qatar time. */
+export interface CompletionVerificationInput {
+  completedAt: string;
+  reason: string;
+}
+export function parseCompletionVerification(form: FormData, now: Date = new Date()): Parsed<CompletionVerificationInput> {
+  const errors: StaffFieldErrors = {};
+  const completedAt = parseQatarDateTime(text(form, "completed_at"));
+  if (completedAt === null) errors.completed_at = "Enter the real date and time the order was delivered (Qatar time).";
+  else if (Date.parse(completedAt) > now.getTime()) errors.completed_at = "The completion date cannot be in the future.";
+  const reason = parseReason(form, "reason");
+  if (!reason.ok) Object.assign(errors, reason.errors);
+  if (Object.keys(errors).length || completedAt === null || !reason.ok) return { ok: false, errors };
+  return { ok: true, value: { completedAt, reason: reason.value } };
+}

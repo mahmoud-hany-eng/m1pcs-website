@@ -286,3 +286,238 @@ export interface AuditRow {
   actor: string | null;
   details: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Order costs, completion and financial reporting (PLAT-0006). Everything here comes from the owner-only finance functions of
+// the database, except the completion fields and the customer order history, which any staff member who may read orders can see
+// (they carry no cost, margin or supplier). Amounts are integer QAR minor units.
+// ---------------------------------------------------------------------------------------------------------------
+export type CostCategory = "components" | "international_shipping" | "customs_duties" | "assembly" | "local_delivery" | "payment_processing" | "other";
+export type CostKind = "estimated" | "actual";
+/** missing: no entry (the cost is UNKNOWN, never zero). incomplete: entries exist but are not declared complete, or an estimate remains. complete: declared complete. */
+export type CostState = "missing" | "incomplete" | "complete";
+/** none: no completed order. unavailable: completed orders but no cost entry on any. provisional: some order lacks complete costs. verified: every order has complete costs. */
+export type ProfitState = "none" | "unavailable" | "provisional" | "verified";
+
+export interface OrderCostEntry {
+  id: string;
+  category: CostCategory;
+  description: string;
+  amount_minor: number;
+  cost_kind: CostKind;
+  supplier_ref: string | null;
+  incurred_on: string;
+  notes: string | null;
+  status: "active" | "voided";
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+export interface OrderCostRevision {
+  id: number;
+  cost_id: string | null;
+  action: "created" | "edited" | "voided" | "marked_complete" | "marked_incomplete";
+  revision: number | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  reason: string | null;
+  by: string | null;
+  at: string;
+}
+export interface OrderCostSummary {
+  gross_minor: number;
+  discount_minor: number;
+  loyalty_credit_minor: number;
+  net_revenue_minor: number;
+  amount_paid_minor: number;
+  balance_due_minor: number;
+  actual_cost_minor: number;
+  estimated_cost_minor: number;
+  recorded_cost_minor: number;
+  entries: number;
+  estimated_entries: number;
+  cost_state: CostState;
+  costs_complete: boolean;
+  /** NULL when no cost is recorded: there is no profit to show, and it is never revenue minus zero. */
+  profit_minor: number | null;
+  profit_is_provisional: boolean;
+  margin_bps: number | null;
+}
+export interface OrderCostsView {
+  order_id: string;
+  order_ref: string;
+  status: string;
+  completed_at: string | null;
+  /** True once the order is completed: the revenue is the snapshot taken then. Before that it is what the revenue WOULD be. */
+  revenue_recognized: boolean;
+  needs_completion_verification: boolean;
+  can_edit: boolean;
+  summary: OrderCostSummary;
+  entries: OrderCostEntry[];
+  revisions: OrderCostRevision[];
+}
+export interface OrderCompletion {
+  order_id: string;
+  completed_at: string | null;
+  basis: "transition" | "status_history" | "owner_verified" | null;
+  basis_reason: string | null;
+  needs_verification: boolean;
+  can_verify: boolean;
+  delivered_moves: { from_status: string | null; at: string; reason: string | null }[] | null;
+}
+/** One New-order cost row as the form sends it (amounts already in minor units). */
+export interface NewOrderCost {
+  category: CostCategory;
+  description: string;
+  amount_minor: number;
+  cost_kind: CostKind;
+  supplier_ref: string | null;
+  incurred_on: string | null;
+  notes: string | null;
+}
+
+/** One bucket of the report: the whole selected period, or one month of the year. */
+export interface FinancialBucket {
+  month: number | null;
+  completed_orders: number;
+  gross_minor: number;
+  discount_minor: number;
+  loyalty_credit_minor: number;
+  net_revenue_minor: number;
+  actual_cost_minor: number;
+  estimated_cost_minor: number;
+  recorded_cost_minor: number;
+  orders_costs_complete: number;
+  orders_costs_incomplete: number;
+  orders_costs_missing: number;
+  profit_minor: number | null;
+  profit_basis_revenue_minor: number;
+  margin_bps: number | null;
+  revenue_without_costs_minor: number;
+  profit_state: ProfitState;
+  outstanding_balance_minor: number;
+  /** Cash and Fawran received (net of reversals) by the PAYMENT date: cash flow, never added to revenue. */
+  cash_received_minor: number;
+}
+export interface FinancialReport {
+  year: number;
+  month: number | null;
+  timezone: string;
+  currency: string;
+  period: FinancialBucket;
+  months: FinancialBucket[];
+  years: number[];
+  needs_verification: { count: number; orders: { id: string; order_ref: string }[] };
+  unrecognized_costs: { open_orders_minor: number; cancelled_orders_minor: number; delivered_unverified_minor: number };
+}
+export interface CompletedOrderRow {
+  id: string;
+  order_ref: string;
+  customer_id: string;
+  customer_name: string;
+  completed_at: string;
+  created_at: string;
+  workflow_version: number;
+  fulfillment_type: FulfillmentType | null;
+  gross_minor: number;
+  discount_minor: number;
+  loyalty_credit_minor: number;
+  net_revenue_minor: number;
+  amount_paid_minor: number;
+  balance_due_minor: number;
+  // Present only for a person who holds finance.read.
+  actual_cost_minor?: number;
+  estimated_cost_minor?: number;
+  cost_state?: CostState;
+  profit_minor?: number | null;
+  profit_is_provisional?: boolean;
+  margin_bps?: number | null;
+}
+export interface CompletedOrdersPage {
+  year: number;
+  month: number | null;
+  total: number;
+  limit: number;
+  offset: number;
+  finance: boolean;
+  /** Every year that has a completed order, plus the current one (Qatar calendar), newest first. */
+  years: number[];
+  rows: CompletedOrderRow[];
+}
+export interface OverviewSummary {
+  year: number;
+  years: number[];
+  active_orders: number;
+  completed_orders: number;
+  needs_attention: {
+    awaiting_confirmation: number;
+    awaiting_deposit: number;
+    on_hold: number;
+    completion_to_verify: number;
+    deposit_shortfalls?: number;
+    completed_with_balance?: number;
+  };
+  recent_orders: { id: string; order_ref: string; status: string; status_label: string; total_minor: number; net_payable_minor: number; created_at: string; customer_name: string }[];
+  /** Present only for a person who holds finance.read. */
+  financial?: {
+    net_revenue_minor: number;
+    profit_minor: number | null;
+    margin_bps: number | null;
+    profit_state: ProfitState;
+    completed_orders: number;
+    orders_costs_complete: number;
+    orders_costs_incomplete: number;
+    orders_costs_missing: number;
+  };
+}
+export interface CustomerOrderLine {
+  position: number;
+  kind: string;
+  description: string;
+  quantity: number;
+  unit_price_minor: number;
+  line_total_minor: number;
+  discount_share_minor: number;
+  credit_share_minor: number;
+  net_line_minor: number;
+}
+export interface CustomerOrderPayment {
+  entry_type: string;
+  purpose: string;
+  amount_minor: number;
+  method: string;
+  receipt_number: string | null;
+  received_at: string;
+  reversed: boolean;
+}
+export interface CustomerOrderDetail {
+  id: string;
+  order_ref: string;
+  status: string;
+  status_label: string;
+  workflow_version: number;
+  fulfillment_type: FulfillmentType | null;
+  delivery_method: string | null;
+  created_at: string;
+  completed_at: string | null;
+  needs_completion_verification: boolean;
+  gross_minor: number;
+  discount_minor: number;
+  loyalty_points_redeemed: number;
+  loyalty_credit_minor: number;
+  net_payable_minor: number;
+  deposit_required_minor: number;
+  amount_paid_minor: number;
+  balance_due_minor: number;
+  items: CustomerOrderLine[];
+  history: { from_status: string | null; to_status: string; at: string }[];
+  tracking: { title: string; message: string | null; location: string | null; occurred_at: string | null; published_at: string; event_kind: string; retracted: boolean }[];
+  /** Present only for a person who holds payments.read. */
+  payments?: CustomerOrderPayment[];
+}
+export interface CustomerOrdersPage {
+  total: number;
+  limit: number;
+  offset: number;
+  orders: CustomerOrderDetail[];
+}

@@ -13,6 +13,8 @@ import {
   TrackingForm,
   TransitionForm,
 } from "@/components/admin/forms";
+import { CompletionBanner, CostStateBadge, OrderCostsSection } from "@/components/admin/finance";
+import { Notice } from "@/components/account/ui";
 import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
 import { fulfillmentLabel } from "@/lib/workflow/labels";
 import { orderStatement } from "@/lib/platform/pricing";
@@ -21,6 +23,7 @@ import { entryLabel, formatDay, formatWhen, methodLabel, percentLabel, plainAmou
 import { StaffOperationError } from "@/lib/staff/gateway";
 import { isUuid } from "@/lib/staff/validation";
 import { requireStaff } from "@/lib/staff/session";
+import { settle } from "@/lib/staff/settle";
 import type { OrderDetail } from "@/lib/staff/types";
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +37,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     if (error instanceof StaffOperationError) return <AdminMissing active="orders" email={staff.email} can={can} />;
     throw error;
   }
+  // The completion date is shown to anyone who can read orders; the private costs only to a person who may read finance (the database refuses the rest).
+  const [completion, costs] = await Promise.all([settle(() => api.orderCompletion(id)), can("finance.read") ? settle(() => api.orderCosts(id)) : null]);
   const fixed = order.deposit_fixed_at !== null;
   const payments = order.payments;
   // A discount or redeemed points make the amount payable differ from the order total (the gross value, which never changes).
@@ -94,6 +99,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         {payments !== undefined ? <Money3 label="Received" minor={order.amount_paid_minor} /> : null}
         {payments !== undefined ? <Money3 label="Balance due" minor={order.balance_due_minor} tone="red" /> : null}
       </div>
+
+      {costs?.ok ? (
+        <p className="flex flex-wrap items-center gap-3 text-sm text-text-secondary" data-testid="cost-indicator">
+          <CostStateBadge state={costs.value.summary.cost_state} />
+          <a href="#costs" className="font-semibold text-accent hover:underline">
+            Order costs and profit (private)
+          </a>
+        </p>
+      ) : null}
+      {completion.ok ? <CompletionBanner completion={completion.value} orderId={order.id} /> : <Notice tone="error">{completion.error} The completion date could not be loaded.</Notice>}
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="flex min-w-0 flex-col gap-6">
@@ -298,6 +313,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           ) : null}
         </Section>
       ) : null}
+      {costs ? costs.ok ? <OrderCostsSection view={costs.value} entryId={randomUUID()} /> : <Notice tone="error">{costs.error} The order costs could not be loaded. Nothing was changed.</Notice> : null}
     </AdminShell>
   );
 }

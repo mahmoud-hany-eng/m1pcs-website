@@ -102,6 +102,21 @@ const CALLS = {
   // above is the earlier release's statement, kept until the contract step; the screens now use this one.
   create_order_priced: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text, $6::jsonb, $7::bigint, $8::bigint, $9::bigint) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
   order_pricing_context: "select admin.order_pricing_context($1::uuid) as r",
+  // The order with its Pricing & Rewards AND optional private costs ($10, a JSON list; owner only). Same checks and the same idempotency as `create_order_priced`.
+  create_order_costed: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text, $6::jsonb, $7::bigint, $8::bigint, $9::bigint, $10::jsonb) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  // Private order costs (owner only: finance.read / finance.manage). The database checks the permission; none of these answers reaches a customer.
+  order_costs: "select admin.order_costs($1::uuid) as r",
+  add_order_cost: "with c as materialized (select admin.add_order_cost($1::uuid, $2::uuid, $3::text, $4::text, $5::bigint, $6::text, $7::text, $8::date, $9::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  edit_order_cost: "with c as materialized (select admin.edit_order_cost($1::uuid, $2::integer, $3::text, $4::text, $5::bigint, $6::text, $7::text, $8::date, $9::text, $10::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  void_order_cost: "with c as materialized (select admin.void_order_cost($1::uuid, $2::integer, $3::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  set_order_costs_complete: "select admin.set_order_costs_complete($1::uuid, $2::boolean, $3::text) as r",
+  // Completion dates and reporting. The reporting date is completed_at in Asia/Qatar months, worked out in the database.
+  order_completion: "select admin.order_completion($1::uuid) as r",
+  verify_historical_completion: "select admin.verify_historical_completion($1::uuid, $2::timestamptz, $3::text)::text as r",
+  financial_report: "select admin.financial_report($1::integer, $2::integer) as r",
+  list_completed_orders: "select admin.list_completed_orders($1::integer, $2::integer, $3::integer, $4::integer) as r",
+  overview_summary: "select admin.overview_summary($1::integer) as r",
+  customer_orders: "select admin.customer_orders($1::uuid, $2::integer, $3::integer) as r",
   similar_orders: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.similar_orders($1::uuid, $2::jsonb, $3::text) t",
   transition_order: "select admin.transition_order($1::uuid, $2::text, $3::text)::text as r",
   publish_tracking_event: "select admin.publish_tracking_event($1::uuid, $2::text, $3::text, $4::text) as r",
@@ -124,11 +139,14 @@ export type StaffCallName = keyof typeof CALLS;
 
 /** The calls that change data. For these, "nothing was changed" must be TRUE whenever the screen says it. */
 const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
-  "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "create_order_priced", "transition_order", "publish_tracking_event",
+  "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "create_order_priced", "create_order_costed", "add_order_cost", "edit_order_cost",
+  "void_order_cost", "set_order_costs_complete", "verify_historical_completion", "transition_order", "publish_tracking_event",
   "publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow", "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
 ]);
 /** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
-const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>(["create_order", "create_order_priced", "record_payment"]);
+const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
+  "create_order", "create_order_priced", "create_order_costed", "record_payment", "add_order_cost", "edit_order_cost", "void_order_cost", "set_order_costs_complete",
+]);
 export const isWriteCall = (name: StaffCallName): boolean => WRITE_CALLS.has(name);
 
 /** Client-side limit for one query; the database's own statement_timeout (10 s) normally answers first. */

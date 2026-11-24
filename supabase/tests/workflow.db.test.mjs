@@ -472,7 +472,8 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
       const forms = readFileSync(join(ROOT, "src/components/admin/forms.tsx"), "utf8");
       const actions = readFileSync(join(ROOT, "src/lib/staff/order-actions.ts"), "utf8");
       assert.match(forms, /<button type="submit" disabled=\{pending \|\| disabled\}/, "the submit button is still disabled while the action is pending (the first, cosmetic layer)");
-      assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 2, "the payment form and the order form each carry the key");
+      // Three since PLAT-0006: the add-cost form sends the id of the entry it creates through the same hook, so sending it twice saves one cost.
+      assert.equal((forms.match(/name="idempotency_key"/g) ?? []).length, 3, "the payment form, the order form and the add-cost form each carry the key");
       const record = actions.slice(actions.indexOf("export async function recordPaymentWork"));
       assert.match(record, /parseIdempotencyKey\(formData\)/, "recording a payment requires a key");
       assert.match(record, /api\.recordPayment\(orderId, purpose, amountMinor, method, reference, notes, idempotencyKey, expectedPaid\)/, "the screen passes an internal reference, the key and the balance it showed, never a receipt number");
@@ -577,7 +578,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         for (const sql of [`select admin.list_payments(10, 0)`, `select admin.list_orders(null, null, 5, 0)`, `select admin.record_payment('${id}', 'deposit', 100, 'cash')`, `select admin.transition_order('${id}', 'on_hold')`, `select admin.create_customer('X', null, null, 'walk_in', 'en', null)`, `select admin.list_audit(5)`])
           refused(attempt(who, sql), /permission denied/, sql);
       }
-      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "25");
+      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "26", "the owner holds 26 since PLAT-0006 added finance.verify");
       assert.equal(read(`select count(*) from admin.my_permissions()`, AS.sam), "10");
     });
 

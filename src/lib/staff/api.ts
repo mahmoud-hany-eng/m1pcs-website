@@ -2,8 +2,9 @@
 import "server-only";
 import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } from "./gateway";
 import type {
-  AuditRow, ClaimCodeRow, CustomerDetail, CustomerListRow, DashboardSummary, DepositPreview, LoyaltyOverview, OrderDetail,
-  OrderListRow, OrderPricingContext, PaymentListRow, PolicyRow, PolicyVersionRow,
+  AuditRow, ClaimCodeRow, CompletedOrdersPage, CustomerDetail, CustomerListRow, CustomerOrdersPage, DashboardSummary, DepositPreview, FinancialReport,
+  LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OverviewSummary, PaymentListRow,
+  PolicyRow, PolicyVersionRow,
 } from "./types";
 
 export interface NewOrderItem {
@@ -66,7 +67,44 @@ export function staffApi(staff: VerifiedStaff) {
       ]);
       return { id: value, replayed };
     },
+    // The same order, with optional private costs ($10) saved in the same transaction. Costs need finance.manage (owner only): without it the
+    // database refuses the whole order rather than quietly dropping them.
+    createOrderCosted: async (
+      customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string,
+      discount: DiscountParam | null, redeemPoints: number, expectedNetMinor: number, expectedDepositMinor: number, costs: readonly NewOrderCost[],
+    ): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "create_order_costed", [
+        customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey,
+        discount ? JSON.stringify(discount) : null, redeemPoints, expectedNetMinor, expectedDepositMinor, costs.length ? JSON.stringify(costs) : null,
+      ]);
+      return { id: value, replayed };
+    },
     orderPricingContext: (customerId: string) => call<OrderPricingContext>("order_pricing_context", [customerId]),
+
+    // Private order costs. Owner only (the database checks finance.read / finance.manage on every call).
+    orderCosts: (orderId: string) => call<OrderCostsView>("order_costs", [orderId]),
+    // The entry id is chosen once by the form and reused by every retry: a repeat saves nothing and returns the entry already saved.
+    addOrderCost: async (orderId: string, entryId: string, c: NewOrderCost): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "add_order_cost", [orderId, entryId, c.category, c.description, c.amount_minor, c.cost_kind, c.supplier_ref, c.incurred_on, c.notes]);
+      return { id: value, replayed };
+    },
+    editOrderCost: async (costId: string, expectedVersion: number, c: NewOrderCost, reason: string): Promise<{ version: number; replayed: boolean }> => {
+      const { value, replayed } = await staffCallMeta<number>(staff, "edit_order_cost", [costId, expectedVersion, c.category, c.description, c.amount_minor, c.cost_kind, c.supplier_ref, c.incurred_on, c.notes, reason]);
+      return { version: value, replayed };
+    },
+    voidOrderCost: async (costId: string, expectedVersion: number, reason: string): Promise<{ version: number; replayed: boolean }> => {
+      const { value, replayed } = await staffCallMeta<number>(staff, "void_order_cost", [costId, expectedVersion, reason]);
+      return { version: value, replayed };
+    },
+    setCostsComplete: (orderId: string, complete: boolean, reason: string | null) => call<boolean>("set_order_costs_complete", [orderId, complete, reason]),
+
+    // Completion dates (recorded by the database when an order is delivered) and reports grouped by them, in Asia/Qatar months.
+    orderCompletion: (orderId: string) => call<OrderCompletion>("order_completion", [orderId]),
+    verifyHistoricalCompletion: (orderId: string, completedAt: string, reason: string) => call<string>("verify_historical_completion", [orderId, completedAt, reason]),
+    financialReport: (year: number | null, month: number | null) => call<FinancialReport>("financial_report", [year, month]),
+    completedOrders: (year: number | null, month: number | null, limit = 50, offset = 0) => call<CompletedOrdersPage>("list_completed_orders", [year, month, limit, offset]),
+    overview: (year: number | null) => call<OverviewSummary>("overview_summary", [year]),
+    customerOrders: (customerId: string, limit = 25, offset = 0) => call<CustomerOrdersPage>("customer_orders", [customerId, limit, offset]),
     // Read-only evidence for the duplicate-order warning. The order this key already created is never listed.
     similarOrders: (customerId: string, items: readonly NewOrderItem[], idempotencyKey: string) =>
       call<SimilarOrder[]>("similar_orders", [customerId, JSON.stringify(items), idempotencyKey]),

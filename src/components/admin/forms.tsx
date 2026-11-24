@@ -8,9 +8,11 @@
 import { useActionState, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { formatQar, parseQarToMinor } from "@/lib/platform/money";
 import {
+  addOrderCostAction,
   adoptWorkflowAction,
   createCustomerAction,
   createOrderAction,
+  editOrderCostAction,
   issueClaimCodeAction,
   previewDepositAction,
   publishTrackingAction,
@@ -19,14 +21,18 @@ import {
   retractTrackingAction,
   reversePaymentAction,
   revokeClaimCodeAction,
+  setCostsCompleteAction,
   setDepositScheduleAction,
   setFulfillmentTypeAction,
   transitionOrderAction,
+  verifyCompletionAction,
+  voidOrderCostAction,
 } from "@/lib/staff/actions";
 import { enrolTotpAction, verifyTotpAction } from "@/lib/staff/mfa-actions";
 import { safeAdminHref, staffIdleState, type StaffFormState } from "@/lib/staff/form-state";
 import { NEW_ORDER_ITEM_KINDS, MAX_ORDER_ITEMS, CLAIM_CODE_HOURS, MAX_DEPOSIT_TIERS } from "@/lib/staff/validation";
-import { ageText, percentLabel } from "@/lib/staff/format";
+import { ageText, percentLabel, plainAmount } from "@/lib/staff/format";
+import { COST_CATEGORIES, COST_KINDS, MAX_NEW_ORDER_COSTS } from "@/lib/staff/finance";
 import { EMPTY_PRICING_FORM, derivePricingView, type DiscountMode, type PricingContextView, type PricingFormState, type PricingView } from "@/lib/staff/pricing-form";
 import { TYPE_LABEL, fulfillmentLabel } from "@/lib/workflow/labels";
 import type { AdoptionOption, FulfillmentType, NextStatus } from "@/lib/workflow/types";
@@ -483,7 +489,7 @@ function PricingRewardsSection({
   );
 }
 
-export function OrderForm({ customerId, customerName, idempotencyKey, pricing }: { customerId: string; customerName: string; idempotencyKey: string; pricing: PricingContextView }) {
+export function OrderForm({ customerId, customerName, idempotencyKey, pricing, canManageCosts = false }: { customerId: string; customerName: string; idempotencyKey: string; pricing: PricingContextView; canManageCosts?: boolean }) {
   const [state, action, pending] = useStaffForm(createOrderAction);
   // An order has no balance to bind the key to: the customer is part of the scope, and the items are part of the request.
   const key = useIdempotencyKey(`order:${customerId}`, idempotencyKey, "", state);
@@ -589,6 +595,8 @@ export function OrderForm({ customerId, customerName, idempotencyKey, pricing }:
       </div>
 
       <PricingRewardsSection state={state} gross={total} context={pricing} form={pricingForm} setForm={patchPricing} view={pricingView} />
+
+      {canManageCosts ? <NewOrderCostsSection state={state} /> : null}
 
       <div className="flex flex-wrap items-center gap-3 rounded-glass-sm border border-border bg-white/[0.025] p-3 text-sm">
         <button
@@ -1082,6 +1090,298 @@ export function MfaPanel({ factorId }: { factorId: string | null }) {
       <div>
         <Submit pending={pending} pendingLabel="Preparing…">
           Set up an authenticator app
+        </Submit>
+      </div>
+    </form>
+  );
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Private order costs (owner only). None of these forms is drawn for a person without finance.manage, and the database refuses the
+// request anyway. Costs are never required, and an empty row is simply ignored.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** What the edit and remove forms need to know about one cost entry (the shape the order page already holds; defined here so a client form imports no staff server types). */
+export interface OrderCostEntry {
+  id: string;
+  category: string;
+  description: string;
+  amount_minor: number;
+  cost_kind: string;
+  supplier_ref: string | null;
+  incurred_on: string;
+  notes: string | null;
+  version: number;
+}
+
+interface CostRow {
+  id: number;
+  category: string;
+  description: string;
+  amount: string;
+  kind: string;
+  ref: string;
+  date: string;
+  notes: string;
+}
+const blankCostRow = (id: number): CostRow => ({ id, category: "components", description: "", amount: "", kind: "estimated", ref: "", date: "", notes: "" });
+
+function CostCategoryOptions() {
+  return (
+    <>
+      {COST_CATEGORIES.map((c) => (
+        <option key={c.value} value={c.value}>
+          {c.label}
+        </option>
+      ))}
+    </>
+  );
+}
+function CostKindOptions() {
+  return (
+    <>
+      {COST_KINDS.map((k) => (
+        <option key={k.value} value={k.value}>
+          {k.label}
+        </option>
+      ))}
+    </>
+  );
+}
+
+/** The optional "Direct costs" block of the new-order form: estimated or known costs, entered now or later from the order page. */
+function NewOrderCostsSection({ state }: { state: StaffFormState }) {
+  const [rows, setRows] = useState<CostRow[]>([blankCostRow(1)]);
+  const [nextId, setNextId] = useState(2);
+  const update = (id: number, patch: Partial<CostRow>) => setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  const entered = rows.filter((r) => r.description.trim() !== "" || r.amount.trim() !== "");
+  const sum = entered.reduce<number | null>((acc, r) => {
+    const minor = parseQarToMinor(r.amount);
+    return acc === null || minor === null ? null : acc + minor;
+  }, 0);
+  return (
+    <details className="rounded-glass-sm border border-border bg-white/[0.025] p-3 sm:p-4" data-testid="costs-section" open={entered.length > 0 || Object.keys(state.status === "error" ? state.fieldErrors ?? {} : {}).some((k) => k.startsWith("cost_"))}>
+      <summary className="cursor-pointer text-sm font-semibold text-white">
+        Direct order costs <span className="font-normal text-text-muted">(optional, private to the owner)</span>
+      </summary>
+      <div className="mt-4 flex flex-col gap-4">
+        <p className="text-sm text-text-secondary">
+          Add what you expect or already know this order will cost: supplier purchases, shipping, duties, assembly, delivery, payment charges. Nothing here is required, and you can add or correct costs on the order page at any time, even after it is delivered. A missing cost is never counted as zero.
+        </p>
+        <ol className="flex flex-col gap-3" aria-label="Direct order costs">
+          {rows.map((row, index) => (
+            <li key={row.id} className="rounded-glass-sm border border-border bg-white/[0.02] p-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[14rem_1fr_9rem_9rem]">
+                <Field id={`c-cat-${row.id}`} label="Category" error={errorOf(state, `cost_category_${index}`)}>
+                  <Select state={state} id={`c-cat-${row.id}`} name={`cost_category_${index}`} value={row.category} onChange={(e) => update(row.id, { category: e.target.value })}>
+                    <CostCategoryOptions />
+                  </Select>
+                </Field>
+                <Field id={`c-desc-${row.id}`} label="Description" error={errorOf(state, `cost_description_${index}`)}>
+                  <Input state={state} id={`c-desc-${row.id}`} name={`cost_description_${index}`} value={row.description} onChange={(e) => update(row.id, { description: e.target.value })} maxLength={200} />
+                </Field>
+                <Field id={`c-amt-${row.id}`} label="Amount (QAR)" error={errorOf(state, `cost_amount_${index}`)}>
+                  <Input state={state} id={`c-amt-${row.id}`} name={`cost_amount_${index}`} inputMode="decimal" placeholder="0.00" value={row.amount} onChange={(e) => update(row.id, { amount: e.target.value })} maxLength={16} />
+                </Field>
+                <Field id={`c-kind-${row.id}`} label="Estimated or actual" error={errorOf(state, `cost_cost_kind_${index}`)}>
+                  <Select state={state} id={`c-kind-${row.id}`} name={`cost_cost_kind_${index}`} value={row.kind} onChange={(e) => update(row.id, { kind: e.target.value })}>
+                    <CostKindOptions />
+                  </Select>
+                </Field>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_10rem_1fr_auto] lg:items-end">
+                <Field id={`c-ref-${row.id}`} label="Supplier or reference (optional)" error={errorOf(state, `cost_supplier_ref_${index}`)}>
+                  <Input state={state} id={`c-ref-${row.id}`} name={`cost_supplier_ref_${index}`} value={row.ref} onChange={(e) => update(row.id, { ref: e.target.value })} maxLength={120} autoComplete="off" />
+                </Field>
+                <Field id={`c-date-${row.id}`} label="Date (optional)" error={errorOf(state, `cost_incurred_on_${index}`)}>
+                  <Input state={state} id={`c-date-${row.id}`} name={`cost_incurred_on_${index}`} type="date" value={row.date} onChange={(e) => update(row.id, { date: e.target.value })} />
+                </Field>
+                <Field id={`c-notes-${row.id}`} label="Private note (optional)" error={errorOf(state, `cost_notes_${index}`)}>
+                  <Input state={state} id={`c-notes-${row.id}`} name={`cost_notes_${index}`} value={row.notes} onChange={(e) => update(row.id, { notes: e.target.value })} maxLength={1000} autoComplete="off" />
+                </Field>
+                <button
+                  type="button"
+                  onClick={() => setRows((current) => (current.length > 1 ? current.filter((r) => r.id !== row.id) : [blankCostRow(row.id)]))}
+                  aria-label={`Remove cost ${index + 1}`}
+                  className="rounded-full border border-border-strong px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-error"
+                >
+                  Remove
+                </button>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (rows.length >= MAX_NEW_ORDER_COSTS) return;
+              setRows((current) => [...current, blankCostRow(nextId)]);
+              setNextId((n) => n + 1);
+            }}
+            disabled={rows.length >= MAX_NEW_ORDER_COSTS}
+            className="btn-sheen btn-glass inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            Add another cost
+          </button>
+          <p className="text-sm text-text-secondary">
+            Costs entered: <span className="font-semibold text-white tabular-nums" data-testid="costs-entered-total">{sum === null ? "—" : formatQar(sum)}</span>
+          </p>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+const costInputFields = (state: StaffFormState, scope: string, entry?: OrderCostEntry) => (
+  <>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Field id={`${scope}-cat`} label="Category" error={errorOf(state, "category")}>
+        <Select state={state} id={`${scope}-cat`} name="category" defaultValue={entry?.category ?? "components"}>
+          <CostCategoryOptions />
+        </Select>
+      </Field>
+      <Field id={`${scope}-desc`} label="Description" error={errorOf(state, "description")}>
+        <Input state={state} id={`${scope}-desc`} name="description" defaultValue={entry?.description ?? ""} maxLength={200} />
+      </Field>
+      <Field id={`${scope}-amt`} label="Amount (QAR)" error={errorOf(state, "amount")}>
+        <Input state={state} id={`${scope}-amt`} name="amount" inputMode="decimal" placeholder="0.00" defaultValue={entry ? plainAmount(entry.amount_minor) : ""} maxLength={16} />
+      </Field>
+      <Field id={`${scope}-kind`} label="Estimated or actual" error={errorOf(state, "cost_kind")}>
+        <Select state={state} id={`${scope}-kind`} name="cost_kind" defaultValue={entry?.cost_kind ?? "actual"}>
+          <CostKindOptions />
+        </Select>
+      </Field>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_10rem_1fr]">
+      <Field id={`${scope}-ref`} label="Supplier or reference (optional)" error={errorOf(state, "supplier_ref")}>
+        <Input state={state} id={`${scope}-ref`} name="supplier_ref" defaultValue={entry?.supplier_ref ?? ""} maxLength={120} autoComplete="off" />
+      </Field>
+      <Field id={`${scope}-date`} label="Date (optional)" error={errorOf(state, "incurred_on")}>
+        <Input state={state} id={`${scope}-date`} name="incurred_on" type="date" defaultValue={entry?.incurred_on ?? ""} />
+      </Field>
+      <Field id={`${scope}-notes`} label="Private note (optional)" error={errorOf(state, "notes")}>
+        <Input state={state} id={`${scope}-notes`} name="notes" defaultValue={entry?.notes ?? ""} maxLength={1000} autoComplete="off" />
+      </Field>
+    </div>
+  </>
+);
+
+export function AddCostForm({ orderId, entryId, entries }: { orderId: string; entryId: string; entries: number }) {
+  const [state, action, pending] = useStaffForm(addOrderCostAction);
+  // The entry id is chosen once per intended entry (like a payment's key): sending the same form again saves it once. It is replaced after it is spent.
+  const key = useIdempotencyKey(`cost:${orderId}`, entryId, String(entries), state);
+  return (
+    <form action={action} className="flex flex-col gap-4" noValidate data-testid="add-cost-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <input type="hidden" name="idempotency_key" value={key} />
+      <Feedback state={state} />
+      {costInputFields(state, "ac")}
+      <div>
+        <Submit pending={pending} pendingLabel="Saving…">
+          Add cost
+        </Submit>
+      </div>
+    </form>
+  );
+}
+
+export function EditCostForm({ orderId, entry, scope = "t" }: { orderId: string; entry: OrderCostEntry; scope?: string }) {
+  const [state, action, pending] = useStaffForm(editOrderCostAction);
+  const id = `${scope}-ec-${entry.id}`;
+  return (
+    <details>
+      <summary className="cursor-pointer text-xs font-semibold text-text-secondary hover:text-white">Edit</summary>
+      <form action={action} className="mt-3 flex min-w-[16rem] flex-col gap-3" noValidate>
+        <input type="hidden" name="order_id" value={orderId} />
+        <input type="hidden" name="cost_id" value={entry.id} />
+        <input type="hidden" name="expected_version" value={String(entry.version)} />
+        <Feedback state={state} />
+        {costInputFields(state, id, entry)}
+        <Field id={`${id}-reason`} label="Why is this being changed? (kept in the history)" error={errorOf(state, "reason")}>
+          <Input state={state} id={`${id}-reason`} name="reason" maxLength={500} autoComplete="off" />
+        </Field>
+        <p className="text-xs text-text-muted">The old value stays in the history with your name and this reason. Nothing is overwritten.</p>
+        <div>
+          <Submit pending={pending} pendingLabel="Saving…">
+            Save change
+          </Submit>
+        </div>
+      </form>
+    </details>
+  );
+}
+
+export function VoidCostForm({ orderId, entry, scope = "t" }: { orderId: string; entry: OrderCostEntry; scope?: string }) {
+  const [state, action, pending] = useStaffForm(voidOrderCostAction);
+  const id = `${scope}-vc-${entry.id}`;
+  return (
+    <details>
+      <summary className="cursor-pointer text-xs font-semibold text-text-secondary hover:text-error">Remove</summary>
+      <form action={action} className="mt-3 flex flex-col gap-2" noValidate>
+        <input type="hidden" name="order_id" value={orderId} />
+        <input type="hidden" name="cost_id" value={entry.id} />
+        <input type="hidden" name="expected_version" value={String(entry.version)} />
+        <Feedback state={state} />
+        <Field id={`${id}-reason`} label="Why is this entry being removed?" error={errorOf(state, "reason")}>
+          <Input state={state} id={`${id}-reason`} name="reason" maxLength={500} autoComplete="off" />
+        </Field>
+        <p className="text-xs text-text-muted">The entry stops counting in the totals but is never deleted: it stays in the history.</p>
+        <div>
+          <Submit pending={pending} tone="danger" pendingLabel="Removing…">
+            Remove from totals
+          </Submit>
+        </div>
+      </form>
+    </details>
+  );
+}
+
+/** Declares the costs complete, or reopens them with a reason. Any later change to an entry reopens them automatically. */
+export function CostsCompleteForm({ orderId, complete, blockedReason }: { orderId: string; complete: boolean; blockedReason: string | null }) {
+  const [state, action, pending] = useStaffForm(setCostsCompleteAction);
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="costs-complete-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <input type="hidden" name="complete" value={complete ? "no" : "yes"} />
+      <Feedback state={state} />
+      {complete ? (
+        <Field id="cc-reason" label="Why are the costs being reopened? (kept in the history)" error={errorOf(state, "reason")}>
+          <Input state={state} id="cc-reason" name="reason" maxLength={500} autoComplete="off" />
+        </Field>
+      ) : null}
+      {!complete && blockedReason ? <p className="text-xs text-text-muted">{blockedReason}</p> : null}
+      <div>
+        <Submit pending={pending} tone={complete ? "glass" : "red"} disabled={!complete && blockedReason !== null} pendingLabel="Saving…">
+          {complete ? "Reopen the costs" : "Mark costs complete"}
+        </Submit>
+      </div>
+    </form>
+  );
+}
+
+/** The owner's one-time confirmation of the completion date of an order delivered before dates were recorded. */
+export function VerifyCompletionForm({ orderId, moves }: { orderId: string; moves: { from_status: string | null; at: string; reason: string | null }[] }) {
+  const [state, action, pending] = useStaffForm(verifyCompletionAction);
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate data-testid="verify-completion-form">
+      <input type="hidden" name="order_id" value={orderId} />
+      <Feedback state={state} />
+      <p className="text-sm text-text-secondary">
+        This order was delivered before completion dates were recorded, and its history does not prove the exact moment{moves.length ? ` (${moves.length} unclear history entr${moves.length === 1 ? "y" : "ies"})` : ""}. Enter the real date and time (Qatar time) from your own records. It is kept with your name and reason and can never be changed.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="vc-when" label="Delivered on (Qatar time)" error={errorOf(state, "completed_at")}>
+          <Input state={state} id="vc-when" name="completed_at" type="datetime-local" />
+        </Field>
+        <Field id="vc-reason" label="How do you know? (kept with the record)" error={errorOf(state, "reason")}>
+          <Input state={state} id="vc-reason" name="reason" maxLength={500} autoComplete="off" />
+        </Field>
+      </div>
+      <div>
+        <Submit pending={pending} pendingLabel="Recording…">
+          Record the completion date
         </Submit>
       </div>
     </form>

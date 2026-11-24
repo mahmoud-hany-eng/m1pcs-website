@@ -41,7 +41,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
       <AdminShell {...shell} title="New order" description="Add the items with the prices you have verified. The total is worked out from them; then check the pricing summary.">
         <Section title="Order items" aside={<Link href="/admin/orders/new" className="text-sm font-semibold text-accent hover:underline">Change customer</Link>}>
           {/* keyed by the customer: a different customer is a different form, with that customer's points and no leftover choices */}
-          <OrderForm key={customer.id} customerId={customer.id} customerName={customer.full_name} idempotencyKey={randomUUID()} pricing={toContextView(pricing)} />
+          <OrderForm key={customer.id} customerId={customer.id} customerName={customer.full_name} idempotencyKey={randomUUID()} pricing={toContextView(pricing)} canManageCosts={can("finance.manage")} />
         </Section>
       </AdminShell>
     );

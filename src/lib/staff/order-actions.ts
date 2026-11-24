@@ -8,8 +8,8 @@
 import type { StaffApi } from "./api";
 import { StaffPermissionError } from "./gateway";
 import type { StaffFormState } from "./form-state";
-import { duplicateWarning, orderSuccessMessage, paymentSuccessMessage } from "./outcomes";
-import { isUuid, parseExpectedPaid, parseIdempotencyKey, parseOrder, parsePayment, parsePricing, STALE_FORM_MESSAGE } from "./validation";
+import { duplicateWarning, ORDER_ALREADY_CREATED, ORDER_CREATED_WITH_COSTS, orderSuccessMessage, paymentSuccessMessage } from "./outcomes";
+import { isUuid, parseExpectedPaid, parseIdempotencyKey, parseNewOrderCosts, parseOrder, parsePayment, parsePricing, STALE_FORM_MESSAGE } from "./validation";
 
 export type Revalidate = (path: string) => void;
 
@@ -18,17 +18,19 @@ const field = (form: FormData, name: string): string => {
   return typeof value === "string" ? value.trim() : "";
 };
 
-export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "createOrderPriced">, formData: FormData, revalidate: Revalidate): Promise<StaffFormState> {
+export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "createOrderPriced" | "createOrderCosted">, formData: FormData, revalidate: Revalidate): Promise<StaffFormState> {
   const customerId = field(formData, "customer_id");
   if (!isUuid(customerId)) return { status: "error", fieldErrors: { customer_id: "Choose the customer first." } };
   const parsed = parseOrder(formData, customerId);
   // The Pricing & Rewards fields are read in the same pass, so one answer carries every field error the form has.
   const pricing = parsePricing(formData);
-  if (!parsed.ok || !pricing.ok) {
-    if (!pricing.ok && "stale" in pricing && parsed.ok) return { status: "error", message: STALE_FORM_MESSAGE };
+  // The optional private cost rows (owner only; the database refuses them for anyone else). A form without any is an ordinary order.
+  const costs = parseNewOrderCosts(formData);
+  if (!parsed.ok || !pricing.ok || !costs.ok) {
+    if (!pricing.ok && "stale" in pricing && parsed.ok && costs.ok) return { status: "error", message: STALE_FORM_MESSAGE };
     return {
       status: "error",
-      fieldErrors: { ...(parsed.ok ? {} : parsed.errors), ...(!pricing.ok && "errors" in pricing ? pricing.errors : {}) },
+      fieldErrors: { ...(parsed.ok ? {} : parsed.errors), ...(!pricing.ok && "errors" in pricing ? pricing.errors : {}), ...(costs.ok ? {} : costs.errors) },
     };
   }
   const idempotencyKey = parseIdempotencyKey(formData);
@@ -50,12 +52,18 @@ export async function createOrderWork(api: Pick<StaffApi, "similarOrders" | "cre
   // applied in the same transaction as the order, owner only (the database checks the permission), and the order is refused if the
   // net payable amount or the deposit the person saw is not what the database now works out. A repeat with the same key (a double
   // click, a retry after a timeout) returns the order that was already created, spends the points once, and says so.
-  const { id, replayed } = await api.createOrderPriced(
-    parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey,
-    pricing.value.discount, pricing.value.redeemPoints, pricing.value.expectedNetMinor, pricing.value.expectedDepositMinor,
-  );
+  // An order without costs goes through the same statement as before; one with costs saves them in the same transaction (all or nothing).
+  const { id, replayed } = costs.value.length
+    ? await api.createOrderCosted(
+        parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey,
+        pricing.value.discount, pricing.value.redeemPoints, pricing.value.expectedNetMinor, pricing.value.expectedDepositMinor, costs.value,
+      )
+    : await api.createOrderPriced(
+        parsed.value.customerId, parsed.value.items, parsed.value.deliveryMethod, parsed.value.deliveryAddress, idempotencyKey,
+        pricing.value.discount, pricing.value.redeemPoints, pricing.value.expectedNetMinor, pricing.value.expectedDepositMinor,
+      );
   revalidate("/admin/orders");
-  return { status: "success", message: orderSuccessMessage(replayed), href: `/admin/orders/${id}` };
+  return { status: "success", message: replayed ? ORDER_ALREADY_CREATED : costs.value.length ? ORDER_CREATED_WITH_COSTS : orderSuccessMessage(replayed), href: `/admin/orders/${id}` };
 }
 
 export async function recordPaymentWork(api: Pick<StaffApi, "recordPayment">, formData: FormData, revalidate: Revalidate): Promise<StaffFormState> {

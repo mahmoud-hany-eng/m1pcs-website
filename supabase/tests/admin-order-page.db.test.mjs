@@ -59,6 +59,14 @@ suite("the staff order page, rendered with the hosted synthetic order's data (re
     claimCodes: async (cid) => q(`select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb)::text from admin.list_claim_codes(${lit(cid)}) t`),
     listPayments: async (limit, offset) => q(`select admin.list_payments(${limit}, ${offset})::text`),
     audit: async (limit) => q(`select admin.list_audit(${limit})::text`),
+    // The finance screens (PLAT-0006): the real owner-only functions, through the same statements the gateway runs.
+    overview: async (year = null) => q(`select admin.overview_summary(${year === null ? "null" : Number(year)})::text`),
+    financialReport: async (year = null, month = null) => q(`select admin.financial_report(${year === null ? "null" : Number(year)}, ${month === null ? "null" : Number(month)})::text`),
+    completedOrders: async (year = null, month = null, limit = 50, offset = 0) =>
+      q(`select admin.list_completed_orders(${year === null ? "null" : Number(year)}, ${month === null ? "null" : Number(month)}, ${limit}, ${offset})::text`),
+    customerOrders: async (cid, limit = 25, offset = 0) => q(`select admin.customer_orders(${lit(cid)}, ${limit}, ${offset})::text`),
+    orderCosts: async (oid) => q(`select admin.order_costs(${lit(oid)})::text`),
+    orderCompletion: async (oid) => q(`select admin.order_completion(${lit(oid)})::text`),
   };
   async function renderPage(module, args = {}, permissions = ownerPermissions) {
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions, api };
@@ -100,7 +108,7 @@ suite("the staff order page, rendered with the hosted synthetic order's data (re
   /** Every other staff page that shows order data, rendered with the same data: none may throw, and each must show this order. */
   async function otherPagesShow({ statusLabel, auditAction, receipts }) {
     const order = getOrder();
-    const overview = text(await renderPage(others.overview));
+    const overview = text(await renderPage(others.overview, { searchParams: Promise.resolve({}) }));
     assert.match(overview, /Overview/);
     assert.ok(overview.includes(order.order_ref), "the overview lists the order among the recent ones");
     const list = text(await renderPage(others.orders, { searchParams: Promise.resolve({}) }));

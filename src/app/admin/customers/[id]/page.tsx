@@ -1,11 +1,14 @@
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminMissing } from "@/components/admin/Missing";
 import { Badge, DataTable, Empty, KeyValues, LinkButton, Money, Section, StatusBadge } from "@/components/admin/ui";
+import { CustomerOrderHistory } from "@/components/admin/finance";
 import { IssueClaimCodeForm, RevokeClaimCodeForm } from "@/components/admin/forms";
+import { Notice } from "@/components/account/ui";
 import { formatDay, formatWhen, sourceLabel } from "@/lib/staff/format";
 import { StaffOperationError } from "@/lib/staff/gateway";
 import { isUuid } from "@/lib/staff/validation";
 import { requireStaff } from "@/lib/staff/session";
+import { settle } from "@/lib/staff/settle";
 import type { ClaimCodeRow, CustomerDetail } from "@/lib/staff/types";
 
 const CODE_TONE = { active: "progress", used: "done", revoked: "cancelled", expired: "neutral" } as const;
@@ -24,6 +27,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const manage = can("customers.manage");
   const codes: ClaimCodeRow[] = manage ? await api.claimCodes(id) : [];
   const orders = customer.orders ?? [];
+  // The full history (final net payable, payments, items with the discount and credit spread over them, tracking) needs the right to read orders.
+  // A person without it keeps the summary table the page always had. Neither ever carries a cost, a margin or a supplier.
+  const history = can("orders.read") ? await settle(() => api.customerOrders(id, 25, 0)) : null;
   return (
     <AdminShell
       active="customers"
@@ -85,21 +91,29 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         ) : null}
       </div>
 
-      <Section title="Order history">
-        <DataTable
-          rows={orders}
-          rowKey={(o) => o.id}
-          rowHref={(o) => `/admin/orders/${o.id}`}
-          empty="This customer has no orders yet."
-          columns={[
-            { key: "ref", header: "Order", cell: (o) => o.order_ref, primary: true },
-            { key: "status", header: "Status", cell: (o) => <StatusBadge code={o.status} label={o.status_label} /> },
-            { key: "total", header: "Order value", cell: (o) => <Money minor={o.total_minor} />, align: "right" },
-            { key: "paid", header: "Paid", cell: (o) => <Money minor={o.amount_paid_minor} />, align: "right" },
-            { key: "balance", header: "Balance due", cell: (o) => <Money minor={o.balance_due_minor} />, align: "right" },
-            { key: "date", header: "Placed", cell: (o) => formatDay(o.created_at), hideOnCard: true },
-          ]}
-        />
+      <Section title="Order history" aside={history?.ok ? <span className="text-xs text-text-muted">{history.value.total} {history.value.total === 1 ? "order" : "orders"}</span> : null}>
+        {history ? (
+          history.ok ? (
+            <CustomerOrderHistory orders={history.value.orders} total={history.value.total} canSeePayments={can("payments.read")} />
+          ) : (
+            <Notice tone="error">{history.error} The order history could not be loaded.</Notice>
+          )
+        ) : (
+          <DataTable
+            rows={orders}
+            rowKey={(o) => o.id}
+            rowHref={(o) => `/admin/orders/${o.id}`}
+            empty="This customer has no orders yet."
+            columns={[
+              { key: "ref", header: "Order", cell: (o) => o.order_ref, primary: true },
+              { key: "status", header: "Status", cell: (o) => <StatusBadge code={o.status} label={o.status_label} /> },
+              { key: "total", header: "Order value", cell: (o) => <Money minor={o.total_minor} />, align: "right" },
+              { key: "paid", header: "Paid", cell: (o) => <Money minor={o.amount_paid_minor} />, align: "right" },
+              { key: "balance", header: "Balance due", cell: (o) => <Money minor={o.balance_due_minor} />, align: "right" },
+              { key: "date", header: "Placed", cell: (o) => formatDay(o.created_at), hideOnCard: true },
+            ]}
+          />
+        )}
       </Section>
     </AdminShell>
   );

@@ -23,13 +23,27 @@ import {
   CLAIM_CODE_HOURS,
   depositPolicyValue,
   isUuid,
+  parseCompletionVerification,
+  parseCostEdit,
+  parseCostEntry,
   parseCustomer,
   parseDepositSchedule,
+  parseEntryId,
+  parseExpectedVersion,
   parseFulfillmentType,
   parseReason,
   parseTracking,
   parseTrackingCorrection,
+  STALE_FORM_MESSAGE,
 } from "./validation";
+import {
+  COMPLETION_VERIFIED,
+  COSTS_MARKED_COMPLETE,
+  COSTS_REOPENED,
+  costEditedMessage,
+  costSavedMessage,
+  costVoidedMessage,
+} from "./outcomes";
 
 const ORDER_STATUS = /^[a-z_]{3,40}$/;
 
@@ -262,4 +276,95 @@ export async function previewDepositAction(totalMinor: number): Promise<DepositP
     if (error instanceof StaffOperationError) return { ok: false, message: error.message };
     return { ok: false, message: "The deposit could not be worked out right now." };
   }
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Private order costs and completion dates. Owner only: the permission is checked here for a clear message and again by the database.
+// ---------------------------------------------------------------------------------------------------------------
+
+export async function addOrderCostAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "finance.manage", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const parsed = parseCostEntry(formData);
+    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+    const entryId = parseEntryId(formData);
+    if (!entryId) return { status: "error", message: STALE_FORM_MESSAGE };
+    // The entry id was chosen by the form: sending the same form again (a double click, a retry) saves nothing twice.
+    const { replayed } = await api.addOrderCost(orderId, entryId, parsed.value);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: costSavedMessage(replayed) };
+  });
+}
+
+export async function editOrderCostAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  const costId = field(formData, "cost_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "finance.manage", formData, async ({ api }) => {
+    if (!isUuid(orderId) || !isUuid(costId)) return badId();
+    const parsed = parseCostEdit(formData);
+    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+    const version = parseExpectedVersion(formData);
+    if (version === null) return { status: "error", message: STALE_FORM_MESSAGE };
+    const { replayed } = await api.editOrderCost(costId, version, parsed.value.cost, parsed.value.reason);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: costEditedMessage(replayed) };
+  });
+}
+
+export async function voidOrderCostAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  const costId = field(formData, "cost_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "finance.manage", formData, async ({ api }) => {
+    if (!isUuid(orderId) || !isUuid(costId)) return badId();
+    const reason = parseReason(formData);
+    if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
+    const version = parseExpectedVersion(formData);
+    if (version === null) return { status: "error", message: STALE_FORM_MESSAGE };
+    const { replayed } = await api.voidOrderCost(costId, version, reason.value);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: costVoidedMessage(replayed) };
+  });
+}
+
+/** Declares the order's costs complete (no reason needed) or reopens them (a reason is kept in the history). */
+export async function setCostsCompleteAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "finance.manage", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const complete = field(formData, "complete") === "yes";
+    let reason: string | null = null;
+    if (!complete) {
+      const parsed = parseReason(formData);
+      if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+      reason = parsed.value;
+    }
+    await api.setCostsComplete(orderId, complete, reason);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: complete ? COSTS_MARKED_COMPLETE : COSTS_REOPENED };
+  });
+}
+
+/** The owner's one-time confirmation of the completion date of an order delivered before dates were recorded. */
+export async function verifyCompletionAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run(`/admin/orders/${isUuid(orderId) ? orderId : ""}`, "finance.verify", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    const parsed = parseCompletionVerification(formData);
+    if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
+    await api.verifyHistoricalCompletion(orderId, parsed.value.completedAt, parsed.value.reason);
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
+    return { status: "success", message: COMPLETION_VERIFIED };
+  });
 }

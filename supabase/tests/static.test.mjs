@@ -292,7 +292,7 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const text = read(p);
       if (!/^\s*["']use client["']/.test(text)) continue;
       seen += 1;
-      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form|finance)/, `${p}: a client component may import only the staff form helpers and server actions`);
       assert.doesNotMatch(text, /from\s+["']pg["']/, p);
     }
     assert.ok(seen >= 8);
@@ -724,5 +724,127 @@ describe("pricing and rewards keep their structure (PLAT-0005)", () => {
     assert.match(read("src/lib/accounts/shared/view-models.ts"), /orderStatement\(/);
     assert.match(read("src/app/admin/orders/[id]/page.tsx"), /orderStatement\(/);
     assert.match(read("src/lib/platform/database.types.ts"), /net_payable_minor: MinorUnits;/);
+  });
+});
+
+describe("order costs, completion dates and financial reporting keep their structure (PLAT-0006)", () => {
+  const M1 = "supabase/migrations/20261124120000_order_costs_and_completion_schema.sql";
+  const M2 = "supabase/migrations/20261124120100_financial_reporting_functions.sql";
+  const sql = (rel) => read(rel).replace(/--.*$/gm, "");
+  const FINANCE_CALLS = {
+    order_costs: "finance.read",
+    add_order_cost: "finance.manage",
+    edit_order_cost: "finance.manage",
+    void_order_cost: "finance.manage",
+    set_order_costs_complete: "finance.manage",
+    verify_historical_completion: "finance.verify",
+    financial_report: "finance.read",
+  };
+
+  it("every new staff call is a fixed admin function call in the gateway table; the writes are write calls, and the entry-keyed ones are keyed", () => {
+    const code = strip(read("src/lib/staff/gateway.ts"));
+    for (const name of ["create_order_costed", "order_costs", "add_order_cost", "edit_order_cost", "void_order_cost", "set_order_costs_complete", "order_completion", "verify_historical_completion", "financial_report", "list_completed_orders", "overview_summary", "customer_orders"]) {
+      assert.match(code, new RegExp(`\\b${name}:\\s*"[^"\\n]*admin\\.[a-z_]+\\(`), `${name} is a fixed admin call`);
+    }
+    const writes = code.slice(code.indexOf("const WRITE_CALLS"), code.indexOf("]);", code.indexOf("const WRITE_CALLS")));
+    for (const name of ["create_order_costed", "add_order_cost", "edit_order_cost", "void_order_cost", "set_order_costs_complete", "verify_historical_completion"]) assert.ok(writes.includes(`"${name}"`), `${name} must be a write call`);
+    for (const name of ["order_costs", "financial_report", "list_completed_orders", "overview_summary", "customer_orders", "order_completion"]) assert.ok(!writes.includes(`"${name}"`), `${name} only reads`);
+  });
+
+  it("each owner-only function checks its permission before it reads or discloses anything", () => {
+    const text = sql(M2);
+    for (const [fn, permission] of Object.entries(FINANCE_CALLS)) {
+      const start = text.indexOf(`function admin.${fn}(`);
+      assert.ok(start >= 0, fn);
+      const body = text.slice(start, text.indexOf("\n$$;", start));
+      const gate = body.indexOf(`private.require_permission('${permission}')`);
+      const firstRead = body.search(/\b(from|into)\s+(public|private)\./);
+      assert.ok(gate >= 0, `${fn} requires ${permission}`);
+      assert.ok(firstRead < 0 || gate < firstRead, `${fn}: the permission comes before the first read`);
+    }
+    const create = text.slice(text.indexOf("function admin.create_order(\n"));
+    assert.ok(create.indexOf("private.require_permission('finance.manage')") > 0, "entering costs while creating an order is owner-only");
+  });
+
+  it("the three finance permissions are granted to the owner role only, in the migration itself", () => {
+    const text = sql(M1);
+    for (const p of ["finance.read", "finance.manage", "finance.verify"]) assert.ok(text.includes(`'${p}'`), p);
+    assert.match(text, /insert into private\.role_permissions[^;]*'owner'[^;]*'finance\.verify'/is);
+    assert.doesNotMatch(text, /role_permissions[^;]*'(staff|admin|support|viewer)'[^;]*'finance\./is, "no other role is given a finance permission");
+  });
+
+  it("the migrations are additive: nothing is dropped or deleted, no order's money, payment, loyalty entry, status or workflow switch is touched", () => {
+    for (const rel of [M1, M2]) {
+      const text = sql(rel);
+      assert.doesNotMatch(text, /\bdrop\s+(table|column|schema|type|trigger|policy)\b/i, `${rel}: no destructive drop`);
+      assert.doesNotMatch(text, /^\s*(delete\s+from|truncate\b)/im, `${rel}: no deletes or truncates`);
+      assert.doesNotMatch(text, /\bupdate\s+public\.(payments|loyalty_ledger|order_items|order_status_history)\b/i, rel);
+      assert.doesNotMatch(text, /(update\s+private\.business_policies|set_policy\(\s*'orders\.workflow'|default_workflow_version)/i, `${rel}: the workflow release switch is never read or changed`);
+      // Every UPDATE of an order is either the order creation's own pricing (the order was created in the same function: `where id = new_id`) or the
+      // completion date (the owner's one-time verification, and the backfill of orders whose status history proves the moment). Nothing else about an order is rewritten.
+      for (const [statement] of text.matchAll(/\bupdate\s+public\.orders\b[^;]*;/gi)) {
+        const one = statement.replace(/\s+/g, " ");
+        assert.ok(/where id = new_id\b/i.test(one) || /^update public\.orders set completed_at = (p_completed_at|r\.changed_at) where/i.test(one), `${rel}: unexpected order update: ${one.slice(0, 90)}`);
+      }
+    }
+  });
+
+  it("every new private table has row level security and is closed to every API role; the revision and completion tables are append-only", () => {
+    const text = sql(M1);
+    for (const t of ["order_costs", "order_cost_revisions", "order_cost_state", "order_completions"]) {
+      assert.match(text, new RegExp(`alter table private\\.${t} enable row level security`, "i"), `${t} has row level security`);
+      assert.match(text, new RegExp(`revoke all on (table )?private\\.${t} from[^;]*\\banon\\b`, "i"), `${t} is revoked from the API roles`);
+    }
+    assert.match(text, /trigger order_cost_revisions_append_only before update or delete on private\.order_cost_revisions[\s\S]*?forbid_mutation/i, "the revision history can never be changed or deleted");
+    assert.match(text, /trigger order_completions_append_only before update or delete on private\.order_completions[\s\S]*?forbid_mutation/i, "the completion record can never be changed or deleted");
+    assert.match(text, /trigger order_cost_revisions_no_truncate before truncate/i);
+  });
+
+  it("no customer-facing or public code names a cost, a margin, a profit, a supplier price or a finance permission", () => {
+    const staffAreas = ["src/app/admin/", "src/components/admin/", "src/lib/staff/"];
+    const forbidden = /order_costs?\b|order_cost_|finance\.(read|manage|verify)|admin\/finance|staff\/finance|profit_minor|margin_bps|supplier_ref|actual_cost_minor|estimated_cost_minor|cost_state|revenue_without_costs/;
+    const offenders = sourceFiles()
+      .filter((p) => !staffAreas.some((area) => p.startsWith(area)))
+      .filter((p) => forbidden.test(strip(read(p))));
+    assert.deepEqual(offenders, [], "only the staff areas may know about costs and profit");
+  });
+
+  it("the screens ask for costs and the report only after checking finance.read, and the forms only exist for finance.manage / finance.verify", () => {
+    const order = read("src/app/admin/orders/[id]/page.tsx");
+    assert.match(order, /can\("finance\.read"\)\s*\?\s*settle\(\(\) => api\.orderCosts\(/);
+    const orders = read("src/app/admin/orders/page.tsx");
+    assert.match(orders, /financeAllowed\s*\?\s*settle<FinancialReport>\(\(\) => api\.financialReport\(/);
+    assert.match(orders, /const financeAllowed = can\("finance\.read"\)/);
+    const create = read("src/app/admin/orders/new/page.tsx");
+    assert.match(create, /canManageCosts=\{can\("finance\.manage"\)\}/);
+    const actions = strip(read("src/lib/staff/actions.ts"));
+    for (const [action, permission] of [["addOrderCostAction", "finance.manage"], ["editOrderCostAction", "finance.manage"], ["voidOrderCostAction", "finance.manage"], ["setCostsCompleteAction", "finance.manage"], ["verifyCompletionAction", "finance.verify"]]) {
+      const start = actions.indexOf(`export async function ${action}`);
+      assert.ok(start >= 0, action);
+      const body = actions.slice(start, actions.indexOf("\nexport ", start + 10) > 0 ? actions.indexOf("\nexport ", start + 10) : undefined);
+      assert.ok(body.includes(`"${permission}"`), `${action} requires ${permission}`);
+    }
+  });
+
+  it("the one staff module a form may import besides the earlier helpers is pure: finance.ts imports no server code, driver or gateway, and forms.tsx imports no staff types", () => {
+    const code = strip(read("src/lib/staff/finance.ts"));
+    assert.doesNotMatch(code, /server-only|from\s+["'](pg|next\/headers)["']|from\s+["']@\/lib\/staff\/(gateway|session|api)/, "finance.ts must stay importable from the browser");
+    for (const [, imported] of code.matchAll(/from\s+["']([^"']+)["']/g)) assert.match(imported, /^(\.\/types|@\/lib\/platform\/money)$/, `finance.ts imports only plain modules (${imported})`);
+    assert.match(read("src/lib/staff/finance.ts"), /import type \{[^}]*\} from "\.\/types"/, "the types are imported as types, so nothing of them reaches the browser bundle");
+    assert.doesNotMatch(read("src/components/admin/forms.tsx"), /from "@\/lib\/staff\/types"/);
+  });
+
+  it("finance code does money arithmetic on integer minor units only: no floating-point parsing or toFixed on an amount", () => {
+    for (const rel of ["src/lib/staff/finance.ts", "src/components/admin/finance.tsx", "src/lib/staff/validation.ts", "src/app/admin/page.tsx", "src/app/admin/orders/page.tsx"]) {
+      const code = strip(read(rel));
+      assert.doesNotMatch(code, /\bparseFloat\(|\.toFixed\(|Number\.parseFloat\(/, `${rel} must not use floating point for money`);
+    }
+    const forms = strip(read("src/components/admin/forms.tsx"));
+    assert.doesNotMatch(forms, /amount_minor\s*\/\s*100/, "the edit form formats an amount with the shared integer formatter");
+  });
+
+  it("the customer-facing order page shows the completion date from the order row and never a cost: the orders row type has completed_at and no finance column", () => {
+    const types = read("src/lib/platform/database.types.ts");
+    assert.match(types, /completed_at: Timestamp \| null;/);
   });
 });
