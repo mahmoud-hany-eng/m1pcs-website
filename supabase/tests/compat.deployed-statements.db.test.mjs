@@ -35,6 +35,14 @@ const GATEWAY = readFileSync(join(ROOT, "src/lib/staff/gateway.ts"), "utf8");
 const P1 = "20261123120000_pricing_rewards_schema.sql";
 const P2 = "20261123120100_pricing_rewards_functions.sql";
 const P3 = "20261123120200_pricing_rewards_policies.sql";
+// This file proves the PRICING release (three migrations). Later releases are proven in their own files (compat.finance.deployed-statements.db.test.mjs),
+// so "everything" here means "everything up to and including the pricing policies": the order-costs migrations are applied by that file's states.
+const LATER = "20261124120000_order_costs_and_completion_schema.sql";
+/** The statements the LATER release (order costs, completion dates, reports) adds to the gateway. They are not part of the pricing release. */
+const LATER_RELEASE_STATEMENTS = [
+  "add_order_cost", "create_order_costed", "customer_orders", "edit_order_cost", "financial_report", "list_completed_orders", "order_completion", "order_costs",
+  "overview_summary", "set_order_costs_complete", "verify_historical_completion", "void_order_cost",
+];
 
 /** Keys the pricing release adds to the read answers (additive; the deployed pages ignore keys they do not know). */
 const ADDED_KEYS = new Set([
@@ -165,14 +173,14 @@ suite("the website deployed before the pricing release, run statement by stateme
     states.control = startDatabase({ schedule: "confirmed", before: P1 });
     states.after1 = startDatabase({ schedule: "confirmed", before: P2 });
     states.after2 = startDatabase({ schedule: "confirmed", before: P3 });
-    states.after3 = startDatabase({ schedule: "confirmed" });
+    states.after3 = startDatabase({ schedule: "confirmed", before: LATER });
     for (const [name, db] of Object.entries(states)) results[name] = drive(db);
   });
   after(() => {
     for (const db of Object.values(states)) db?.stop();
   });
 
-  it("the deployed website's 29 statements are pinned, and every one is still present, unchanged, in the current gateway; the release only ADDS two", () => {
+  it("the deployed website's 29 statements are pinned, and every one is still present, unchanged, in the current gateway; the pricing release only ADDS two (and a later release adds its own, listed separately)", () => {
     const pinned = Object.entries(DEPLOYED);
     assert.equal(pinned.length, 29);
     const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -181,7 +189,8 @@ suite("the website deployed before the pricing release, run statement by stateme
     }
     const current = [...GATEWAY.matchAll(/^\s*([a-z_]+): "(.+)",$/gm)].map((m) => m[1]).filter((n) => n !== "application_name");
     const added = current.filter((n) => !(n in DEPLOYED)).sort();
-    assert.deepEqual(added, ["create_order_priced", "order_pricing_context"]);
+    assert.deepEqual(added.filter((n) => !LATER_RELEASE_STATEMENTS.includes(n)), ["create_order_priced", "order_pricing_context"]);
+    assert.deepEqual(added.filter((n) => LATER_RELEASE_STATEMENTS.includes(n)), [...LATER_RELEASE_STATEMENTS].sort(), "and every statement of the later release is present");
   });
 
   it("the control really is the deployed shape (no pricing objects) and the others really have them", () => {

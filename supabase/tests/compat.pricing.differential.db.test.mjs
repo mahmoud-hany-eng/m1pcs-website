@@ -47,7 +47,8 @@ suite("the pricing migrations preserve every earlier path (differential: the dat
     control = startDatabase({ schedule: "confirmed", before: P1 });
     after1 = startDatabase({ schedule: "confirmed", before: P2 });
     after2 = startDatabase({ schedule: "confirmed", before: P3 });
-    treatment = startDatabase({ schedule: "confirmed" });
+    // the pricing release only: the order-costs migrations that came later have their own proofs (compat.finance.deployed-statements, financial.db)
+    treatment = startDatabase({ schedule: "confirmed", before: "20261124120000_order_costs_and_completion_schema.sql" });
     c = scenario(control);
     a1 = scenario(after1);
     a2 = scenario(after2);

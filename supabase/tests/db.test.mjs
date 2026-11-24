@@ -103,7 +103,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
         customer_accounts: "customer_id,linked_at,linked_via,user_id",
         quotations: "additional_notes,category,created_at,customer_id,guest_email,guest_name,guest_phone,id,product_preference,quantity,quote_ref,quoted_total_minor,requested_budget_minor,requested_specs,source,specific_model,status,updated_at,valid_until",
         quotation_lines: "description,id,line_total_minor,position,quantity,quotation_id,unit_price_minor",
-        orders: "amount_paid_minor,balance_due_minor,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,discount_minor,fulfillment_type,id,loyalty_credit_minor,loyalty_points_redeemed,net_payable_minor,order_ref,placed_via,quotation_id,status,total_minor,updated_at,workflow_version",
+        orders: "amount_paid_minor,balance_due_minor,completed_at,created_at,currency,customer_id,delivery_address,delivery_method,deposit_fixed_at,deposit_gate_status,deposit_policy_version,deposit_rate_bps,deposit_required_minor,deposit_rule,discount_minor,fulfillment_type,id,loyalty_credit_minor,loyalty_points_redeemed,net_payable_minor,order_ref,placed_via,quotation_id,status,total_minor,updated_at,workflow_version",
         order_items: "description,id,kind,line_total_minor,order_id,position,quantity,unit_price_minor",
         order_tracking_events: "corrects_event_id,event_kind,id,location,message,occurred_at,order_id,published_at,status_code,title",
         payments: "amount_minor,created_at,currency,entry_type,id,method,order_id,purpose,receipt_number,received_at,reverses_payment_id",
@@ -536,7 +536,7 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
   // =================================================================================================================
   describe("staff authorization is decided on the server from the staff tables", () => {
     it("lists the permissions of a role", () => {
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "25");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "26");
       assert.equal(db.ok("select string_agg(p, ',' order by p) from admin.my_permissions() p;", AS.sam),
         "customers.manage,customers.read,notes.read,notes.write,orders.create,orders.read,orders.transition,quotations.manage,quotations.read,tracking.publish");
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.alice), "0");
@@ -585,12 +585,12 @@ suite("database (real PostgreSQL, Supabase-compatible roles)", () => {
     it("the second-factor rule: a staff session without aal2 has no permission while the policy requires it", () => {
       assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.oliviaAal1), "0");
       db.denied(newOrder({ items: oneItem(100), who: AS.oliviaAal1 }), "", /permission denied: orders\.create/);
-      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "25");
+      assert.equal(db.ok("select count(*) from admin.my_permissions();", AS.olivia), "26");
     });
 
     it("the second-factor rule fails closed when its policy row is missing, and can be relaxed only by the owner's policy", () => {
       assert.equal(db.ok("delete from private.business_policies where key = 'admin.mfa'; reset role;" + AS.oliviaAal1 + "select count(*) from admin.my_permissions();", AS.superuser), "0");
-      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "25");
+      assert.equal(db.ok(`update private.business_policies set value = '{"required": false}', version = version + 1 where key = 'admin.mfa';${AS.oliviaAal1}select count(*) from admin.my_permissions();`, AS.superuser), "26");
     });
 
     it("a staff member row alone is what grants access: removing it removes every permission", () => {

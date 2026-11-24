@@ -146,6 +146,12 @@ export interface OrderRow {
   workflow_version: number;
   /** Chosen explicitly by staff; null until chosen (every earlier order). Never inferred. */
   fulfillment_type: FulfillmentType | null;
+  /**
+   * When the order FIRST reached Delivered / Collected, recorded by the database (never typed in, never changed). Null for an order that is not
+   * delivered, and for an older delivered order whose date could not be proven from its history. It is the only column added for financial reporting;
+   * costs, profit and margin are in the owner-only private schema and never reach a customer.
+   */
+  completed_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
