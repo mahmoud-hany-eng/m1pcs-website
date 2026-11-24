@@ -10,6 +10,7 @@ import { SelectInput } from "@/components/forms/SelectInput";
 import { DynamicField } from "@/components/forms/DynamicField";
 import { Button } from "@/components/ui/Button";
 import { buildQuoteMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { validateBudgetQar } from "@/lib/quote-budget";
 import { getVisibleCategoryFields, resolveQuoteCategoryFromParam } from "@/lib/quote-schema";
 import { PRODUCT_PREFERENCES, QUOTE_CATEGORIES } from "@/types/quote";
 import type { QuoteAnswers, QuoteCategory, QuoteGeneralData } from "@/types/quote";
@@ -97,6 +98,14 @@ export function QuoteForm() {
     }
     if (!general.fullName.trim() || !general.mobile.trim()) {
       setError("Please fill in your name and mobile number.");
+      return;
+    }
+    // The budget is mandatory. Native `required` only stops an empty field,
+    // so whitespace, non-numbers, zero and negatives are caught here, before
+    // any WhatsApp message is built or opened.
+    const budget = validateBudgetQar(general.budgetQar);
+    if (!budget.ok) {
+      setError(budget.error);
       return;
     }
     // Product preference and the category questions below are custom pill
@@ -258,11 +267,13 @@ export function QuoteForm() {
           <FieldWrapper
             label="Budget in QAR"
             htmlFor="budget"
-            hint="Leave blank if you don't know yet."
+            required
+            hint="An approximate amount is fine — numbers only."
           >
             <TextInput
               id="budget"
               inputMode="numeric"
+              required
               placeholder="e.g. 5000"
               value={general.budgetQar}
               onChange={(e) => updateGeneral("budgetQar", e.target.value)}
