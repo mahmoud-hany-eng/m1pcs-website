@@ -298,3 +298,31 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** Points are awarded once, when an order is completed and its net payable amount is fully paid. If a payment on that order is reversed afterwards (a refund, a bounced transfer), the order is no longer fully paid but the points stay with the customer, and the database does not take them back. Should earned points be taken back, partly or fully, when a payment is reversed; should a customer ever be allowed a negative points balance as a result (today the ledger refuses one); and how should points that were already spent be handled? Until the owner decides, a reversal changes the order's balance and the cash ledger only, never the points.
 - **Recommendation:** Keep as is. If clawback is wanted, add it as a compensating ledger entry that is created only by an explicit owner action, never automatically, and decide first what happens when the points are already spent.
 - **Source:** HD-0022; related OQ-0009, OQ-0010; [PRICING_AND_REWARDS.md](../architecture/PRICING_AND_REWARDS.md) section 6.
+
+### OQ-0044 — Refunds to the customer after an order is completed
+- **Status:** open
+- **Blocks:** nothing now (there is no refund function; a payment reversal changes the order's cash balance only)
+- **Question:** When money is returned to a customer after Delivered / Collected, should it reduce the order's recognized net revenue (and in which month: the completion month, or the month of the refund), or be reported as a separate refund line? Today the revenue snapshot of a completed order is immutable, and a reversal only brings the outstanding balance back.
+- **Recommendation:** Treat a refund as its own owner-approved, dated entry that reduces the revenue of the **month it is made**, never rewriting the completion month, so closed months do not move.
+- **Source:** HD-0023; related OQ-0043; [FINANCIAL_REPORTING.md](../architecture/FINANCIAL_REPORTING.md) section 6.
+
+### OQ-0045 — Who besides the owner may see costs and profit
+- **Status:** open
+- **Blocks:** nothing now (owner only, as asked)
+- **Question:** Should a separate finance or manager role ever see order costs and profit, or enter costs? The three permissions (`finance.read`, `finance.manage`, `finance.verify`) exist and are held by the owner role only; granting them to another role needs no code change.
+- **Recommendation:** Keep owner only until a person is trusted with it; then grant `finance.read` first, and `finance.manage` separately.
+- **Source:** HD-0023.
+
+### OQ-0046 — A completed order that still has a balance owed
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** Revenue is recognized on completion on the **net payable**, so an order delivered with part of the balance unpaid still counts in full in its completion month, and the unpaid part is shown as "still owed". Should the owner instead be able to hold such an order out of the revenue until it is paid?
+- **Recommendation:** Keep revenue on completion (the brief's definition) and watch the "Completed with a balance still owed" item on the Overview.
+- **Source:** HD-0023.
+
+### OQ-0047 — Completion dates of orders delivered before this release
+- **Status:** open
+- **Blocks:** nothing now (such orders are flagged and counted in no month until confirmed)
+- **Question:** Orders delivered before completion dates were recorded keep a completion date only when their status history proves it. For the others the owner must confirm the real date from their own records, one order at a time, in the order page. Should any be left unverified?
+- **Recommendation:** Verify each from the delivery note or customer message and record how it was known in the reason field.
+- **Source:** HD-0023; [FINANCIAL_REPORTING.md](../architecture/FINANCIAL_REPORTING.md) section 2.

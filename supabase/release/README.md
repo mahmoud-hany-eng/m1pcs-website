@@ -138,3 +138,33 @@ migrations up to the idempotency expand): `transition_order` ce5fd8fbaf9c0b0b97e
 ## Pricing and rewards (PLAT-0005): three migrations, applied in order
 
 `20261123120000` (schema) and `20261123120100` (functions) are additive and safe for the website that is live today; `20261123120200` is DATA ONLY and is the moment the five deposit tiers and the net-payable earning rule start for NEW orders, so it is the last step and can be held back. It stops (changing nothing) if either policy was edited since. The staged sequence and the rollback are in `docs/project-memory/architecture/PRICING_AND_REWARDS.md` section 7. Nothing of this release has been applied to a hosted database.
+
+## Order costs, completion dates and financial reporting (PLAT-0006): two migrations, applied in order
+
+`20261124120000` (schema) and `20261124120100` (functions) are additive, rerunnable and safe for every website that is live today: neither changes an existing order, payment,
+loyalty entry, deposit, status or function (the 11-argument `admin.create_order` is untouched; a 12-argument form is added), and no earlier website calls a new function.
+The differential test `compat.finance.deployed-statements.db.test.mjs` replays the statements of the website deployed from commit 4916867 before, between and after the two migrations and
+requires identical transcripts and reads. There is **no destructive undo script, on purpose**: the new tables hold the owner's cost records and their immutable history. To withdraw the screens, deploy the
+previous website. The design, definitions and edge cases are in `docs/project-memory/architecture/FINANCIAL_REPORTING.md`; the owner's acceptance steps are in `FINANCIAL_OWNER_ACCEPTANCE_CHECKLIST.md`.
+
+| Step | Action | Needs |
+| --- | --- | --- |
+| 1 | Apply `20261124120000` to the DEVELOPMENT database. Read the **backfill report** (below) before going on. | owner approval of the DEV change |
+| 2 | Apply `20261124120100` to DEVELOPMENT. | the same |
+| 3 | Deploy the website with the new screens to a **Preview**; run the owner acceptance checklist with synthetic orders only. | owner |
+| 4 | Owner confirms the completion date of each delivered order flagged *needs historical verification* (or leaves it). | owner |
+| 5 | Production: the same two migrations, then the website. Not before the legacy `create_order` overloads Production blocker is resolved (unchanged, separate). | owner authorization |
+
+Read-only checks after step 2 (expect the stated results; the order figures are the hosted synthetic order and must be exactly as before):
+
+```sql
+select count(*) from private.security_audit();                                   -- 0
+select count(*) from private.gateway_audit();                                    -- 0
+select count(*) from private.role_permissions where role_code = 'owner';         -- 26 (was 25: finance.verify)
+select count(*) from private.role_permissions where permission_code like 'finance.%' and role_code <> 'owner';  -- 0
+select count(*) from public.orders where status = 'delivered' and completed_at is not null;   -- backfilled from status history
+select count(*) from public.orders where status = 'delivered' and completed_at is null;      -- "needs historical verification"
+select count(*) from private.order_completions;                                  -- equals the first count
+select count(*) from private.order_costs;                                        -- 0 (nothing is invented)
+select order_ref, status, total_minor, deposit_required_minor, amount_paid_minor, completed_at from public.orders where order_ref = 'O-2611-00001';
+```
