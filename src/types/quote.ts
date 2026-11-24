@@ -67,7 +67,7 @@ export interface QuoteGeneralData {
   fullName: string;
   mobile: string;
   email: string;
-  /** Optional — the customer may not know their budget yet. */
+  /** Required — a positive amount in QAR, checked by `validateBudgetQar` before submission. */
   budgetQar: string;
   quantity: string;
   productPreference: ProductPreference | "";
