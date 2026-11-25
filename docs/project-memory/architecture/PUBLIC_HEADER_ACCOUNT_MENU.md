@@ -5,8 +5,24 @@ permission. Every address it leads to still passes its own sign-in and second-st
 
 ## 1. What it is
 
-A small circular account icon immediately to the right of **Get a Quote** in the desktop header (from the `lg` breakpoint). A click opens a dark-glass menu with a
-short fade and a few pixels of slide; on a phone the same entries are in the hamburger menu, in an "Account" group below the six links.
+A small circular account icon immediately to the right of **Get a Quote** in the header from 1024px up (the `lg` breakpoint). A click opens a dark-glass menu with a
+short fade and a few pixels of slide; on a phone (below 1024px) the same entries are in the hamburger menu, in an "Account" group below the six links.
+
+### The bar at each width (corrective release, PLAT-0007-a2)
+
+| Width | In the bar | The six links |
+| --- | --- | --- |
+| below 1024px | logo, menu button | in the menu, with Get a Quote and the Account group |
+| 1024px to 80em (1280px) | logo, **Get a Quote, account button**, menu button | in the menu (a list hanging under the menu button; it does not repeat Get a Quote or the Account group, which are in the bar) |
+| 80em (1280px) and up | logo, **the six links**, Get a Quote, account button | in the bar |
+
+**Why.** The first version put the six links in the bar from 1024px, with about 52px to spare in the site's own font. A CI runner drew a wider fallback font and the links wrapped
+onto two rows (found by `header.browser.test.mjs`, run #19). How much room six links need depends on the font the visitor's system really draws, which cannot be known, so the
+layout no longer depends on a guess: the links are in the bar only where there is room to spare even in a wide fallback font (at least 24px free on each side, tested at 1280 and
+1440px in three font conditions), and below that they are in the menu, which does not depend on text width. The switch is written in **em** (`min-width: 80em`), not px, so a visitor
+who has chosen larger default text in the browser gets the menu earlier too (that case follows from the CSS standard; it could not be driven in the automated browser). The links
+never wrap inside themselves and the group does not shrink. Opening the menu closes the account menu and the other way round (they are side by side from 1024px); widening the window
+past 80em closes an open menu and gives the page its scrolling back.
 
 | Entry | Address | Offered when |
 | --- | --- | --- |
@@ -56,8 +72,8 @@ Account" sends a visitor who is not signed in to the sign-in page with the way b
 ## 5. Tests
 
 `orders-list-lib.test.mjs` (the link rules: nothing unless the switch is on, nothing in production, the staff entry needs both switches, the redundancy rules),
-`static.test.mjs` (the isolation exception and the layout's constraints), `header.browser.test.mjs` (22: four copies of the site: off, customer switch, both, and
-production with both forced on; alignment with Get a Quote from 1024 to 1536 px; open and close; animation and reduced motion; click outside, Escape and focus; the
+`static.test.mjs` (the isolation exception and the layout's constraints), `header.browser.test.mjs` (25: four copies of the site: off, customer switch, both, and
+production with both forced on; **the bar at 1024, 1060, 1100, 1280 and 1440px in three font conditions (the site's fonts, the web fonts blocked, a wide fallback): Get a Quote and the account button always in the bar, no wrap, overlap or overflow, links inline only from 1280px with room to spare, the menu below it; the menu's contents, keyboard and reduced motion at tablet widths; the two menus never open together**; open and close; animation and reduced motion; click outside, Escape and focus; the
 keyboard; never covered by the page; the entries' destinations; the Staff Dashboard link leading a visitor with no session to sign in; the quotation builder; the
 phone menu at 390 and 360 px; no account group when the switches are off).
 

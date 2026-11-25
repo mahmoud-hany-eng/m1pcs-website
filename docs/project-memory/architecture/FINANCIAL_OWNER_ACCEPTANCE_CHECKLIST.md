@@ -96,5 +96,8 @@ Behaviour and definitions: [ORDERS_LIST.md](ORDERS_LIST.md) and [PUBLIC_HEADER_A
 | 8.12 | Click **Staff Dashboard** while signed out. | You are taken to sign in first (and to the dashboard afterwards, with the second step). It is only a link. | |
 | 8.13 | On a phone, open the header's hamburger menu. | The same four entries in an **Account** group below the page links; the menu still fits the screen. | |
 | 8.14 | Open the **live Production website** header. | **No** account icon and no link to an account, sign-in or staff page. | |
+| 8.15 | Make the browser window about **1024 to 1270 px** wide and look at the header. | The bar shows the logo, **Get a Quote**, the account icon and a menu button; the six page links are **not** squeezed in. Click the menu button: a list of the six links hangs under it (it does not repeat Get a Quote or the Account group). Pressing the account icon closes it and the other way round. | |
+| 8.16 | Widen the window to **1280 px or more** (with the menu open at 1100 px, then widen). | The six links appear between the logo and Get a Quote on **one row**; the menu button is gone; an open menu closed by itself and the page scrolls normally. | |
+| 8.17 | On the Orders page choose each sort in turn: Newest, Oldest, Lowest price, Highest price (with no other filter). | The line above the list ("Showing 1-5 of N orders · ...") and the note beside it ("Sorted: ...") **both name the sort you chose**; "newest first" appears only for Newest. The counts and "Page x of y" stay right on every page. | |
 
 Record a result next to every row. Anything that does not match is a defect to report, not a step to skip.

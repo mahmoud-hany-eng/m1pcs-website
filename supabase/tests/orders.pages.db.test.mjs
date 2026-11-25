@@ -152,7 +152,7 @@ suite("the Orders page: the redundant table gone, and the list filtered, sorted 
     it("shows exactly the 5 newest orders, newest first, with 'Showing 1–5 of N orders' and a page count", async () => {
       const html = await render({});
       assert.equal(inner(html, "orders-summary").startsWith(`Showing 1–5 of ${total} orders`), true, inner(html, "orders-summary"));
-      assert.match(inner(html, "orders-summary"), /newest first/);
+      assert.match(inner(html, "orders-summary"), /newest orders first/);
       const expected = q("select admin.list_orders_page()::text", AS.olivia).rows.map((r) => r.id);
       assert.deepEqual(orderLinks(list(html)).map((l) => /([0-9a-f-]{36})/.exec(l)[1]), [...expected], "the same 5 orders, in the database's order");
       assert.equal(orderLinks(list(html)).length, 5, "one page of five");
@@ -188,6 +188,59 @@ suite("the Orders page: the redundant table gone, and the list filtered, sorted 
         seen.push(shown.join());
       }
       assert.equal(new Set(seen).size, 4, "the four sorts really are four different orders in this data, so this test can tell them apart");
+    });
+
+    it("every visible sort label names the sort that was actually chosen, never a fixed phrase: the summary line and the 'Sorted:' note under each of the four sorts", async () => {
+      const SORTS = [
+        ["newest", "Newest orders first", "newest"],
+        ["oldest", "Oldest orders first", "oldest"],
+        ["price_asc", "Lowest order price first", "lowest"],
+        ["price_desc", "Highest order price first", "highest"],
+      ];
+      for (const [sort, label, word] of SORTS) {
+        const html = await render(sort === "newest" ? {} : { sort });
+        assert.equal(inner(html, "orders-summary-order"), `· ${label.toLowerCase()}`, `${sort}: the summary line says how the list is ordered`);
+        assert.equal(inner(html, "orders-sort-note").startsWith(`Sorted: ${label}`), true, `${sort}: the note says the same`);
+        const line = inner(html, "orders-summary-line");
+        for (const [, , other] of SORTS) assert.equal(new RegExp(other, "i").test(line), other === word, `${sort}: the line names "${word}" and none of the other three (${line})`);
+      }
+    });
+
+    it("under each of the four sorts the count and the page labels stay true on the first, second and last page, and the paging links keep the sort", async () => {
+      const pages = Math.ceil(total / 5);
+      assert.ok(pages >= 3, "enough orders for a first, a second and a last page");
+      for (const sort of ["newest", "oldest", "price_asc", "price_desc"]) {
+        const choice = (extra = {}) => ({ ...(sort === "newest" ? {} : { sort }), ...extra });
+        for (const n of [1, 2, pages]) {
+          const where = `${sort}, page ${n}`;
+          const html = await render(choice(n === 1 ? {} : { page: String(n) }));
+          assert.equal(inner(html, "orders-summary").startsWith(`Showing ${(n - 1) * 5 + 1}–${Math.min(n * 5, total)} of ${total} orders`), true, `${where}: ${inner(html, "orders-summary")}`);
+          assert.equal(inner(html, "orders-page-of"), `Page ${n} of ${pages}`, where);
+          const sortOf = (href) => new URLSearchParams(href.split("?")[1]?.split("#")[0] ?? "").get("sort");
+          const expectedSort = sort === "newest" ? null : sort;
+          if (n < pages) {
+            const next = hrefOf(html, "orders-next");
+            assert.equal(new URLSearchParams(next.split("?")[1].split("#")[0]).get("page"), String(n + 1), `${where}: Next goes to the next page`);
+            assert.equal(sortOf(next), expectedSort, `${where}: Next keeps the sort`);
+          } else assert.match(tag(html, "orders-next"), /aria-disabled="true"/, `${where}: no Next on the last page`);
+          if (n > 1) assert.equal(sortOf(hrefOf(html, "orders-prev")), expectedSort, `${where}: Previous keeps the sort`);
+        }
+        const wide = await render(choice({ size: "25" }));
+        assert.equal(inner(wide, "orders-summary").startsWith(`Showing 1–25 of ${total} orders`), true, `${sort}: 25 per page`);
+      }
+    });
+
+    it("with filters chosen the summary names the filters, the 'Sorted:' note still names the sort, and the counts are the database's", async () => {
+      const awaiting = Number(read("select count(*) from public.orders where status = 'awaiting_deposit'"));
+      assert.ok(awaiting > 5, "enough awaiting-deposit orders to need a second page");
+      for (const [sort, label] of [["oldest", "Oldest orders first"], ["price_desc", "Highest order price first"], ["price_asc", "Lowest order price first"]]) {
+        const html = await render({ status: "awaiting_deposit", sort });
+        assert.equal(inner(html, "orders-summary").startsWith(`Showing 1–5 of ${awaiting} orders`), true, `${sort}: ${inner(html, "orders-summary")}`);
+        assert.match(inner(html, "orders-summary"), /status: Awaiting deposit/);
+        assert.equal(has(html, "orders-summary-order"), false, `${sort}: with filters the summary names them, and the sort is named once, in the note`);
+        assert.equal(inner(html, "orders-sort-note").startsWith(`Sorted: ${label}`), true, sort);
+        assert.equal(inner(html, "orders-page-of"), `Page 1 of ${Math.ceil(awaiting / 5)}`, sort);
+      }
     });
 
     it("every other choice reaches the database too: a status, a month with a year, a range and a page size change the rows", async () => {

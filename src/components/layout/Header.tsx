@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { AccountMenu } from "@/components/layout/AccountMenu";
@@ -39,6 +39,31 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  // The menu's list is only for widths below 80em. When the window grows past that the links appear in the bar, so an open menu is closed
+  // (it would otherwise stay open, invisible, with the page scroll locked).
+  useEffect(() => {
+    const wide = window.matchMedia("(min-width: 80em)");
+    const onChange = () => {
+      if (wide.matches) setOpen(false);
+    };
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, []);
+
+  // A press anywhere outside the menu and its button closes it. From 1024px the account button is next to the menu button, so this is what
+  // keeps the two lists from being open together (pressing the account button closes this one; pressing this button closes that one).
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (toggleRef.current?.contains(target) || document.getElementById("mobile-menu")?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -83,7 +108,7 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
           tabIndex={-1}
           aria-hidden="true"
           onClick={() => setOpen(false)}
-          className="glass-fade fixed inset-0 cursor-default bg-black/60 lg:hidden"
+          className="glass-fade fixed inset-0 cursor-default bg-black/60 [@media(min-width:80em)]:hidden"
         />
       )}
 
@@ -112,14 +137,18 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-6 lg:flex xl:gap-8" aria-label="Primary">
+          {/* The six links sit in the bar only from 80em (1280px at the browser's default text size). Below that they are in the menu button's list,
+              so nothing is ever squeezed: the room they need depends on the font the visitor's system really draws, which cannot be known here
+              (a wider fallback font made them wrap to two rows at 1024px). The switch is in em, not px, so a visitor who has chosen larger default
+              text gets the menu earlier too. The links never wrap inside themselves and the group never shrinks. */}
+          <nav className="hidden shrink-0 items-center gap-8 [@media(min-width:80em)]:flex" aria-label="Primary">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`relative py-2 text-sm font-medium transition-colors duration-200 hover:text-white ${
+                  className={`relative whitespace-nowrap py-2 text-sm font-medium transition-colors duration-200 hover:text-white ${
                     isActive ? "text-accent" : transparent ? "text-white/85" : "text-text-secondary"
                   }`}
                   aria-current={isActive ? "page" : undefined}
@@ -136,7 +165,9 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
             })}
           </nav>
 
-          <div className="hidden items-center gap-2.5 lg:flex">
+          {/* Get a Quote and the account button are in the bar from 1024px. Between 1024px and 80em the links are in the menu, so this group sits
+              at the right, next to the menu button (ml-auto); from 80em the links are between the logo and this group. */}
+          <div className="hidden shrink-0 items-center gap-2.5 ml-auto [@media(min-width:80em)]:ml-0 lg:flex">
             <Button href="/build-my-pc" variant="secondary" size="sm">
               Get a Quote
             </Button>
@@ -144,9 +175,10 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
           </div>
 
           <button
+            ref={toggleRef}
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="btn-glass inline-flex h-10 w-10 items-center justify-center rounded-full text-text-primary sm:h-11 sm:w-11 lg:hidden"
+            className="btn-glass inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-primary sm:h-11 sm:w-11 [@media(min-width:80em)]:hidden"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             aria-controls="mobile-menu"
@@ -172,7 +204,7 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
         </div>
 
         {open && (
-          <div id="mobile-menu" className="absolute inset-x-4 top-full sm:inset-x-6 lg:hidden">
+          <div id="mobile-menu" className="absolute inset-x-4 top-full sm:inset-x-6 lg:inset-x-auto lg:right-8 lg:w-80 [@media(min-width:80em)]:hidden">
             <div className="glass-strong glass-drop max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-glass-lg p-2.5">
               <nav className="flex flex-col" aria-label="Mobile">
                 {navLinks.map((link) => {
@@ -200,7 +232,7 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
                 })}
               </nav>
               {mobileAccountLinks.length > 0 && (
-                <nav className="mt-1.5 border-t border-white/10 pt-1" aria-label="Account" data-testid="mobile-account-links">
+                <nav className="mt-1.5 border-t border-white/10 pt-1 lg:hidden" aria-label="Account" data-testid="mobile-account-links">
                   <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">Account</p>
                   {mobileAccountLinks.map((link) => {
                     const current = isCurrentLink(link, pathname);
@@ -223,7 +255,8 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
                   })}
                 </nav>
               )}
-              <div className="mt-2 p-1.5">
+              {/* From 1024px Get a Quote and the account button are already in the bar, so the menu does not repeat them. */}
+              <div className="mt-2 p-1.5 lg:hidden">
                 <Button href="/build-my-pc" variant="secondary" size="lg" className="w-full">
                   Get a Quote
                 </Button>

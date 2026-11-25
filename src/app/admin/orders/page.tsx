@@ -91,7 +91,12 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1" data-testid="orders-summary-line">
               <p className="text-sm font-semibold text-white" data-testid="orders-summary" aria-live="polite">
                 {summaryText(page)}
-                {words.length > 0 ? <span className="font-normal text-text-secondary"> · {words.join(" · ")}</span> : hasActiveFilters(query) ? null : <span className="font-normal text-text-secondary"> · newest first</span>}
+                {words.length > 0 ? (
+                  <span className="font-normal text-text-secondary"> · {words.join(" · ")}</span>
+                ) : hasActiveFilters(query) ? null : (
+                  // The order the list is in, from the sort that was CHOSEN, never a fixed phrase: "newest orders first", "oldest orders first", ...
+                  <span className="font-normal text-text-secondary" data-testid="orders-summary-order"> · {sortLabel.toLowerCase()}</span>
+                )}
               </p>
               <p className="text-xs text-text-muted" data-testid="orders-sort-note">
                 Sorted: {sortLabel}

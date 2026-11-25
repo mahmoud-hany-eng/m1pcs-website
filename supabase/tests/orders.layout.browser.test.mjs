@@ -76,6 +76,7 @@ suite("the Orders page in a real browser: desktop, laptop, tablet and phone widt
     commit(`select admin.create_order('${ID.custB}', '${JSON.stringify([{ kind: "component", description: "Big build", quantity: 1, unit_price_minor: 8_000_000 }])}'::jsonb, null::uuid, 'admin'::text, null::text, null::text, null::text, '${JSON.stringify({ mode: "fixed", amount_minor: 1_000_000, reason: "layout test discount" })}'::jsonb, 2000::bigint, null::bigint, null::bigint, null::jsonb);`);
     page = await import("../../src/app/admin/orders/page.tsx");
     html.plain = document(await draw({ fy: "2025" }));
+    html.sorted = document(await draw({ fy: "2025", sort: "price_desc" })); // a non-default sort and no filter: every sort label must say so
     html.filtered = document(await draw({ fy: "2025", year: "2025", month: "3", status: "awaiting_deposit", sort: "price_desc", size: "10", q: "Alice" }));
     html.range = document(await draw({ fy: "2025", year: "2025", month: "3", from: "2025-03-05", to: "2025-03-20", sort: "oldest" }));
     html.invalid = document(await draw({ from: "2025-11-25", to: "2025-11-10" }));
@@ -125,7 +126,7 @@ suite("the Orders page in a real browser: desktop, laptop, tablet and phone widt
   for (const [label, viewport] of WIDTHS) {
     describe(`${label} (${viewport.width}px)`, () => {
       it("nothing scrolls sideways, on any state of the page", async () => {
-        for (const name of ["plain", "filtered", "range", "invalid", "empty"]) {
+        for (const name of ["plain", "sorted", "filtered", "range", "invalid", "empty"]) {
           const { page: p, close } = await open(name, viewport);
           try {
             const { scroll, inner } = await p.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
@@ -209,6 +210,20 @@ suite("the Orders page in a real browser: desktop, laptop, tablet and phone widt
           // the date fields show a whole date (not cut off)
           const clipped = await p.evaluate(() => [...document.querySelectorAll("#orders-from, #orders-to")].map((el) => el.scrollWidth > el.clientWidth + 2));
           assert.deepEqual(clipped, [false, false], "the date fields are wide enough for a whole date");
+        } finally {
+          await close();
+        }
+      });
+
+      it("with a non-default sort and no filter every visible label names that sort, and the count and page labels stay true", async () => {
+        const { page: p, close } = await open("sorted", viewport);
+        try {
+          const line = (await p.locator(SEL.summary).innerText()).replace(/\s+/g, " ");
+          assert.match(line, /Showing 1–5 of \d+ orders · highest order price first/, line);
+          assert.match(line, /Sorted: Highest order price first \(what the customer has to pay\)/, line);
+          assert.doesNotMatch(line, /newest|oldest|lowest/i, `no other sort is named: ${line}`);
+          assert.match((await p.locator(SEL.pagination).innerText()).replace(/\s+/g, " "), /Page 1 of \d+/);
+          assert.equal(await p.locator(`${SEL.sort} option:checked`).innerText(), "Highest order price first", "and the Sort by control shows it too");
         } finally {
           await close();
         }

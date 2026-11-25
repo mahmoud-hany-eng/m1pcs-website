@@ -159,28 +159,189 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
         await ctx.close();
       }
     });
+  });
 
-    it("keeps the header whole at the narrowest width that shows it (1024px): nothing wraps, nothing overlaps", async () => {
-      for (const width of [1024, 1100, 1280, 1536]) {
-        const { ctx, page } = await open("both", HERE, { viewport: { width, height: 800 } });
-        try {
-          const boxes = await page.evaluate(() => {
-            const r = (el) => el.getBoundingClientRect();
-            const logo = r(document.querySelector('header a[aria-label="M1 Gaming PCs home"]'));
-            const nav = r(document.querySelector('nav[aria-label="Primary"]'));
-            const quote = r([...document.querySelectorAll("header a")].find((a) => a.textContent.trim() === "Get a Quote"));
-            const button = r(document.querySelector('[data-testid="account-menu-button"]'));
-            const links = [...document.querySelectorAll('nav[aria-label="Primary"] a')].map((a) => r(a));
-            return { logo, nav, quote, button, rows: new Set(links.map((l) => Math.round(l.top))).size, capsule: r(document.querySelector("header .rounded-full")) };
-          });
-          assert.equal(boxes.rows, 1, `${width}px: the six navigation links stay on one line`);
-          assert.ok(boxes.logo.right <= boxes.nav.left + 1, `${width}px: the logo does not overlap the links`);
-          assert.ok(boxes.nav.right <= boxes.quote.left + 1, `${width}px: the links do not overlap Get a Quote (${Math.round(boxes.nav.right)} vs ${Math.round(boxes.quote.left)})`);
-          assert.ok(boxes.quote.right <= boxes.button.left + 1, `${width}px: Get a Quote does not overlap the button`);
-          assert.ok(boxes.button.right <= boxes.capsule.right, `${width}px: the button is inside the capsule`);
-        } finally {
-          await ctx.close();
+  // =============================================================================================================
+  // THE BAR AT EVERY WIDTH FROM 1024px UP, WHATEVER FONT THE SYSTEM DRAWS. The first corrective release exists because a CI runner drew a wider fallback
+  // font than the developer's machine and the six links wrapped onto two rows at 1024px. The room six links need depends on the visitor's font, which
+  // cannot be known, so the layout must not depend on a guess: from 1024px the bar holds the logo, Get a Quote and the account button (and the menu
+  // button); the six links are in the bar only from 80em (1280px at the default text size), where there is room to spare even in a wide fallback font.
+  // Three font conditions are drawn at every width: the site's own fonts, the web fonts blocked (the browser's own fallback), and a deliberately wide
+  // fallback (DejaVu Sans with a little letter-spacing, so the test is strict even on a machine without that font).
+  const WIDTHS = [1024, 1060, 1100, 1280, 1440];
+  const FONT_CONDITIONS = [
+    { name: "the site's own fonts" },
+    { name: "the web fonts blocked (the browser's own fallback)", blockFonts: true },
+    { name: "a wide fallback font", css: 'html, body, body * { font-family: "DejaVu Sans", Verdana, sans-serif !important; letter-spacing: 0.03em !important; }' },
+  ];
+  async function openUnder(condition, width, site = "both", path = HERE, options = {}) {
+    const ctx = await context({ viewport: { width, height: 800 }, ...options });
+    if (condition.blockFonts) await ctx.route("**/_next/static/media/*.woff2", (route) => route.abort());
+    const page = await ctx.newPage();
+    await page.goto(`${sites[site].base}${path}`, { waitUntil: "networkidle" });
+    if (condition.css) await page.addStyleTag({ content: condition.css });
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(120);
+    return { ctx, page };
+  }
+
+  describe("the header bar from 1024px up, in three font conditions", () => {
+    it("never wraps, overlaps or overflows: Get a Quote and the account button are always in the bar; the six links are inline from 1280px and in the menu below it", async () => {
+      for (const condition of FONT_CONDITIONS) {
+        for (const width of WIDTHS) {
+          const where = `${width}px, ${condition.name}`;
+          const { ctx, page } = await openUnder(condition, width);
+          try {
+            const m = await page.evaluate(() => {
+              const box = (el) => {
+                const b = el.getBoundingClientRect();
+                return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width, height: b.height };
+              };
+              const shown = (el) => Boolean(el) && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().width > 0;
+              const nav = document.querySelector('nav[aria-label="Primary"]');
+              const burger = document.querySelector('header button[aria-label="Open menu"]');
+              const quote = [...document.querySelectorAll("header a")].find((a) => a.textContent.trim() === "Get a Quote" && shown(a));
+              const button = document.querySelector('[data-testid="account-menu-button"]');
+              const links = nav ? [...nav.querySelectorAll("a")] : [];
+              // the lines each link's own text is drawn on (a wrapped label has two)
+              const textLines = (a) => {
+                const tops = new Set();
+                for (const node of a.childNodes) {
+                  if (node.nodeType !== 3) continue;
+                  const range = document.createRange();
+                  range.selectNodeContents(node);
+                  for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
+                }
+                return tops.size;
+              };
+              return {
+                navShown: shown(nav), burgerShown: shown(burger), quoteShown: Boolean(quote), buttonShown: shown(button),
+                logo: box(document.querySelector('header a[aria-label="M1 Gaming PCs home"]')),
+                nav: shown(nav) ? box(nav) : null, quote: quote ? box(quote) : null, button: shown(button) ? box(button) : null, burger: shown(burger) ? box(burger) : null,
+                capsule: box(document.querySelector("header .rounded-full")),
+                linkRows: shown(nav) ? new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size : 0,
+                linkCount: links.length, linksOneLine: links.every((a) => textLines(a) === 1),
+                sideways: document.documentElement.scrollWidth > window.innerWidth,
+                headerHeight: document.querySelector("header").getBoundingClientRect().height,
+              };
+            });
+            if (SHOTS && ((width === 1024 && condition === FONT_CONDITIONS[2]) || (width === 1100 && condition === FONT_CONDITIONS[0]) || (width === 1280 && condition === FONT_CONDITIONS[2]) || (width === 1440 && condition === FONT_CONDITIONS[0]))) {
+              await page.screenshot({ path: `${SHOTS}/header-bar-${width}${condition.css ? "-wide-fallback" : ""}.png`, clip: { x: 0, y: 0, width, height: 96 } });
+            }
+            assert.equal(m.sideways, false, `${where}: the page does not scroll sideways`);
+            assert.equal(m.headerHeight, 80, `${where}: the header box is as tall as it always was`);
+            assert.ok(m.quoteShown && m.buttonShown, `${where}: Get a Quote and the account button are in the bar`);
+            // everything in the bar is inside the capsule and nothing overlaps its neighbour (left to right)
+            const items = [["logo", m.logo], ["links", m.nav], ["Get a Quote", m.quote], ["account button", m.button], ["menu button", m.burger]].filter(([, b]) => b);
+            for (const [name, b] of items) assert.ok(b.left >= m.capsule.left - 0.5 && b.right <= m.capsule.right + 0.5, `${where}: the ${name} is inside the capsule`);
+            for (let i = 1; i < items.length; i++) {
+              assert.ok(items[i - 1][1].right <= items[i][1].left + 0.5, `${where}: the ${items[i - 1][0]} do not overlap the ${items[i][0]} (${Math.round(items[i - 1][1].right)} vs ${Math.round(items[i][1].left)})`);
+            }
+            // the account button is a circle right beside Get a Quote, on the same line
+            assert.ok(m.button.left - m.quote.right <= 20, `${where}: the account button is immediately right of Get a Quote`);
+            assert.ok(Math.abs(m.button.top + m.button.height / 2 - (m.quote.top + m.quote.height / 2)) <= 1.5, `${where}: they are vertically centred together`);
+            // Whenever the six links ARE in the bar (at any width) they are on ONE row, no label wraps inside itself, and there is real room to spare on each
+            // side, so a font a little wider than any tested here still cannot make them touch or wrap. (This is the check the CI runner failed at 1024px.)
+            if (m.navShown) {
+              assert.equal(m.linkCount, 6, `${where}: six links`);
+              assert.equal(m.linkRows, 1, `${where}: the six links are on ONE row`);
+              assert.equal(m.linksOneLine, true, `${where}: no link label wraps inside itself`);
+              assert.ok(m.nav.left - m.logo.right >= 24 && m.quote.left - m.nav.right >= 24, `${where}: at least 24px free each side of the links (${Math.round(m.nav.left - m.logo.right)} and ${Math.round(m.quote.left - m.nav.right)})`);
+            }
+            // And the design rule: inline from 1280px, in the menu below it, whatever the font.
+            if (width >= 1280) {
+              assert.equal(m.navShown, true, `${where}: the six links are in the bar`);
+              assert.equal(m.burgerShown, false, `${where}: no menu button when the links are inline`);
+            } else {
+              assert.equal(m.navShown, false, `${where}: the links are not squeezed into the bar`);
+              assert.equal(m.burgerShown, true, `${where}: the menu button is there`);
+              assert.ok(m.burger.left - m.button.right <= 24 && m.burger.left >= m.button.right, `${where}: the menu button is next to the account button`);
+            }
+          } finally {
+            await ctx.close();
+          }
         }
+      }
+    });
+
+    it("below 1280px the menu holds the six links (reachable, on screen), without repeating Get a Quote or the Account group the bar already has", async () => {
+      for (const condition of [FONT_CONDITIONS[0], FONT_CONDITIONS[2]]) {
+        for (const width of [1024, 1060, 1100, 1240]) {
+          const where = `${width}px, ${condition.name}`;
+          const { ctx, page } = await openUnder(condition, width);
+          try {
+            await page.locator('button[aria-label="Open menu"]').click();
+            await page.locator("#mobile-menu").waitFor();
+            if (SHOTS && width === 1100 && condition === FONT_CONDITIONS[0]) {
+              await page.waitForTimeout(600); // let the opening animation finish
+              await page.screenshot({ path: `${SHOTS}/header-tablet-menu-open-1100.png`, clip: { x: 0, y: 0, width, height: 420 } });
+            }
+            const hrefs = await page.locator('#mobile-menu nav[aria-label="Mobile"] a').evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+            assert.deepEqual(hrefs, ["/", "/build-my-pc", "/products", "/completed-builds", "/how-it-works", "/contact"], `${where}: the six links, in order`);
+            const m = await page.evaluate(() => {
+              const panel = document.querySelector("#mobile-menu > div").getBoundingClientRect();
+              const burger = document.querySelector('header button[aria-label="Close menu"]').getBoundingClientRect();
+              return {
+                panel: { left: panel.left, right: panel.right, top: panel.top, bottom: panel.bottom },
+                burger: { right: burger.right, bottom: burger.bottom },
+                quoteInMenu: [...document.querySelectorAll("#mobile-menu a")].some((a) => a.textContent.trim() === "Get a Quote"),
+                accountGroup: document.querySelectorAll('#mobile-menu [data-testid="mobile-account-links"]').length ? getComputedStyle(document.querySelector('#mobile-menu [data-testid="mobile-account-links"]')).display : "absent",
+                innerWidth: window.innerWidth, innerHeight: window.innerHeight, sideways: document.documentElement.scrollWidth > window.innerWidth,
+              };
+            });
+            assert.ok(m.panel.left >= 0 && m.panel.right <= m.innerWidth && m.panel.bottom <= m.innerHeight, `${where}: the list is fully on screen`);
+            assert.ok(m.panel.right <= m.burger.right + 40, `${where}: the list hangs from the right, under the menu button`);
+            assert.equal(m.sideways, false, `${where}: no sideways scrolling`);
+            assert.equal(m.quoteInMenu && (await page.locator('#mobile-menu a:has-text("Get a Quote")').isVisible()), false, `${where}: Get a Quote is not repeated in the menu`);
+            assert.ok(m.accountGroup === "absent" || m.accountGroup === "none", `${where}: the Account group is not repeated in the menu`);
+            // every link is reachable by keyboard and a press on Escape closes the list
+            await page.locator('#mobile-menu nav[aria-label="Mobile"] a').first().focus();
+            await page.keyboard.press("Tab");
+            assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("href")), "/build-my-pc", `${where}: Tab moves through the links`);
+            await page.keyboard.press("Escape");
+            await page.locator("#mobile-menu").waitFor({ state: "detached" });
+          } finally {
+            await ctx.close();
+          }
+        }
+      }
+    });
+
+    it("the menu and the account menu are never open together, and widening the window past 1280px closes the menu and gives the page its scrolling back", async () => {
+      const { ctx, page } = await openUnder(FONT_CONDITIONS[0], 1100);
+      try {
+        await page.locator(MENU_BUTTON).click();
+        await page.locator(MENU).waitFor();
+        await page.locator('button[aria-label="Open menu"]').click();
+        await page.locator("#mobile-menu").waitFor();
+        await gone(page);
+        assert.equal(await page.locator(MENU).count(), 0, "opening the menu closed the account menu");
+        await page.locator(MENU_BUTTON).click();
+        await page.locator(MENU).waitFor();
+        assert.equal(await page.locator("#mobile-menu").count(), 0, "opening the account menu closed the menu");
+        await page.locator(MENU_BUTTON).click();
+        await gone(page);
+        await page.locator('button[aria-label="Open menu"]').click();
+        await page.locator("#mobile-menu").waitFor();
+        assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden", "while the menu is open the page behind it does not scroll");
+        await page.setViewportSize({ width: 1440, height: 800 });
+        await page.locator("#mobile-menu").waitFor({ state: "detached", timeout: 3000 });
+        assert.equal(await page.evaluate(() => document.body.style.overflow), "", "the page scrolls again");
+        assert.equal(await page.locator('nav[aria-label="Primary"]').isVisible(), true, "and the six links are in the bar");
+      } finally {
+        await ctx.close();
+      }
+    });
+
+    it("with reduced motion the menu opens without its drop animation; the account menu keeps its own reduced-motion behaviour (tested below)", async () => {
+      const { ctx, page } = await openUnder(FONT_CONDITIONS[0], 1100, "both", HERE, { reducedMotion: "reduce" });
+      try {
+        await page.locator('button[aria-label="Open menu"]').click();
+        await page.locator("#mobile-menu").waitFor();
+        const animation = await page.locator("#mobile-menu > div").evaluate((el) => getComputedStyle(el).animationName);
+        assert.equal(animation, "none");
+      } finally {
+        await ctx.close();
       }
     });
   });
