@@ -36,6 +36,8 @@ const F2 = "20261124120100_financial_reporting_functions.sql";
 const NEW_STATEMENTS = [
   "add_order_cost", "create_order_costed", "customer_orders", "edit_order_cost", "financial_report", "list_completed_orders", "order_completion", "order_costs",
   "overview_summary", "set_order_costs_complete", "verify_historical_completion", "void_order_cost",
+  // the Orders page's paged list (a later release, one migration of its own; earlier websites never call it)
+  "list_orders_page",
 ];
 
 function drive(db) {

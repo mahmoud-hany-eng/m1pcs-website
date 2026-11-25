@@ -207,11 +207,35 @@ describe("the public website does not depend on the customer-account code (Phase
     const files = sourceFiles().filter((p) => !inAccountArea(p));
     assert.ok(files.length > 50, "the scan found too few website files");
     for (const p of files) {
-      const text = read(p);
+      let text = read(p);
+      // The ONE exception: the root layout hands the header the account links that exist in this deployment (see the next test, which pins it).
+      if (p === "src/app/layout.tsx") text = text.replace(/import \{ headerAccountLinks \} from "@\/lib\/accounts\/shared\/header-nav";\n/, "");
       assert.doesNotMatch(text, /lib\/(accounts|platform)/, `${p} must not import the account or platform code`);
       assert.doesNotMatch(text, /@supabase\//, `${p} must not import a Supabase package`);
       assert.doesNotMatch(text, /CUSTOMER_ACCOUNTS/, `${p} must not read the account feature flag`);
     }
+  });
+
+  it("the header's account menu: the layout passes it links from ONE pure module that follows the route switches, and the public header knows nothing of accounts", () => {
+    const layout = read("src/app/layout.tsx");
+    assert.equal((layout.match(/lib\/accounts/g) ?? []).length, 1, "the root layout imports exactly one account module");
+    assert.match(layout, /import \{ headerAccountLinks \} from "@\/lib\/accounts\/shared\/header-nav";/);
+    assert.match(layout, /<Header accountLinks=\{headerAccountLinks\(process\.env\)\} \/>/, "the links come from the environment of THIS deployment");
+    // The layout stays static: no cookie, no request header, no forced dynamic rendering (the public pages are cached, not rendered per visitor).
+    assert.doesNotMatch(strip(layout), /next\/headers|cookies\(|headers\(|force-dynamic|connection\(|noStore/, "the root layout must not make the public pages dynamic");
+    // The module is plain: it imports only the two switches and the link type, reads nothing of its own, and returns data.
+    const nav = read("src/lib/accounts/shared/header-nav.ts");
+    const code = strip(nav);
+    assert.deepEqual([...code.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]).sort(), ["./flag", "@/lib/account-nav", "@/lib/staff/flag"].sort());
+    assert.doesNotMatch(code, /process\.env|next\/|cookies|supabase|server-only|fetch\(/i, "header-nav.ts reads only the environment it is handed");
+    assert.match(code, /customerAccountsGate\(env\)\.enabled\) return \[\]/, "no links at all unless the customer switch is on (and never on production, by the gate)");
+    assert.match(code, /staffAdminGate\(env\)\.enabled\)/, "the staff entry needs the staff switch as well");
+    // The header, the menu and the shared link rule import NOTHING from the account code, the platform code, Supabase, or the server.
+    for (const p of ["src/components/layout/Header.tsx", "src/components/layout/AccountMenu.tsx", "src/lib/account-nav.ts"]) {
+      const text = strip(read(p));
+      assert.doesNotMatch(text, /lib\/(accounts|platform|staff)|@supabase\/|next\/headers|process\.env|CUSTOMER_ACCOUNTS|STAFF_ADMIN/, `${p} must stay free of account, staff and environment code`);
+    }
+    assert.match(read("src/components/layout/AccountMenu.tsx"), /^\s*["']use client["']/);
   });
 
   it("a Supabase package is imported only by the server-side account modules, the middleware and the confirm route", () => {

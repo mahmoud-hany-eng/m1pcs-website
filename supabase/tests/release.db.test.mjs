@@ -108,8 +108,10 @@ suite("release sequence: expand -> new website -> contract, with undo scripts (P
       assert.deepEqual(names.filter((f) => f >= W1 && f < "20261123"), [W1, W2], "the order-workflow pair is the next release and comes after it");
       assert.deepEqual(names.filter((f) => f >= "20261123" && f < "20261124"), ["20261123120000_pricing_rewards_schema.sql", "20261123120100_pricing_rewards_functions.sql", "20261123120200_pricing_rewards_policies.sql"],
         "the pricing and rewards migrations (PLAT-0005) are the release after that");
-      assert.deepEqual(names.filter((f) => f >= "20261124"), ["20261124120000_order_costs_and_completion_schema.sql", "20261124120100_financial_reporting_functions.sql"],
+      assert.deepEqual(names.filter((f) => f >= "20261124" && f < "20261125"), ["20261124120000_order_costs_and_completion_schema.sql", "20261124120100_financial_reporting_functions.sql"],
         "the order costs, completion dates and financial reporting migrations (PLAT-0006) are the release after that");
+      assert.deepEqual(names.filter((f) => f >= "20261125"), ["20261125120000_orders_list_paging.sql"],
+        "the paged Orders list (one additive function) is the release after that");
     });
 
     it("this release's operator scripts live outside supabase/migrations, so no pipeline applies them by itself", () => {

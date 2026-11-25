@@ -1,6 +1,6 @@
 /**
  * Server components for the finance screens: an order's private cost editor, the completion banner, the Financial Performance section of the
- * Orders page, the completed-orders drill-down and a customer's order history. They only DRAW what the owner-only database functions returned;
+ * Orders page and a customer's order history. They only DRAW what the owner-only database functions returned;
  * every amount arrives in integer minor units, and nothing here works out a profit, a margin or a share: the database is authoritative.
  *
  * Privacy: the cost, profit and margin components are only ever rendered by pages that first checked finance.read, and the data they draw is only
@@ -14,8 +14,6 @@ import { formatQar } from "@/lib/platform/money";
 import { costCategoryLabel, costKindLabel, costStateLabel, describeRevision, marginText, MONTH_NAMES, monthName, profitStateLabel } from "@/lib/staff/finance";
 import { formatDay, formatWhen, methodLabel, purposeLabel } from "@/lib/staff/format";
 import type {
-  CompletedOrderRow,
-  CompletedOrdersPage,
   CostState,
   CustomerOrderDetail,
   FinancialBucket,
@@ -259,7 +257,8 @@ export function PeriodSelector({ action, year, month, years, hidden }: { action:
   );
 }
 
-const monthHref = (year: number, month: number | null, extra: string): string => `/admin/orders?fy=${year}${month === null ? "" : `&fm=${month}`}${extra}#completed-orders`;
+// A month link only changes which month the report above shows (by COMPLETION date). The operational list below keeps its own choices (`extra`).
+const monthHref = (year: number, month: number | null, extra: string): string => `/admin/orders?fy=${year}${month === null ? "" : `&fm=${month}`}${extra}#financial-performance`;
 
 export function FinancialPerformance({ report, hidden }: { report: FinancialReport; hidden?: Record<string, string> }) {
   const p = report.period;
@@ -400,63 +399,6 @@ function CostMix({ bucket }: { bucket: FinancialBucket }) {
       {bucket.orders_costs_incomplete > 0 && bucket.orders_costs_missing > 0 ? ", " : ""}
       {bucket.orders_costs_missing > 0 ? `${bucket.orders_costs_missing} with none` : ""}
     </span>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Orders page: the completed-orders drill-down (by completion date, not by the date placed)
-// ---------------------------------------------------------------------------------------------------------------
-
-export function CompletedOrders({ page, pageNumber, buildHref, selector }: { page: CompletedOrdersPage; pageNumber: number; buildHref: (page: number) => string; selector?: ReactNode }) {
-  const finance = page.finance;
-  const last = Math.max(1, Math.ceil(page.total / page.limit));
-  return (
-    <Section id="completed-orders" title={`Orders completed in ${periodTitle(page.year, page.month)}`} aside={<span className="text-xs text-text-muted">{page.total} completed · by completion date</span>}>
-      {selector ? <div className="mb-4">{selector}</div> : null}
-      <DataTable
-        rows={page.rows}
-        rowKey={(r) => r.id}
-        rowHref={(r) => `/admin/orders/${r.id}`}
-        empty="No order was completed in this period."
-        columns={[
-          { key: "ref", header: "Order", cell: (r: CompletedOrderRow) => r.order_ref, primary: true },
-          { key: "customer", header: "Customer", cell: (r) => r.customer_name },
-          { key: "completed", header: "Completed", cell: (r) => formatDay(r.completed_at) },
-          { key: "placed", header: "Placed", cell: (r) => formatDay(r.created_at), hideOnCard: true },
-          { key: "gross", header: "Original total", cell: (r) => <Money minor={r.gross_minor} />, align: "right", hideOnCard: true },
-          { key: "revenue", header: "Net revenue", cell: (r) => <Money minor={r.net_revenue_minor} />, align: "right" },
-          ...(finance
-            ? [
-                { key: "cost", header: "Direct cost", cell: (r: CompletedOrderRow) => (r.cost_state === "missing" ? <span className="text-text-muted">None recorded</span> : <Money minor={(r.actual_cost_minor ?? 0) + (r.estimated_cost_minor ?? 0)} />), align: "right" as const },
-                { key: "profit", header: "Order profit", cell: (r: CompletedOrderRow) => <ProfitFigure minor={r.profit_minor ?? null} provisional={r.profit_minor !== null && r.profit_minor !== undefined && r.profit_is_provisional === true} />, align: "right" as const },
-                { key: "state", header: "Costs", cell: (r: CompletedOrderRow) => (r.cost_state ? <CostStateBadge state={r.cost_state} /> : null) },
-              ]
-            : []),
-          { key: "balance", header: "Still owed", cell: (r) => <Money minor={r.balance_due_minor} />, align: "right", hideOnCard: true },
-        ]}
-      />
-      {last > 1 ? (
-        <nav className="mt-4 flex items-center justify-between text-sm" aria-label="Completed orders pages">
-          {pageNumber > 1 ? (
-            <Link href={buildHref(pageNumber - 1)} className="font-semibold text-accent hover:underline">
-              ← Newer
-            </Link>
-          ) : (
-            <span />
-          )}
-          <span className="text-text-muted">
-            Page {pageNumber} of {last}
-          </span>
-          {pageNumber < last ? (
-            <Link href={buildHref(pageNumber + 1)} className="font-semibold text-accent hover:underline">
-              Older →
-            </Link>
-          ) : (
-            <span />
-          )}
-        </nav>
-      ) : null}
-    </Section>
   );
 }
 

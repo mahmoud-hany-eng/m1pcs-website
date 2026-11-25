@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
+import { headerAccountLinks } from "@/lib/accounts/shared/header-nav";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFloatingButton } from "@/components/layout/WhatsAppFloatingButton";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -80,7 +81,8 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-text-primary antialiased flex flex-col">
         {/* The dark glass showroom every page sits in (see .site-ambient). */}
         <div className="site-ambient" aria-hidden="true" />
-        <Header />
+        {/* The header offers an account link only where its route exists in this deployment (none on production); see header-nav.ts. */}
+        <Header accountLinks={headerAccountLinks(process.env)} />
         <main className="flex-1">{children}</main>
         <Footer />
         <WhatsAppFloatingButton />

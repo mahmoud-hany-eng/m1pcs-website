@@ -113,27 +113,32 @@ export interface Column<T> {
 
 /**
  * A table on a wide screen and a stack of cards on a phone, so nothing scrolls sideways and no amount is cut off.
- * The same cells feed both, so the two views can never disagree.
+ * The same cells feed both, so the two views can never disagree. `cardsBelow` says where the table gives way: from the medium width
+ * (the default) or, for a table with many columns that needs the room beside the dashboard's sidebar, from the extra-large width.
  */
+const TABLE_FROM = { md: "md:block", xl: "xl:block" } as const;
+const CARDS_UNTIL = { md: "md:hidden", xl: "xl:hidden" } as const;
 export function DataTable<T>({
   rows,
   columns,
   rowKey,
   rowHref,
   empty,
+  cardsBelow = "md",
 }: {
   rows: readonly T[];
   columns: readonly Column<T>[];
   rowKey: (row: T) => string;
   rowHref?: (row: T) => string;
   empty: ReactNode;
+  cardsBelow?: "md" | "xl";
 }) {
   if (rows.length === 0) return <Empty>{empty}</Empty>;
   const primary = columns.find((c) => c.primary) ?? columns[0];
   const others = columns.filter((c) => c !== primary && !c.hideOnCard);
   return (
     <>
-      <div className="hidden overflow-x-auto md:block">
+      <div className={`hidden overflow-x-auto ${TABLE_FROM[cardsBelow]}`}>
         <table className="w-full min-w-[30rem] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
@@ -163,7 +168,7 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <ul className="flex flex-col gap-3 md:hidden">
+      <ul className={`flex flex-col gap-3 ${CARDS_UNTIL[cardsBelow]}`}>
         {rows.map((row) => (
           <li key={rowKey(row)} className="rounded-glass-sm border border-border bg-white/[0.025] p-4">
             <div className="mb-3 text-sm font-semibold text-white">

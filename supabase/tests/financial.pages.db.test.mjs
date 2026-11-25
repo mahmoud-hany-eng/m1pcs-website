@@ -6,8 +6,9 @@
 // What is proved:
 //   * Orders: Financial performance sits above the operational list; year / month selectors; the net revenue, direct cost, order profit,
 //     completed-order count and margin are the database's; a full January-December table; a month is chosen by COMPLETION date (an order placed
-//     in February and completed in March is a March order); incomplete or missing costs are visible, in the totals and in the drill-down;
-//     more than 100 completed orders are all counted; the operational list is independent of the period; the table has the phone-card layout too.
+//     in February and completed in March is a March order); incomplete or missing costs are visible, in the totals and in each month's Costs column;
+//     more than 100 completed orders are all counted; the operational list below is independent of the period (and there is no separate
+//     completed-orders table any more); the table has the phone-card layout too. The list's own filters are in orders.pages.db.test.mjs.
 //   * Order page: the cost editor, the costs indicator, the history with old and new values, the completion note and the verification form.
 //   * Overview: Operations / Financial performance / Needs attention groups, the year selector, no cost data for ordinary staff.
 //   * Customer page: each order with the FINAL NET PAYABLE up front, the original total, the discount and credit, paid and outstanding.
@@ -61,6 +62,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
     orderPricingContext: async (cid) => q(`select admin.order_pricing_context(${lit(cid)})::text`, who),
     searchCustomers: async () => [],
     listOrders: async ({ status = null, search = null, limit = 50, offset = 0 } = {}) => q(`select admin.list_orders(${lit(status)}, ${lit(search)}, ${limit}, ${offset})::text`, who),
+    listOrdersPage: async (o) => q(`select admin.list_orders_page(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`, who),
     overview: async (year = null) => q(`select admin.overview_summary(${num(year)})::text`, who),
     financialReport: async (year = null, month = null) => q(`select admin.financial_report(${num(year)}, ${num(month)})::text`, who),
     completedOrders: async (year = null, month = null, limit = 50, offset = 0) => q(`select admin.list_completed_orders(${num(year)}, ${num(month)}, ${limit}, ${offset})::text`, who),
@@ -164,29 +166,39 @@ suite("the finance screens, rendered with the database's own answers (real funct
       assert.match(row("June"), /^June 0 /);
     });
 
-    it("a month is chosen by completion date: the drill-down lists the orders COMPLETED in it, and the operational list is not filtered", async () => {
+    it("a month is chosen by completion date: the figures are those of the orders COMPLETED in it, and the operational list below is not filtered by it", async () => {
       const html = await ordersHtml({ fy: String(YEAR), fm: "3" });
       assert.equal(inner(html, "fin-period-title"), `March ${YEAR}`);
-      const drill = html.slice(html.indexOf('id="completed-orders"'), html.indexOf('placeholder="Search by order number or customer"'));
+      assert.equal(inner(html, "fin-count"), "Completed orders 2", "both March completions are counted, including the one placed in February");
+      assert.ok(inner(html, "fin-net-revenue").includes("5,000.00"), `net revenue ${inner(html, "fin-net-revenue")}`); // 2000 + 3000
+      // There is no separate completed-orders table any more, and nothing points at one.
+      assert.ok(!html.includes('id="completed-orders"') && !/Orders completed in/.test(text(html)), "the redundant completed-orders section is gone");
+      assert.ok(!html.includes("#completed-orders") && !html.includes("completed-orders"), "no link or anchor to it is left");
+      assert.ok(html.includes('id="financial-performance"') && html.includes("#financial-performance"), "the month links lead to the Financial performance section");
       const ref = (id) => read(`select order_ref from public.orders where id = '${id}'`);
-      assert.ok(drill.includes(ref(ids.febToMar)) && drill.includes(ref(ids.mar)), "both March completions are listed, including the one placed in February");
-      assert.ok(!drill.includes(ref(ids.jan)) && !drill.includes(ref(ids.apr)), "no other month's order");
-      assert.ok(text(drill).includes(`Orders completed in March ${YEAR}`));
-      const list = html.slice(html.indexOf('placeholder="Search by order number or customer"'));
-      assert.ok(list.includes(ref(ids.jan)) && list.includes(ref(ids.apr)) && list.includes(ref(ids.open)), "the operational list still shows every order");
+      const list = html.slice(html.indexOf('id="orders-list"'));
+      assert.ok(list.includes('data-testid="orders-summary"'), "the operational list has its own summary");
+      // (the table and the phone cards both link each order, so count the DIFFERENT orders linked)
+      assert.equal(new Set(list.match(/href="\/admin\/orders\/[0-9a-f-]{36}"/g) ?? []).size <= 5, true, "the operational list shows one page of at most 5");
+      // Choosing the month changed the report only: the list is the same page as with no month chosen.
+      const without = await ordersHtml({ fy: String(YEAR) });
+      assert.equal(text(list), text(without.slice(without.indexOf('id="orders-list"'))).replace(/\s+/g, " "), "the list below is identical whatever month the report shows");
+      assert.ok(ref(ids.jan).length > 0);
     });
 
-    it("incomplete and missing costs are visible: in the warning, in the month's Costs column and in the drill-down", async () => {
+    it("incomplete and missing costs are visible: in the warning and in each month's Costs column", async () => {
       const html = await ordersHtml({ fy: String(YEAR) });
       const warning = inner(html, "fin-incomplete-warning");
       assert.ok(warning && /Provisional/.test(warning), warning);
       assert.ok(/a missing cost is never counted as zero/i.test(warning));
-      const march = await ordersHtml({ fy: String(YEAR), fm: "3" });
-      const t = text(march);
-      assert.ok(/Costs incomplete/.test(t), "the March order with an estimated freight entry is flagged");
-      assert.ok(/Costs complete/.test(t), "and the other is complete");
-      const april = text(await ordersHtml({ fy: String(YEAR), fm: "4" }));
-      assert.ok(/No costs recorded/.test(april) && /None recorded/.test(april), "an order without any cost says so, and shows no profit");
+      const table = /<table[\s\S]*?<\/table>/.exec(html.slice(html.indexOf('id="financial-performance"')))[0];
+      const rows = [...table.matchAll(/<tr class="group">([\s\S]*?)<\/tr>/g)].map((m) => text(m[1]).trim());
+      const row = (month) => rows.find((r) => r.startsWith(month));
+      assert.match(row("March"), /1 incomplete/, "the March order with an estimated freight entry is flagged");
+      assert.match(row("April"), /1 with none/, "an order without any cost says so");
+      assert.match(row("December"), /Complete/, "and a month whose orders all have complete costs says so");
+      const april = await ordersHtml({ fy: String(YEAR), fm: "4" });
+      assert.ok(/Not available/.test(inner(april, "fin-profit")), "and shows no profit for it");
     });
 
     it("profit and margin follow the definitions: a month with only complete costs is verified; one with a missing cost leaves it out of the profit", async () => {
@@ -240,7 +252,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
   });
 
   describe("Orders: more than 100 completed orders are all counted, by the database", () => {
-    it("120 completed orders in one month appear in the totals and the drill-down pages, though the operational list shows 100", async () => {
+    it("120 completed orders in one month are all in the totals, and the operational list counts every order, though it shows one page of 5", async () => {
       const customer = ID.custA;
       const values = [];
       for (let i = 0; i < 120; i += 1) values.push(`('${randomUUID()}'::uuid, '${customer}'::uuid, 'BULK-${String(i).padStart(4, "0")}', 10000)`);
@@ -254,26 +266,22 @@ suite("the finance screens, rendered with the database's own answers (real funct
       const html = await ordersHtml({ fy: String(YEAR), fm: "8" });
       assert.equal(inner(html, "fin-count"), "Completed orders 120");
       assert.ok(inner(html, "fin-net-revenue").includes("12,000.00"));
-      const drill = html.slice(html.indexOf('id="completed-orders"'), html.indexOf('placeholder="Search by order number or customer"'));
-      assert.ok(/Page 1 of 3/.test(text(drill)), "50 per page: three pages");
-      const page3 = await ordersHtml({ fy: String(YEAR), fm: "8", fp: "3" });
-      assert.ok(/Page 3 of 3/.test(text(page3)));
-      const rows = (page3.match(/BULK-\d{4}/g) ?? []).length;
-      assert.ok(rows >= 20, `the last page has the remaining 20 rows (saw ${rows})`);
-      // the operational list is the 100 most recent, independent of the report
-      assert.match(text(html), /100 shown/);
+      // The operational list is a page of 5, counted over ALL orders (the 120 included), not the first 100 of them.
+      const total = Number(read("select count(*) from public.orders"));
+      assert.ok(total > 120);
+      assert.match(text(html), new RegExp(`Showing 1–5 of ${total} orders`));
       rewrite(`delete from private.order_completions where order_id in (select id from public.orders where order_ref like 'BULK-%'); delete from public.orders where order_ref like 'BULK-%';`);
     });
   });
 
   describe("an ordinary staff member (no finance permission): the operational screens, with no cost, profit or margin anywhere", () => {
-    it("the Orders page keeps the completed-orders list by completion date, and shows no Financial performance, cost, profit or margin", async () => {
+    it("the Orders page shows the operational list, and no Financial performance, completed-orders table, cost, profit or margin", async () => {
       const html = await ordersHtml({ fy: String(YEAR), fm: "3" }, staffOpts());
       assert.ok(!html.includes('id="financial-performance"') && !has(html, "fin-profit"));
-      const drill = text(html.slice(html.indexOf('id="completed-orders"')));
-      assert.ok(/Orders completed in March/.test(drill));
+      assert.ok(!html.includes("completed-orders") && !/Orders completed in/.test(text(html)));
       assert.ok(!/Direct cost|Order profit|Margin|Costs complete|Costs incomplete|No costs recorded/.test(text(html)), "no finance column or word");
-      assert.ok(has(html, "period-selector"), "the staff member still chooses the period");
+      assert.ok(html.includes('id="orders-list"') && has(html, "orders-summary"), "the list and its summary are there for ordinary staff");
+      assert.ok(!has(html, "period-selector"), "the report's period selector belongs to the Financial performance section, which this person does not have");
     });
 
     it("no cost, supplier, note or secret amount reaches any ordinary staff screen: Orders, Order, Overview, Customer, New order", async () => {

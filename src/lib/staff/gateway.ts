@@ -92,6 +92,8 @@ const CALLS = {
   revoke_claim_code: "select admin.revoke_claim_code($1::uuid, $2::text)::text as r",
   list_claim_codes: "select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb) as r from admin.list_claim_codes($1::uuid) t",
   list_orders: "select admin.list_orders($1::text, $2::text, $3::integer, $4::integer) as r",
+  // The Orders page: filter by search, status and the Qatar date an order was placed, sort, count and page, all in the database (admin.list_orders_page).
+  list_orders_page: "select admin.list_orders_page($1::text, $2::text, $3::integer, $4::integer, $5::date, $6::date, $7::text, $8::integer, $9::integer) as r",
   get_order: "select admin.get_order($1::uuid) as r",
   // The three keyed calls also report whether the answer is a REPEAT of an earlier request (the database sets the
   // transaction-local flag m1.replayed), so the screen can say "already recorded" instead of "recorded".

@@ -53,12 +53,14 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
   const orders = can("orders.read");
   const fin = o.financial;
   const a = o.needs_attention;
+  // Completed orders are counted by completion date in the Financial performance section (owner only). Everyone else is taken to the delivered orders.
+  const completedHref = fin ? `/admin/orders?fy=${o.year}#financial-performance` : "/admin/orders?status=delivered#orders-list";
   const attention: { key: string; label: string; count: number; href?: string }[] = [
     { key: "confirm", label: "Awaiting confirmation", count: a.awaiting_confirmation, href: orders ? "/admin/orders?status=pending_confirmation" : undefined },
     { key: "deposit", label: "Awaiting deposit", count: a.awaiting_deposit, href: orders ? "/admin/orders?status=awaiting_deposit" : undefined },
     { key: "hold", label: "On hold", count: a.on_hold, href: orders ? "/admin/orders?status=on_hold" : undefined },
     ...(a.deposit_shortfalls !== undefined ? [{ key: "shortfall", label: "Deposit not fully received", count: a.deposit_shortfalls, href: orders ? "/admin/orders?status=awaiting_deposit" : undefined }] : []),
-    ...(a.completed_with_balance !== undefined ? [{ key: "balance", label: "Completed with a balance still owed", count: a.completed_with_balance, href: orders ? `/admin/orders?fy=${o.year}#completed-orders` : undefined }] : []),
+    ...(a.completed_with_balance !== undefined ? [{ key: "balance", label: "Completed with a balance still owed", count: a.completed_with_balance, href: orders ? completedHref : undefined }] : []),
     { key: "verify", label: "Completion date to verify", count: a.completion_to_verify, href: orders ? (fin ? "/admin/orders#financial-performance" : "/admin/orders") : undefined },
   ];
   const open = attention.filter((item) => item.count > 0);
@@ -84,7 +86,7 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
       <Group id="grp-operations" title="Operations">
         <div className="grid grid-cols-2 gap-3 sm:gap-4" data-testid="overview-operations">
           <Stat label="Active orders" value={o.active_orders} hint="Current workload: not delivered and not cancelled" href={orders ? "/admin/orders" : undefined} />
-          <Stat label={`Completed orders, ${o.year}`} value={o.completed_orders} hint="Counted by the date they were completed" href={orders ? `/admin/orders?fy=${o.year}#completed-orders` : undefined} />
+          <Stat label={`Completed orders, ${o.year}`} value={o.completed_orders} hint="Counted by the date they were completed" href={orders ? completedHref : undefined} />
         </div>
       </Group>
 

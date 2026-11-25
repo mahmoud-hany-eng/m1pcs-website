@@ -326,3 +326,17 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** Orders delivered before completion dates were recorded keep a completion date only when their status history proves it. For the others the owner must confirm the real date from their own records, one order at a time, in the order page. Should any be left unverified?
 - **Recommendation:** Verify each from the delivery note or customer message and record how it was known in the reason field.
 - **Source:** HD-0023; [FINANCIAL_REPORTING.md](../architecture/FINANCIAL_REPORTING.md) section 2.
+
+### OQ-0048 — Should the public header know whether the visitor is signed in?
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The header's account menu offers My Account, Customer Sign In and Create Account together, leaving out only what is plainly redundant on the page being viewed, because the sign-in cookies are `HttpOnly` and the public pages are static. Showing only the right entries for a signed-in or signed-out visitor would need either a per-visitor (dynamic) header on every public page, which makes the whole public site slower and uncached, or a deliberately readable, non-sensitive "signed in" indicator, which changes the customer authentication surface.
+- **Recommendation:** Keep it as it is until customer accounts go to Production; then decide with the real visitor numbers. If an indicator is wanted, treat it as its own reviewed change to customer authentication.
+- **Source:** HD-0024; [PUBLIC_HEADER_ACCOUNT_MENU.md](../architecture/PUBLIC_HEADER_ACCOUNT_MENU.md) section 3.
+
+### OQ-0049 — Completion dates for staff who are not the owner
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The completed-orders table was the only place ordinary staff could see completion dates (without costs); it was removed at the owner's request. Staff without `finance.read` now see delivered orders in the ordinary list but no completion date. Should the list show the completion date of a delivered order as a column or in the card?
+- **Recommendation:** Not needed for the owner's own use; add a "Completed" date to the list only if staff ask for it (it holds no private data).
+- **Source:** HD-0024.

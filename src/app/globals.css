@@ -597,6 +597,39 @@ body {
   animation: glass-fade 0.3s ease both;
 }
 
+/* The account menu in the public header: a quick fade with a few pixels of slide, in and out. (A menu closes by playing the "out" animation
+   and then being removed; with reduced motion it is simply removed. See components/layout/AccountMenu.tsx.) */
+@keyframes account-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes account-menu-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.account-menu {
+  transform-origin: top right;
+}
+.account-menu[data-state="open"] {
+  animation: account-menu-in 0.16s var(--ease-glass) both;
+}
+.account-menu[data-state="closing"] {
+  animation: account-menu-out 0.12s ease both;
+  pointer-events: none;
+}
+
 /* No backdrop-filter support: glass becomes a more opaque charcoal so text
    contrast never depends on a blur the browser can't draw. */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -621,7 +654,8 @@ body {
     display: none;
   }
   .glass-drop,
-  .glass-fade {
+  .glass-fade,
+  .account-menu[data-state] {
     animation: none;
   }
   .btn-sheen,

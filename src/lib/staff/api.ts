@@ -3,7 +3,7 @@ import "server-only";
 import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } from "./gateway";
 import type {
   AuditRow, ClaimCodeRow, CompletedOrdersPage, CustomerDetail, CustomerListRow, CustomerOrdersPage, DashboardSummary, DepositPreview, FinancialReport,
-  LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OverviewSummary, PaymentListRow,
+  LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OrdersPage, OrdersSort, OverviewSummary, PaymentListRow,
   PolicyRow, PolicyVersionRow,
 } from "./types";
 
@@ -49,6 +49,9 @@ export function staffApi(staff: VerifiedStaff) {
 
     listOrders: (opts: { status?: string | null; search?: string | null; limit?: number; offset?: number } = {}) =>
       call<OrderListRow[]>("list_orders", [opts.status ?? null, opts.search ?? null, opts.limit ?? 50, opts.offset ?? 0]),
+    // One page of the Orders list, filtered, sorted and counted by the database. Dates are Qatar calendar days (YYYY-MM-DD), inclusive.
+    listOrdersPage: (o: { search: string | null; status: string | null; year: number | null; month: number | null; from: string | null; to: string | null; sort: OrdersSort; page: number; pageSize: number }) =>
+      call<OrdersPage>("list_orders_page", [o.search, o.status, o.year, o.month, o.from, o.to, o.sort, o.page, o.pageSize]),
     getOrder: (id: string) => call<OrderDetail>("get_order", [id]),
     // The idempotency key is chosen once per intended action and reused by every retry of it: a repeat returns the same order.
     createOrder: async (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string): Promise<KeyedResult> => {

@@ -50,11 +50,13 @@ suite("the staff order page, rendered with the hosted synthetic order's data (re
 
   // The page's data comes from the REAL staff functions, through the same statements the staff gateway runs (src/lib/staff/gateway.ts).
   const lit = (v) => (v === null || v === undefined ? "null" : `'${String(v).replaceAll("'", "''")}'`);
+  const num = (v) => (v === null || v === undefined ? "null" : String(Number(v)));
   const q = (sql) => JSON.parse(read(sql, AS.olivia));
   const api = {
     getOrder: async () => getOrder(),
     dashboard: async () => q("select admin.dashboard_summary()::text"),
     listOrders: async ({ status = null, search = null, limit = 50, offset = 0 } = {}) => q(`select admin.list_orders(${lit(status)}, ${lit(search)}, ${limit}, ${offset})::text`),
+    listOrdersPage: async (o) => q(`select admin.list_orders_page(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`),
     getCustomer: async (cid) => q(`select admin.get_customer(${lit(cid)})::text`),
     claimCodes: async (cid) => q(`select coalesce(jsonb_agg(row_to_json(t)::jsonb), '[]'::jsonb)::text from admin.list_claim_codes(${lit(cid)}) t`),
     listPayments: async (limit, offset) => q(`select admin.list_payments(${limit}, ${offset})::text`),

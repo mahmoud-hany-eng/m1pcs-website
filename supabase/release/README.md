@@ -168,3 +168,32 @@ select count(*) from private.order_completions;                                 
 select count(*) from private.order_costs;                                        -- 0 (nothing is invented)
 select order_ref, status, total_minor, deposit_required_minor, amount_paid_minor, completed_at from public.orders where order_ref = 'O-2611-00001';
 ```
+
+## Orders list paging and the account menu (PLAT-0007): one migration
+
+`20261125120000_orders_list_paging.sql` is additive and rerunnable: it adds **one function**, `admin.list_orders_page`, and changes nothing else. `admin.list_orders` is **not** touched, so the
+website that is live today, the Preview deployed from `f20dbe6` and every earlier build keep working exactly as they do (they never call the new function). A comparison of a database with and
+without the migration (`orders-list.db.test.mjs`) shows exactly one function differing, and no table, column, index, constraint, trigger or policy. There is no destructive undo, on purpose: there is
+nothing to undo. The design is in `docs/project-memory/architecture/ORDERS_LIST.md`; the header's account menu is in `PUBLIC_HEADER_ACCOUNT_MENU.md`. Nothing here has been applied anywhere.
+
+**The order matters: the database first, then the website.** The new Orders page calls the new function. Pushed first, its list would show an error until the migration is applied (the Financial performance
+section would still load, and nothing is lost). Applied first, nothing visible changes until the website is pushed.
+
+| Step | Action | Needs |
+| --- | --- | --- |
+| 1 | Preflight: the worktree is clean, HEAD is the approved commit, `origin/claude/plat-0004-order-hardening` is `f20dbe6`, DEV is at migration `20261124193717`; record a fresh recovery baseline (a logical export of the business rows, **not** a backup). | owner approval |
+| 2 | Apply `20261125120000_orders_list_paging.sql` to DEVELOPMENT only, through the Supabase migration tool, without bypassing any prompt. | the same |
+| 3 | Verify: the recorded statement's md5 equals the file's; the function fingerprint differs from before by **exactly one function** and the table fingerprint not at all; the data digest of every table is unchanged; the new function is executable by `authenticated` and `m1_staff_gateway` only. | |
+| 4 | One normal, non-force push of the approved commit; wait for CI and the Vercel Preview; confirm the Preview is Ready, in `bom1`, and that no Production deployment occurred. | owner approval |
+| 5 | Owner acceptance in a real browser: Part 8 of `FINANCIAL_OWNER_ACCEPTANCE_CHECKLIST.md` (Orders list, filters, sort, paging; the account menu on the Preview; the Production header). | owner |
+
+The Preview already has the customer-account and staff switches on, so the account icon appears after the next Preview build with no variable change. Production is untouched: its header offers nothing, and
+the account and admin routes remain closed there. Read-only checks after step 2 (expect the stated results):
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'admin' and p.proname = 'list_orders_page';   -- 1
+select has_function_privilege('anon', 'admin.list_orders_page(text, text, integer, integer, date, date, text, integer, integer)', 'execute');              -- false
+select has_function_privilege('authenticated', 'admin.list_orders_page(text, text, integer, integer, date, date, text, integer, integer)', 'execute');     -- true
+select count(*) from public.orders;                                              -- unchanged (2 on the hosted synthetic data)
+select count(*) from private.security_audit();                                   -- 0
+```

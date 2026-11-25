@@ -110,6 +110,34 @@ export interface OrderListRow {
   loyalty_credit_minor?: number;
   net_payable_minor?: number;
 }
+/** The Orders list for one page, worked out entirely by the database (admin.list_orders_page): filtered, sorted, counted and cut to the page. */
+export type OrdersSort = "newest" | "oldest" | "price_asc" | "price_desc";
+export interface OrdersPage {
+  /** Orders that match every filter, across ALL pages. */
+  total: number;
+  /** The page actually returned (the database moves a page past the end back to the last one). */
+  page: number;
+  pages: number;
+  page_size: number;
+  /** 1-based position of the first and last row shown ("Showing 1-5 of 23"); both 0 when nothing matches. */
+  first: number;
+  last: number;
+  sort: OrdersSort;
+  filters: {
+    search: string;
+    status: string | null;
+    /** The period the orders were PLACED in. Year and month are null when a custom range is in use (or no period is). */
+    year: number | null;
+    month: number | null;
+    from: string | null;
+    to: string | null;
+    /** A custom range was given AND a year or month was too: the range won and the year and month were ignored. */
+    range_overrides_period: boolean;
+  };
+  /** Years in which orders were placed (Qatar calendar), plus the current one, newest first. */
+  years: number[];
+  rows: OrderListRow[];
+}
 export interface OrderItemDetail {
   position: number;
   kind: string;

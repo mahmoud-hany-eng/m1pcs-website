@@ -43,6 +43,9 @@ const LATER_RELEASE_STATEMENTS = [
   "add_order_cost", "create_order_costed", "customer_orders", "edit_order_cost", "financial_report", "list_completed_orders", "order_completion", "order_costs",
   "overview_summary", "set_order_costs_complete", "verify_historical_completion", "void_order_cost",
 ];
+/** The one statement the still later Orders-list release (20261125120000, PLAT-0007) adds: the paged, filtered, sorted list. */
+const ORDERS_LIST_RELEASE_STATEMENTS = ["list_orders_page"];
+const LATER_STATEMENTS = [...LATER_RELEASE_STATEMENTS, ...ORDERS_LIST_RELEASE_STATEMENTS];
 
 /** Keys the pricing release adds to the read answers (additive; the deployed pages ignore keys they do not know). */
 const ADDED_KEYS = new Set([
@@ -189,8 +192,9 @@ suite("the website deployed before the pricing release, run statement by stateme
     }
     const current = [...GATEWAY.matchAll(/^\s*([a-z_]+): "(.+)",$/gm)].map((m) => m[1]).filter((n) => n !== "application_name");
     const added = current.filter((n) => !(n in DEPLOYED)).sort();
-    assert.deepEqual(added.filter((n) => !LATER_RELEASE_STATEMENTS.includes(n)), ["create_order_priced", "order_pricing_context"]);
+    assert.deepEqual(added.filter((n) => !LATER_STATEMENTS.includes(n)), ["create_order_priced", "order_pricing_context"]);
     assert.deepEqual(added.filter((n) => LATER_RELEASE_STATEMENTS.includes(n)), [...LATER_RELEASE_STATEMENTS].sort(), "and every statement of the later release is present");
+    assert.deepEqual(added.filter((n) => ORDERS_LIST_RELEASE_STATEMENTS.includes(n)), ORDERS_LIST_RELEASE_STATEMENTS, "and the Orders-list release adds exactly its one");
   });
 
   it("the control really is the deployed shape (no pricing objects) and the others really have them", () => {

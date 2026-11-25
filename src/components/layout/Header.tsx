@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
+import { AccountMenu } from "@/components/layout/AccountMenu";
+import { isCurrentLink, linksForPath, type AccountNavLink } from "@/lib/account-nav";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -24,8 +26,10 @@ const navLinks = [
  * and frosts in once the page scrolls — only the glass layer's opacity
  * transitions; its backdrop-filter is never animated.
  */
-export function Header() {
+export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountNavLink[] }) {
   const pathname = usePathname();
+  // The account entries for this page (none at all unless the layout was given some: nothing is offered where the routes are switched off).
+  const mobileAccountLinks = linksForPath(accountLinks, pathname);
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -132,10 +136,11 @@ export function Header() {
             })}
           </nav>
 
-          <div className="hidden lg:block">
+          <div className="hidden items-center gap-2.5 lg:flex">
             <Button href="/build-my-pc" variant="secondary" size="sm">
               Get a Quote
             </Button>
+            {accountLinks.length > 0 ? <AccountMenu links={accountLinks} /> : null}
           </div>
 
           <button
@@ -168,7 +173,7 @@ export function Header() {
 
         {open && (
           <div id="mobile-menu" className="absolute inset-x-4 top-full sm:inset-x-6 lg:hidden">
-            <div className="glass-strong glass-drop rounded-glass-lg p-2.5">
+            <div className="glass-strong glass-drop max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-glass-lg p-2.5">
               <nav className="flex flex-col" aria-label="Mobile">
                 {navLinks.map((link) => {
                   const isActive = pathname === link.href;
@@ -194,6 +199,30 @@ export function Header() {
                   );
                 })}
               </nav>
+              {mobileAccountLinks.length > 0 && (
+                <nav className="mt-1.5 border-t border-white/10 pt-1" aria-label="Account" data-testid="mobile-account-links">
+                  <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">Account</p>
+                  {mobileAccountLinks.map((link) => {
+                    const current = isCurrentLink(link, pathname);
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setOpen(false)}
+                        className={`flex items-center justify-between rounded-2xl px-4 py-3 text-base font-medium transition-colors ${
+                          current ? "bg-white/[0.06] text-accent" : "text-text-primary/90 hover:bg-white/[0.05] hover:text-white"
+                        }`}
+                        aria-current={current ? "page" : undefined}
+                      >
+                        {link.label}
+                        <span aria-hidden="true" className={current ? "h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgb(249_194_4/0.8)]" : "text-text-muted"}>
+                          {current ? null : "→"}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              )}
               <div className="mt-2 p-1.5">
                 <Button href="/build-my-pc" variant="secondary" size="lg" className="w-full">
                   Get a Quote

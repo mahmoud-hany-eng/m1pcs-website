@@ -91,8 +91,10 @@ Every amount is an integer count of QAR minor units. No figure is ever worked ou
 * **Orders page.** Above the operational list: *Financial performance*: a year selector (default: the current Qatar year, automatically) and month selector
   (All, January to December); Net revenue, Total direct cost, Order profit, Completed orders, Margin; cash received and outstanding balances as separate
   figures; a January to December table (shown as a table on a desktop and as cards on a phone); incomplete or missing costs are visible in the totals and per
-  month and per order; a month filters the **completed orders by completion date** (`list_completed_orders`, 50 per page). The operational list below keeps
-  its own filters and is not changed by the period. A person without `finance.read` sees the completed-orders list without any cost, profit or margin column.
+  month and per order. A month changes the report only (by completion date). The separate "Orders completed in ..." table that used to follow it was **removed
+  at the owner's request** (it duplicated the section above; `list_completed_orders` and every financial figure remain). The operational list below has its own
+  filters, sort and paging, by the date an order was **placed**, and is not changed by the report's period: see [ORDERS_LIST.md](ORDERS_LIST.md). A person without
+  `finance.read` has no Financial performance section (OQ-0049 asks about showing completion dates in the list).
 * **Overview.** Grouped: *Operations* (Active orders = current workload, independent of the year; Completed orders = selected year by completion date),
   *Financial performance* (Total net revenue, Total order profit with the provisional warning; owner only), a compact *Needs attention*, *Recent orders*, and a
   link to the detailed monthly reports. The year defaults to the current year; older years are in the selector. The earlier `admin.dashboard_summary` is untouched
