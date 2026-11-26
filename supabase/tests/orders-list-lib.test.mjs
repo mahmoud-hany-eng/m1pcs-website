@@ -179,33 +179,26 @@ describe("the account links the public header may offer", { skip }, () => {
     assert.deepEqual(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", VERCEL_ENV: "production" }), []);
   });
 
-  test("in a Preview with the customer switch on EXACTLY three entries appear, in this order: Log in, My account, Track my order (the staff switch adds nothing)", () => {
+  test("in a Preview with the customer switch on EXACTLY two entries appear, in this order: Log in, Create account (the staff switch adds nothing)", () => {
     const customer = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", VERCEL_ENV: "preview" });
-    assert.deepEqual(labels(customer), ["Log in /auth/sign-in", "My account /account", "Track my order /account/orders"]);
+    assert.deepEqual(labels(customer), ["Log in /auth/sign-in", "Create account /auth/sign-up"]);
     const both = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true", VERCEL_ENV: "preview" });
-    assert.deepEqual(labels(both), labels(customer), "the public menu never offers the staff dashboard");
+    assert.deepEqual(labels(both), labels(customer), "the public menu never offers the staff dashboard, an admin login or a staff login");
     // a local run (no VERCEL_ENV at all) behaves like a preview
-    assert.equal(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" }).length, 3);
+    assert.equal(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" }).length, 2);
     assert.ok(customer.every((l) => !("group" in l)), "there is one list, not a customer group and a staff group");
+    for (const gone of ["My account", "Track my order", "Admin", "Staff"]) assert.ok(!labels(customer).join("|").includes(gone), `${gone} is not in the signed-out menu`);
   });
 
   test("every link goes to a plain address on this site: no external link, no query, no fragment, nothing that carries a token", () => {
     for (const link of header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" })) assert.match(link.href, /^\/[a-z/-]*$/, link.href);
   });
 
-  test("only 'Log in' is left out where it is plainly redundant (inside the account and the dashboard, where the person is signed in); everywhere else all three show", () => {
+  test("the signed-out menu is the same two entries on every page (nothing is left out, nothing is added)", () => {
     const all = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" });
     const at = (path) => labels(nav.linksForPath(all, path));
-    const three = ["Log in /auth/sign-in", "My account /account", "Track my order /account/orders"];
-    assert.deepEqual(at("/"), three);
-    assert.deepEqual(at("/build-my-pc"), three);
-    assert.deepEqual(at("/auth/sign-in"), three, "on the sign-in page the entry stays (it is the current page), so the menu is always the same three");
-    assert.deepEqual(at("/auth/sign-up"), three);
-    assert.deepEqual(at("/account"), ["My account /account", "Track my order /account/orders"], "inside the account the person is signed in");
-    assert.deepEqual(at("/account/orders/O-1"), ["My account /account", "Track my order /account/orders"]);
-    assert.deepEqual(at("/admin"), ["My account /account", "Track my order /account/orders"]);
-    assert.deepEqual(at("/accounts-and-more"), three, "a prefix is a whole path segment: /accounts-and-more is not inside /account");
-    assert.deepEqual(at("/administration"), three, "...nor is /administration inside /admin");
+    const two = ["Log in /auth/sign-in", "Create account /auth/sign-up"];
+    for (const path of ["/", "/build-my-pc", "/auth/sign-in", "/auth/sign-up", "/account", "/account/orders/O-1", "/admin", "/admin/orders", "/accounts-and-more", "/administration"]) assert.deepEqual(at(path), two, path);
   });
 
   test("a link says it is the current page for the page itself and everything below it (unless it is exact), and for nothing else", () => {
@@ -213,11 +206,48 @@ describe("the account links the public header may offer", { skip }, () => {
     assert.equal(nav.isCurrentLink({ href: "/account/orders" }, "/account/orders/O-1"), true);
     assert.equal(nav.isCurrentLink({ href: "/account" }, "/accounts"), false);
     assert.equal(nav.isCurrentLink({ href: "/auth/sign-in" }, "/auth/sign-up"), false);
-    // "My account" is exact: on "Track my order" only that entry is the current page.
-    const mine = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true" }).find((l) => l.href === "/account");
-    assert.equal(mine.exact, true);
-    assert.equal(nav.isCurrentLink(mine, "/account"), true);
-    assert.equal(nav.isCurrentLink(mine, "/account/orders"), false);
-    assert.equal(nav.isCurrentLink(mine, "/account/orders/O-1"), false);
+    // An exact entry is the current page only on its own address.
+    const exact = { href: "/account", exact: true };
+    assert.equal(nav.isCurrentLink(exact, "/account"), true);
+    assert.equal(nav.isCurrentLink(exact, "/account/orders"), false);
+    assert.equal(nav.isCurrentLink(exact, "/account/orders/O-1"), false);
+  });
+
+  test("a display name is made safe to show: control and direction-changing characters removed, spaces collapsed, cut at 60 characters, and never invented", () => {
+    assert.equal(nav.cleanDisplayName("  Mahmoud   Hany "), "Mahmoud Hany");
+    assert.equal(nav.cleanDisplayName("A\u0000B\u202eC\u200bD\n\tE"), "ABCD E");
+    assert.equal(nav.cleanDisplayName("\u202e\u2066 \u200b"), null, "nothing left after cleaning means no name");
+    for (const bad of [null, undefined, "", "   ", 42, {}, ["x"]]) assert.equal(nav.cleanDisplayName(bad), null, String(bad));
+    const long = "Abdulrahman bin Mohammed bin Khalifa Al-Thani Al-Mansouri Al-Sulaiti Al-Kuwari";
+    const cut = nav.cleanDisplayName(long);
+    assert.ok(Array.from(cut).length <= 60 && cut.endsWith("…"), cut);
+    assert.equal(nav.cleanDisplayName("عبد الله محمد"), "عبد الله محمد", "Arabic names are kept");
+    assert.equal(nav.cleanDisplayName("😀".repeat(80)).length > 0, true, "emoji are counted as characters, not cut in the middle");
+    assert.doesNotMatch(nav.cleanDisplayName("😀".repeat(80)), /\uFFFD|[\uD800-\uDBFF](?![\uDC00-\uDFFF])/, "no broken surrogate pair");
+  });
+
+  test("the neutral label is used when there is no name: 'Staff account' for staff, 'My account' otherwise, and never an e-mail address or an invented name", () => {
+    assert.equal(nav.headerLabel("staff", null), "Staff account");
+    assert.equal(nav.headerLabel("staff", "  "), "Staff account");
+    assert.equal(nav.headerLabel("customer", undefined), "My account");
+    assert.equal(nav.headerLabel("unknown", ""), "My account");
+    assert.equal(nav.headerLabel("customer", "Sara Ali"), "Sara Ali");
+    assert.equal(nav.headerLabel("staff", "Olivia Owner"), "Olivia Owner");
+  });
+
+  test("the header reads the identity answer strictly: only a label and one of three fixed addresses are accepted, anything else is refused", () => {
+    const ok = { state: "signed_in", kind: "staff", label: "Olivia Owner", href: "/admin" };
+    assert.deepEqual(nav.parseHeaderIdentity(ok), ok);
+    assert.deepEqual(nav.parseHeaderIdentity({ ...ok, kind: "customer", href: "/account" }), { ...ok, kind: "customer", href: "/account" });
+    assert.deepEqual(nav.parseHeaderIdentity({ ...ok, kind: "unknown", href: "/auth/continue", label: "My account" }), { ...ok, kind: "unknown", href: "/auth/continue", label: "My account" });
+    assert.deepEqual(nav.parseHeaderIdentity({ state: "signed_out" }), { state: "signed_out" });
+    assert.deepEqual(nav.parseHeaderIdentity({ ...ok, label: " Nasser\u202e " }), { ...ok, label: "Nasser" }, "the label is cleaned again on arrival");
+    // refused: another address (an external site, another path, a query), a missing or empty label, an unknown kind or state, the wrong type
+    for (const bad of [
+      { ...ok, href: "https://evil.example/admin" }, { ...ok, href: "//evil.example" }, { ...ok, href: "/admin/orders" }, { ...ok, href: "/account?x=1" }, { ...ok, href: "javascript:alert(1)" },
+      { ...ok, label: "" }, { ...ok, label: "\u202e" }, { ...ok, label: 5 }, { ...ok, kind: "owner" }, { state: "signed_in" }, { state: "unknown" }, { state: "maybe" }, "signed_in", null, undefined, 7, [],
+    ]) assert.equal(nav.parseHeaderIdentity(bad), null, JSON.stringify(bad));
+    assert.equal(nav.HEADER_IDENTITY_PATH, "/auth/header-identity");
+    assert.deepEqual([...nav.HEADER_DASHBOARD_HREFS], ["/admin", "/account", "/auth/continue"]);
   });
 });

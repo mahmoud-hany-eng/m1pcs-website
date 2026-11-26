@@ -5,8 +5,7 @@ const block = "block rounded-md bg-white/[0.07]";
 
 export default function MfaLoading() {
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-background" aria-busy="true">
-      <style>{`body > header, body > footer, body > a[aria-label="Chat with M1 on WhatsApp"] { display: none !important; }`}</style>
+    <div aria-busy="true">
       <p role="status" className="sr-only">
         Loading
       </p>

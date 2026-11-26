@@ -15,7 +15,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { AccountsUnavailableError } from "@/lib/accounts/server/guard";
 import type { AppSupabaseClient } from "@/lib/accounts/server/client";
-import { getSession } from "@/lib/accounts/server/session";
+import { getSession, type Session } from "@/lib/accounts/server/session";
 import { customerAccountsGate } from "@/lib/accounts/shared/flag";
 import { signInUrl } from "@/lib/accounts/shared/redirect";
 import { staffAdminGate } from "./flag";
@@ -33,13 +33,14 @@ export type StaffState =
   | { state: "ok"; staff: VerifiedStaff; permissions: ReadonlySet<string>; api: StaffApi };
 
 /** What the verified session and token say about the person, shared by the staff state and the second-step page. */
-async function readIdentity(): Promise<
+type Identity =
   | { ok: true; supabase: AppSupabaseClient; staff: VerifiedStaff; aal: string }
-  | { ok: false; state: "disabled" | "signed_out" | "expired" | "unavailable" }
-> {
-  // Staff sign in on the customer sign-in pages, so both switches must be on.
-  if (!staffAdminGate(process.env).enabled || !customerAccountsGate(process.env).enabled) return { ok: false, state: "disabled" };
-  const session = await getSession();
+  | { ok: false; state: "disabled" | "signed_out" | "expired" | "unavailable" };
+
+const adminEnabled = () => staffAdminGate(process.env).enabled && customerAccountsGate(process.env).enabled;
+
+/** The identity for a session that has ALREADY been verified by getSession (so a caller that holds one does not ask the auth service twice). */
+async function identityFromSession(session: Session): Promise<Identity> {
   if (session.state === "signed_out") return { ok: false, state: "signed_out" };
   if (session.state === "expired") return { ok: false, state: "expired" };
   if (session.state !== "signed_in") {
@@ -61,6 +62,12 @@ async function readIdentity(): Promise<
     staff: { userId: session.user.id, sessionId: claims.session_id, email: session.user.email },
     aal: claims.aal ?? "aal1",
   };
+}
+
+async function readIdentity(): Promise<Identity> {
+  // Staff sign in on the customer sign-in pages, so both switches must be on.
+  if (!adminEnabled()) return { ok: false, state: "disabled" };
+  return identityFromSession(await getSession());
 }
 
 export const getStaffState = cache(async (): Promise<StaffState> => {
@@ -137,5 +144,31 @@ export async function requireStaff(nextPath: string): Promise<StaffContext> {
       throw new AccountsUnavailableError("unavailable");
     case "ok":
       return { staff: state.staff, permissions: state.permissions, api: state.api, can: (p) => state.permissions.has(p) };
+  }
+}
+
+/**
+ * What the public header may say about a signed-in person who might be staff: their own display name from the staff table, or that they are not
+ * staff, or that this could not be established right now. The answer comes from the same verified identity and the same gateway as everything
+ * else here, and the database function returns nothing but the caller's own name (no role, no permission, nobody else). The header never
+ * learns more than this, and a failed lookup is reported as `unavailable`, never as "not staff".
+ */
+export type StaffProfileState =
+  | { state: "not_staff" }
+  | { state: "staff"; displayName: string | null }
+  | { state: "unavailable" };
+
+/** For a session the caller has already verified. Not cached by React (the caller holds the session and asks once). */
+export async function getStaffProfileFor(session: Session): Promise<StaffProfileState> {
+  // No admin area in this deployment: nobody is staff here, so the header names a customer.
+  if (!adminEnabled()) return { state: "not_staff" };
+  const identity = await identityFromSession(session);
+  if (!identity.ok) return { state: "unavailable" };
+  try {
+    const profile = await staffApi(identity.staff).myStaffProfile();
+    return profile ? { state: "staff", displayName: profile.display_name ?? null } : { state: "not_staff" };
+  } catch (error) {
+    if (!(error instanceof StaffUnavailableError)) logStaffDiagnostic({ stage: "other", code: "PROFILE_LOOKUP" });
+    return { state: "unavailable" };
   }
 }

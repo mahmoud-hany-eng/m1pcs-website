@@ -25,6 +25,13 @@ const ts = createRequire(import.meta.url)("typescript");
 const FILE_STUBS = new Map([
   ["next/link", join(HERE, "next-link-stub.mjs")],
   ["@/lib/staff/session", join(HERE, "staff-session-stub.mjs")],
+  // Server pages and routes of the sign-in router and the header (unified-nav.server.test.mjs): where a visitor is sent, the cookies, the verified session and the customer's name.
+  ["next/navigation", join(HERE, "next-navigation-stub.mjs")],
+  ["next/headers", join(HERE, "next-headers-stub.mjs")],
+  ["next/server", join(HERE, "next-server-stub.mjs")],
+  ["@/lib/accounts/server/session", join(HERE, "accounts-session-stub.mjs")],
+  ["@/lib/accounts/server/data", join(HERE, "accounts-data-stub.mjs")],
+  ["@/lib/accounts/server/guard", join(HERE, "accounts-guard-stub.mjs")],
 ]);
 // Server-action modules: replaced by stubs with the same export names (a form only passes them to React while a page renders).
 const ACTION_MODULES = new Map([

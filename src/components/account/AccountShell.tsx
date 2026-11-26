@@ -98,3 +98,14 @@ export function AuthCard({ title, description, children, footer }: { title: stri
     </section>
   );
 }
+
+/** A sign-out button for pages that are not the dashboard (for example the sign-in router when its check could not be completed). */
+export function SignOutForm() {
+  return (
+    <form action={signOutAction}>
+      <button type="submit" className="btn-sheen btn-glass inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold">
+        Sign out
+      </button>
+    </form>
+  );
+}

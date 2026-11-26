@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderCard } from "@/components/account/dashboard";
 import { ProfileForm } from "@/components/account/forms";
 import { EmptyState, Notice, Panel, StatCard } from "@/components/account/ui";
 import { loadLoyalty, loadOrders, loadStatuses, loadWorkflowStages } from "@/lib/accounts/server/data";
 import { requireCustomerContext } from "@/lib/accounts/server/guard";
+import { resolveAfterSignIn } from "@/lib/accounts/server/post-auth";
 import { buildOverview } from "@/lib/accounts/shared/view-models";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -17,6 +19,18 @@ export default async function AccountOverviewPage({ searchParams }: { searchPara
   // A new account has no customer profile yet. It must choose: link an earlier (WhatsApp) customer record with a code,
   // or start a new profile. Either way, earlier records can still be linked later with a claim code.
   if (!customer) {
+    // A staff member with no customer profile is not a new customer: they belong in the staff dashboard (through the second step), not on this set-up
+    // screen. This is the same check the sign-in router makes, and it is asked only here (an account that already has a profile never pays for it). If
+    // the check cannot be completed, the set-up screen is NOT shown: a failed lookup is never read as "customer".
+    const route = await resolveAfterSignIn("");
+    if (route.kind === "go" && route.to.startsWith("/admin")) redirect(route.to);
+    if (route.kind === "unavailable") {
+      return (
+        <AccountShell active="overview" email={user.email} title="We could not open your account" description="Nothing was changed." minimal>
+          <Notice tone="error">We could not check your account just now. Please try again in a moment.</Notice>
+        </AccountShell>
+      );
+    }
     return (
       <AccountShell active="overview" email={user.email} title="Welcome to M1" description="One quick step to set up your account." minimal>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

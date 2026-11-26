@@ -19,6 +19,7 @@ import {
 import { CLAIM_FAILED_MESSAGE, normalizeClaimCode } from "../shared/claim-code";
 import { customerAccountsGate } from "../shared/flag";
 import type { FormState } from "../shared/form-state";
+import { continueUrl } from "../shared/post-auth";
 import { safeNextPath } from "../shared/redirect";
 import { confirmUrl, resolveSiteOrigin } from "../shared/site-url";
 import { parseEmailOnly, parseNewPassword, parseProfile, parseSignIn, parseSignUp } from "../shared/validation";
@@ -55,7 +56,7 @@ export async function signUpAction(_previous: FormState, formData: FormData): Pr
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 
-  const redirectTo = await emailLinkTarget("/account");
+  const redirectTo = await emailLinkTarget();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.value.email,
     password: parsed.value.password,
@@ -69,7 +70,8 @@ export async function signUpAction(_previous: FormState, formData: FormData): Pr
   // An address that already has an account is handled exactly like a new one: the same screen, no hint. The real auth
   // service does NOT hide it (it answers 422 user_already_exists, even with email confirmation on: verified against the
   // official local stack), so this mapping is what keeps the two cases indistinguishable on screen.
-  if (data?.session) redirect("/account");
+  // A sign-up that is signed in at once (no confirmation step) goes through the same router as every other sign-in.
+  if (data?.session) redirect(continueUrl());
   redirect("/auth/check-email");
 }
 
@@ -77,7 +79,7 @@ export async function signInAction(_previous: FormState, formData: FormData): Pr
   assertEnabled();
   const parsed = parseSignIn(formData);
   if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-  const next = safeNextPath(formData.get("next"));
+  const next = safeNextPath(formData.get("next"), "");
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 
@@ -87,7 +89,9 @@ export async function signInAction(_previous: FormState, formData: FormData): Pr
     if (failure === "unknown") logFailure("sign-in", error);
     return failureState(["invalid_credentials", "email_not_confirmed", "rate_limited", "unavailable"].includes(failure) ? failure : "unknown");
   }
-  redirect(next);
+  // One router for every kind of person: it asks the server whether this verified session belongs to active staff (-> the second step, then
+  // /admin) or to a customer (-> /account). The form never says which, and the same wrong-password message is shown for every account.
+  redirect(continueUrl(next));
 }
 
 /** Sends a one-time sign-in link to an EXISTING account. The answer is the same whether or not the address has one. */
@@ -95,11 +99,11 @@ export async function emailLinkAction(_previous: FormState, formData: FormData):
   assertEnabled();
   const parsed = parseEmailOnly(formData);
   if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-  const next = safeNextPath(formData.get("next"));
+  const next = safeNextPath(formData.get("next"), "");
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 
-  const redirectTo = await emailLinkTarget(next);
+  const redirectTo = await emailLinkTarget(next || undefined);
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.value.email,
     options: { shouldCreateUser: false, ...(redirectTo ? { emailRedirectTo: redirectTo } : {}) },
@@ -120,7 +124,7 @@ export async function resendConfirmationAction(_previous: FormState, formData: F
   const supabase = await createSupabaseServerClient();
   if (!supabase) return failureState("unavailable");
 
-  const redirectTo = await emailLinkTarget("/account");
+  const redirectTo = await emailLinkTarget();
   const { error } = await supabase.auth.resend({
     type: "signup",
     email: parsed.value.email,

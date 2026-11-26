@@ -229,15 +229,15 @@ describe("the public website does not depend on the customer-account code (Phase
     assert.deepEqual([...code.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]).sort(), ["./flag", "@/lib/account-nav"].sort());
     assert.doesNotMatch(code, /process\.env|next\/|cookies|supabase|server-only|fetch\(/i, "header-nav.ts reads only the environment it is handed");
     assert.match(code, /customerAccountsGate\(env\)\.enabled\) return \[\]/, "no links at all unless the customer switch is on (and never on production, by the gate)");
-    // Exactly three entries, in this order, with these names and addresses: Log in, My account, Track my order. The staff dashboard is not offered to the public.
-    assert.deepEqual([...code.matchAll(/\{ href: "([^"]+)", label: "([^"]+)"/g)].map((m) => [m[1], m[2]]), [["/auth/sign-in", "Log in"], ["/account", "My account"], ["/account/orders", "Track my order"]]);
-    assert.doesNotMatch(code, /staffAdminGate|\/admin"\s*,\s*label|Staff Dashboard|Create Account/, "no staff entry and no extra entry in the public menu");
-    // The header, the menu and the shared link rule import NOTHING from the account code, the platform code, Supabase, or the server.
-    for (const p of ["src/components/layout/Header.tsx", "src/components/layout/AccountMenu.tsx", "src/lib/account-nav.ts"]) {
+    // Exactly two entries, in this order, with these names and addresses: Log in, Create account. No staff, admin, "My account" or "Track my order" entry.
+    assert.deepEqual([...code.matchAll(/\{ href: "([^"]+)", label: "([^"]+)"/g)].map((m) => [m[1], m[2]]), [["/auth/sign-in", "Log in"], ["/auth/sign-up", "Create account"]]);
+    assert.doesNotMatch(code, /staffAdminGate|"\/admin|Staff Dashboard|Admin Login|Staff Login|My account|Track my order/i, "no staff entry and no extra entry in the public menu");
+    // The header, the menu, the identity control and the shared link rule import NOTHING from the account code, the platform code, Supabase, or the server.
+    for (const p of ["src/components/layout/Header.tsx", "src/components/layout/AccountMenu.tsx", "src/components/layout/HeaderAccount.tsx", "src/components/layout/HideOnAdmin.tsx", "src/lib/account-nav.ts"]) {
       const text = strip(read(p));
       assert.doesNotMatch(text, /lib\/(accounts|platform|staff)|@supabase\/|next\/headers|process\.env|CUSTOMER_ACCOUNTS|STAFF_ADMIN/, `${p} must stay free of account, staff and environment code`);
     }
-    assert.match(read("src/components/layout/AccountMenu.tsx"), /^\s*["']use client["']/);
+    for (const p of ["AccountMenu", "HeaderAccount", "HideOnAdmin"]) assert.match(read(`src/components/layout/${p}.tsx`), /^\s*["']use client["']/, p);
   });
 
   it("a Supabase package is imported only by the server-side account modules, the middleware and the confirm route", () => {
@@ -461,8 +461,9 @@ describe("every customer-account entry point is guarded", () => {
       const text = strip(read(p));
       for (const [, argument] of text.matchAll(/\bredirect\(([^)]*(?:\([^)]*\))?[^)]*)\)/g)) {
         const a = argument.trim();
-        const ok = /^"\/[^"]*"$/.test(a) || /^"\/[^"]*"\)?$/.test(a) || a === "next" || /^signInUrl\(/.test(a);
-        assert.ok(ok, `${p}: redirect(${a}) is not a fixed path, a checked next path, or a sign-in address`);
+        // continueUrl(...) is the sign-in router's own address: a fixed path plus a `next` that passed the same-site check (see shared/post-auth.ts).
+        const ok = /^"\/[^"]*"$/.test(a) || /^"\/[^"]*"\)?$/.test(a) || a === "next" || /^signInUrl\(/.test(a) || /^continueUrl\(/.test(a);
+        assert.ok(ok, `${p}: redirect(${a}) is not a fixed path, a checked next path, the sign-in router, or a sign-in address`);
       }
     }
     assert.match(read("src/lib/accounts/server/actions.ts"), /const next = safeNextPath\(/);

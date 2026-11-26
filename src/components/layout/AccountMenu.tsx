@@ -7,7 +7,7 @@ import { isCurrentLink, linksForPath, type AccountNavLink } from "@/lib/account-
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 /**
- * The account button and its menu, in the public header (desktop). It is a disclosure, not an application menu: the button says whether the
+ * The signed-out account button and its menu, in the public header (Log in, Create account). It is a disclosure, not an application menu: the button says whether the
  * list is open (aria-expanded) and which element it opens (aria-controls); the list is ordinary links in a labelled navigation region, so
  * every link is reached with Tab and activated like any other. Extras that make it comfortable by keyboard: ArrowDown on the button
  * opens it and lands on the first link, Up and Down / Home and End move between the links, Escape closes it and returns focus to the button,

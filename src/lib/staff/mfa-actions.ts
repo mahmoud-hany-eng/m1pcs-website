@@ -8,7 +8,8 @@ import "server-only";
  */
 import { requireStaffCandidate } from "./session";
 import { isUuid } from "./validation";
-import type { StaffFormState } from "./form-state";
+import { safeAdminHref, type StaffFormState } from "./form-state";
+import { safeNextPath } from "@/lib/accounts/shared/redirect";
 
 const CODE = /^[0-9]{6}$/;
 const WRONG_CODE = "That code did not work. Check the time on your phone and try again with the newest code.";
@@ -53,7 +54,9 @@ export async function verifyTotpAction(_previous: StaffFormState, formData: Form
     if (challenge.error || !challenge.data) return { status: "error", message: WRONG_CODE };
     const verified = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.data.id, code });
     if (verified.error) return { status: "error", message: WRONG_CODE };
-    return { status: "success", message: "Verified. Opening the dashboard…", href: "/admin" };
+    // Back to the admin page the person was heading to (an address inside /admin only, checked here again), otherwise the dashboard.
+    const back = safeAdminHref(safeNextPath(formData.get("next"), ""));
+    return { status: "success", message: "Verified. Opening the dashboard…", href: back && back !== "/admin/mfa" ? back : "/admin" };
   } catch {
     return { status: "error", message: UNAVAILABLE };
   }

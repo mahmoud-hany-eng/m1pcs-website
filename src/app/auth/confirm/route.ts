@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { redirect } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { customerAccountsGate } from "@/lib/accounts/shared/flag";
+import { continueUrl } from "@/lib/accounts/shared/post-auth";
 import { safeNextPath } from "@/lib/accounts/shared/redirect";
 import { createSupabaseServerClient } from "@/lib/accounts/server/client";
 
@@ -15,6 +16,10 @@ import { createSupabaseServerClient } from "@/lib/accounts/server/client";
  *
  * A link that does not work (used, expired or malformed) always ends at the same page with the same message. The
  * `next` address is checked, so this route cannot be used to send someone to another site.
+ *
+ * A link that works ends at the sign-in router (/auth/continue), which asks the server whether this verified session belongs to staff or to a
+ * customer and sends the person to the right dashboard (see src/lib/accounts/shared/post-auth.ts). A recovery link goes to the new-password page
+ * and nowhere else.
  */
 export const dynamic = "force-dynamic";
 
@@ -30,7 +35,7 @@ export async function GET(request: NextRequest) {
   if (!customerAccountsGate(process.env).enabled) return new NextResponse(null, { status: 404 });
 
   const { searchParams } = request.nextUrl;
-  const next = safeNextPath(searchParams.get("next"));
+  const next = safeNextPath(searchParams.get("next"), "");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const code = searchParams.get("code");
@@ -41,12 +46,12 @@ export async function GET(request: NextRequest) {
   if (tokenHash && isAllowedType(type)) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error && type === "recovery") return redirect("/auth/reset-password");
-    if (!error) return redirect(next);
+    if (!error) return redirect(continueUrl(next));
   } else if (code && code.length <= 512) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     // The default (PKCE) recovery link carries no type; it is recognised by the reset page it asks to land on.
     if (!error && searchParams.get("next") === "/auth/reset-password") return redirect("/auth/reset-password");
-    if (!error) return redirect(next);
+    if (!error) return redirect(continueUrl(next));
   }
   return redirect("/auth/error?reason=link");
 }

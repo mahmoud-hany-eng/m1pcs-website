@@ -34,6 +34,20 @@ function fail(label: string, error: { code?: string } | null): never {
 }
 
 /**
+ * The display name of the account's main customer record (its oldest link) and nothing else: what the public header shows. The record is found
+ * with the verified session and row level security, exactly like loadCustomers, and only the one column is read.
+ */
+export async function loadCustomerDisplayName(supabase: AppSupabaseClient, userId: string): Promise<string | null> {
+  const link = await supabase.from("customer_accounts").select("customer_id").eq("user_id", userId).order("linked_at", { ascending: true }).limit(1);
+  if (link.error) fail("customer link", link.error);
+  const customerId = link.data?.[0]?.customer_id;
+  if (!customerId) return null;
+  const customer = await supabase.from("customers").select("full_name").eq("id", customerId).maybeSingle();
+  if (customer.error) fail("customer name", customer.error);
+  return customer.data?.full_name ?? null;
+}
+
+/**
  * Every customer record linked to this account, oldest link first. An account normally has one; it can have several
  * when staff issued claim codes for older WhatsApp-managed records (the database allows up to five). Nothing here picks
  * a record from the browser: the links are read with the verified session and row level security.

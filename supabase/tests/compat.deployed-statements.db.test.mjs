@@ -47,7 +47,9 @@ const LATER_RELEASE_STATEMENTS = [
 const ORDERS_LIST_RELEASE_STATEMENTS = ["list_orders_page"];
 /** The four statements the Orders-overview release (20261126120000, PLAT-0007-a3) adds: the simplified Orders page's one query and the PDF receipts. */
 const ORDERS_OVERVIEW_RELEASE_STATEMENTS = ["add_order_receipt", "get_order_receipt", "list_orders_overview", "remove_order_receipt"];
-const LATER_STATEMENTS = [...LATER_RELEASE_STATEMENTS, ...ORDERS_LIST_RELEASE_STATEMENTS, ...ORDERS_OVERVIEW_RELEASE_STATEMENTS];
+/** The one statement the unified-login release (20261127120000) adds: the staff member's own display name for the public header. */
+const STAFF_HEADER_RELEASE_STATEMENTS = ["my_staff_profile"];
+const LATER_STATEMENTS = [...LATER_RELEASE_STATEMENTS, ...ORDERS_LIST_RELEASE_STATEMENTS, ...ORDERS_OVERVIEW_RELEASE_STATEMENTS, ...STAFF_HEADER_RELEASE_STATEMENTS];
 
 /** Keys the pricing release adds to the read answers (additive; the deployed pages ignore keys they do not know). */
 const ADDED_KEYS = new Set([

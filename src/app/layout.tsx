@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { headerAccountLinks } from "@/lib/accounts/shared/header-nav";
 import { Footer } from "@/components/layout/Footer";
+import { HideOnAdmin } from "@/components/layout/HideOnAdmin";
 import { WhatsAppFloatingButton } from "@/components/layout/WhatsAppFloatingButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { siteConfig } from "@/lib/site-config";
@@ -81,11 +82,14 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-text-primary antialiased flex flex-col">
         {/* The dark glass showroom every page sits in (see .site-ambient). */}
         <div className="site-ambient" aria-hidden="true" />
-        {/* The header offers an account link only where its route exists in this deployment (none on production); see header-nav.ts. */}
+        {/* The header offers its account control only where the routes exist in this deployment (none on production); see header-nav.ts. The page stays
+            static: who is signed in is asked after load, from an uncached route. The staff dashboard keeps this header and leaves out only the footer and the chat button. */}
         <Header accountLinks={headerAccountLinks(process.env)} />
         <main className="flex-1">{children}</main>
-        <Footer />
-        <WhatsAppFloatingButton />
+        <HideOnAdmin>
+          <Footer />
+          <WhatsAppFloatingButton />
+        </HideOnAdmin>
         <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
       </body>
     </html>

@@ -227,3 +227,38 @@ select has_function_privilege('anon', 'admin.add_order_receipt(uuid, uuid, text,
 select count(*) from private.order_receipts;                                                                                                         -- 0 (until the owner attaches one)
 select count(*) from private.security_audit();                                                                                                       -- 0
 ```
+
+## Staff header name (PLAT-0007-a4): one migration
+
+`20261127120000_staff_header_profile.sql` is additive, forward-only and rerunnable. It adds **one staff function**, `admin.my_staff_profile()`: it returns `null` for anyone who is not an active staff member (or, through the gateway, whose
+sign-in session is not live and unexpired), and `{ "display_name": name-or-null }` for the caller's own row, nothing else (no role, no permission, no other person). It uses the same gate as `admin.is_staff_member()`, is `security definer` with
+`search_path = ''`, and is executable by `authenticated` and `m1_staff_gateway` only (never `anon`, PUBLIC or `service_role`; the migration checks this itself). It changes nothing that exists, creates no table and touches no row. There is no destructive
+undo on purpose; leaving the function in place is harmless. The design is `docs/project-memory/architecture/UNIFIED_LOGIN_AND_NAVIGATION.md`. **Nothing here has been applied to any hosted database, and nothing has been pushed.**
+
+**The order matters, a little: the database first, then the website.** The new header asks for the staff name through this function. Website first: a staff member's header would still work, but because the lookup fails it would show the neutral label "My account" and link to the
+sign-in router (`/auth/continue`) instead of showing the name and `/admin`. Database first: nothing visible changes until the website is pushed. The sign-in routing itself does not use this function (it uses the existing `is_staff_member`, `permissions` and the second-factor claim), so
+signing in works either way.
+
+| Step | Action | Needs |
+| --- | --- | --- |
+| 1 | Preflight: worktree clean, HEAD is the approved commit, DEV is at `20261126120000_orders_overview_and_receipts.sql`; record a recovery baseline (a logical export of the business rows, **not** a backup). | owner authorization |
+| 2 | Apply `20261127120000_staff_header_profile.sql` to DEVELOPMENT only, through the Supabase migration tool, without bypassing any prompt. | the same |
+| 3 | Verify (read-only, below): the function exists, the privileges are exactly as stated, every other function's fingerprint and every table's data digest are unchanged. | |
+| 4 | One normal, non-force push of the approved commit; wait for CI and the Vercel Preview; confirm it is Ready, in `bom1`, and that no Production deployment occurred. | owner approval |
+| 5 | Add the Preview URL to the Supabase Auth redirect list (needed for the e-mail confirmation, magic-link and recovery flows). | owner |
+| 6 | Owner acceptance in a real browser: rows 9.1 to 9.12 of `UNIFIED_LOGIN_AND_NAVIGATION.md` (the owner's login with the second factor, the header, the dashboards). | owner |
+
+Read-only checks after step 2 (expect the stated results):
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'admin' and p.proname = 'my_staff_profile';             -- 1
+select has_function_privilege('anon', 'admin.my_staff_profile()', 'execute');                                                                      -- false
+select has_function_privilege('public', 'admin.my_staff_profile()', 'execute');                                                                    -- false
+select has_function_privilege('service_role', 'admin.my_staff_profile()', 'execute');                                                              -- false
+select has_function_privilege('authenticated', 'admin.my_staff_profile()', 'execute');                                                             -- true
+select has_function_privilege('m1_staff_gateway', 'admin.my_staff_profile()', 'execute');                                                          -- true
+select prosecdef, provolatile from pg_proc where oid = 'admin.my_staff_profile()'::regprocedure;                                                   -- true, s
+select count(*) from private.security_audit();                                                                                                     -- 0
+```
+
+**Production is not touched by any of this**: the account routes and the new `/auth/continue` and `/auth/header-identity` routes answer the ordinary 404 on a production deployment whatever the variables say, and the Production header draws no account control (tested).

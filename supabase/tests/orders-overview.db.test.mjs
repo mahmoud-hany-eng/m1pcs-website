@@ -504,6 +504,8 @@ suite("the simplified Orders page: overview figures and PDF receipts, in the dat
       try {
         const a = fingerprint(without);
         const b = fingerprint(db);
+        // Migrations that come AFTER this one (20261127120000_staff_header_profile.sql adds admin.my_staff_profile()) are not this migration's doing: leave them out of the comparison.
+        for (const later of ["admin.my_staff_profile()"]) delete b.functions[later];
         const added = Object.keys(b.functions).filter((k) => !(k in a.functions)).sort();
         const changed = Object.keys(a.functions).filter((k) => a.functions[k] !== b.functions[k]);
         const removed = Object.keys(a.functions).filter((k) => !(k in b.functions));

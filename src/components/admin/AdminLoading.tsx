@@ -1,9 +1,9 @@
 /**
  * What an admin page shows while the server is still preparing it (the `loading.tsx` of the admin area).
  *
- * It is the same frame as `AdminShell` (the fixed overlay, the M1 mark, the side navigation, the title area) drawn with plain
- * placeholder blocks, so that moving between sections never flashes the public site and the page does not jump when the real
- * one arrives. It is STATIC on purpose: no animation, no data, no link, no staff name, no permission. The real navigation
+ * It is the same frame as `AdminShell` (the sticky side column, the M1 mark, the side navigation, the title area) drawn with plain
+ * placeholder blocks, inside the ordinary site with the public header on top, so that moving between sections does not make the page
+ * jump when the real one arrives. It is STATIC on purpose: no animation, no data, no link, no staff name, no permission. The real navigation
  * and everything the person is allowed to see come with the real page, after the server has verified them.
  *
  * It is only ever sent after the admin layout has accepted the request (see `layout.tsx`): a person who is not staff gets
@@ -17,13 +17,12 @@ const block = "block rounded-md bg-white/[0.07]";
 
 export function AdminLoading() {
   return (
-    <div className="admin-root fixed inset-0 z-[60] overflow-y-auto bg-background text-text-primary" aria-busy="true">
-      <style>{`body > header, body > footer, body > a[aria-label="Chat with M1 on WhatsApp"] { display: none !important; }`}</style>
+    <div className="admin-root text-text-primary" aria-busy="true">
       <p role="status" className="sr-only">
         Loading
       </p>
-      <div className="mx-auto flex min-h-full w-full max-w-[96rem] flex-col lg:flex-row">
-        <aside className="lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-r lg:border-border">
+      <div className="mx-auto flex w-full max-w-[96rem] flex-col lg:flex-row">
+        <aside className="lg:sticky lg:top-20 lg:h-[calc(100dvh-5rem)] lg:w-64 lg:shrink-0 lg:self-start lg:overflow-y-auto lg:border-r lg:border-border">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 lg:flex-col lg:items-stretch lg:gap-6 lg:border-b-0 lg:px-5 lg:py-6">
             <div className="flex items-center gap-2.5" aria-hidden="true">
               <span className="btn-red flex h-9 w-9 items-center justify-center rounded-xl font-display text-sm font-bold text-white">M1</span>
@@ -44,11 +43,11 @@ export function AdminLoading() {
         </aside>
 
         <div className="min-w-0 flex-1">
-          <main className="px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:px-10" aria-hidden="true">
-            <header className="mb-6 flex flex-col gap-3">
+          <div className="px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:px-10" aria-hidden="true">
+            <div className="mb-6 flex flex-col gap-3">
               <span className={`${block} h-8 w-48 sm:h-9`} />
               <span className={`${block} h-3 w-full max-w-md`} />
-            </header>
+            </div>
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 {[0, 1, 2, 3].map((tile) => (
@@ -65,7 +64,7 @@ export function AdminLoading() {
                 ))}
               </div>
             </div>
-          </main>
+          </div>
         </div>
       </div>
     </div>

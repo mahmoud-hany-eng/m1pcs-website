@@ -389,3 +389,31 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** The brief lists search, Sort, Filter and the table as the page's controls. A small Previous / Next and "Page x of y" remain under the table (without it the page shows only the latest 5 with no way to see older orders except by filtering), and the Status column was dropped (status is a filter and is on the order's page). Is that what the owner wants?
 - **Recommendation:** Keep the pager (it is only shown when there is more than one page). If the status is wanted at a glance, add a small coloured dot to the Order cell rather than a column.
 - **Source:** HD-0026.
+
+### OQ-0057 — Where a staff member's display name is set
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The header shows a staff member's name from `private.staff_members.display_name`. Nothing in the website lets a person set or correct that name for themselves; if it is empty the header says "Staff account". Who sets it, and where (the staff list screen, the first sign-in, a SQL change by the operator)?
+- **Recommendation:** Set it once for each staff member when they are added (the owner's row first); a self-service edit is a separate, small feature if the staff want it.
+- **Source:** HD-0027; related OQ-0048.
+
+### OQ-0058 — The header asks the server on every page view
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** To keep public pages static and cached, the header asks `GET /auth/header-identity` after each public page loads (only when the browser holds a sign-in cookie does the server do any work; a signed-out visitor costs nothing). For a signed-in visitor that is one authentication check per page view, and (for staff) one database call; the name appears a moment after the page, never before. Is that acceptable, or should the answer be remembered in the browser for a short time or the name be drawn on the server for signed-in pages only (which would make them uncached)?
+- **Recommendation:** Keep it as it is; measure on the DEV Preview. If the delay or the load is noticeable, add a short (30 s) browser-side memory keyed to the page session, never a shared cache.
+- **Source:** HD-0027.
+
+### OQ-0059 — A customer with several linked profiles, and a person who is both staff and a customer
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** A customer account can be linked to up to five customer records (older WhatsApp-managed records claimed with codes). The header names the **oldest** link. A staff member who also has a customer profile is shown as staff and goes to `/admin`; the customer dashboard is reachable only by its address. Is that right?
+- **Recommendation:** Keep both; a "my customer account" link inside the staff sidebar is a possible later addition.
+- **Source:** HD-0027.
+
+### OQ-0060 — What a signed-in person sees when the staff check cannot be made
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** If the staff service or database does not answer, the sign-in router shows "We could not finish signing you in" with Try again and Sign out, and the header says "My account" linking to the router. It deliberately does not fall back to the customer dashboard (that could present a staff member as a customer) or to `/admin`. Is a retry screen the right experience for the short outages this covers?
+- **Recommendation:** Keep it; it is the fail-safe the brief asks for. Review the wording after the DEV Preview shows how often it appears.
+- **Source:** HD-0027.

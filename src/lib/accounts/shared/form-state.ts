@@ -11,7 +11,8 @@ export type AfterSuccess = "account" | "welcome" | "linked";
 
 /** The only places a form may send someone after it succeeds. */
 export const AFTER_SUCCESS_PATH: Record<AfterSuccess, string> = {
-  account: "/account",
+  // The sign-in router decides: a staff member goes to the dashboard, a customer to their account (see post-auth.ts).
+  account: "/auth/continue",
   welcome: "/account?welcome=1",
   linked: "/account?linked=1",
 };

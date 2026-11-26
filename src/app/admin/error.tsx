@@ -8,7 +8,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
     void error;
   }, [error]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-background p-6">
+    <div className="flex min-h-[60dvh] items-center justify-center p-6">
       <div className="glass glass-strong w-full max-w-md p-6 text-center">
         <h1 className="font-display text-xl font-bold text-white">This page could not load</h1>
         <p className="mt-2 text-sm text-text-secondary">Nothing was changed. Please try again in a moment.</p>

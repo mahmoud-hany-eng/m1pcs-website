@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
-import { AccountMenu } from "@/components/layout/AccountMenu";
-import { isCurrentLink, linksForPath, type AccountNavLink } from "@/lib/account-nav";
+import { HeaderAccount } from "@/components/layout/HeaderAccount";
+import type { AccountNavLink } from "@/lib/account-nav";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -28,8 +28,8 @@ const navLinks = [
  */
 export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountNavLink[] }) {
   const pathname = usePathname();
-  // The account entries for this page (none at all unless the layout was given some: nothing is offered where the routes are switched off).
-  const mobileAccountLinks = linksForPath(accountLinks, pathname);
+  // `accountLinks` are the signed-out entries (Log in, Create account). The layout gives none where the account routes are switched off (no account
+  // control and no request at all); HeaderAccount shows them while signed out and swaps to the person's name and dashboard link once signed in.
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -165,42 +165,43 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
             })}
           </nav>
 
-          {/* Get a Quote and the account button are in the bar from 1024px. Between 1024px and 80em the links are in the menu, so this group sits
-              at the right, next to the menu button (ml-auto); from 80em the links are between the logo and this group. */}
-          <div className="hidden shrink-0 items-center gap-2.5 ml-auto [@media(min-width:80em)]:ml-0 lg:flex">
-            <Button href="/build-my-pc" variant="secondary" size="sm">
+          {/* The right-hand cluster: Get a Quote (from 1024px), the account control (always: a compact icon, plus the person's name from 640px once signed
+              in), and the menu button (below 80em). Below 80em the six links are in the menu, so the cluster sits at the right (ml-auto); from 80em the
+              links are between the logo and the cluster. The cluster may shrink (min-w-0) so a long name is cut with an ellipsis instead of pushing
+              anything: the links and the logo never shrink. */}
+          <div className="ml-auto flex min-w-0 items-center gap-2.5 [@media(min-width:80em)]:ml-0">
+            <Button href="/build-my-pc" variant="secondary" size="sm" className="hidden shrink-0 whitespace-nowrap lg:inline-flex">
               Get a Quote
             </Button>
-            {accountLinks.length > 0 ? <AccountMenu links={accountLinks} /> : null}
+            {accountLinks.length > 0 ? <HeaderAccount links={accountLinks} /> : null}
+            <button
+              ref={toggleRef}
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="btn-glass inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-primary sm:h-11 sm:w-11 [@media(min-width:80em)]:hidden"
+              aria-label={open ? "Close menu" : "Open menu"}
+              aria-expanded={open}
+              aria-controls="mobile-menu"
+            >
+              <span className="relative block h-3.5 w-[18px]" aria-hidden="true">
+                <span
+                  className={`absolute left-0 top-0 h-0.5 w-[18px] rounded-full bg-current transition-transform duration-300 ${
+                    open ? "translate-y-[6px] rotate-45" : ""
+                  }`}
+                />
+                <span
+                  className={`absolute left-0 top-[6px] h-0.5 w-[18px] rounded-full bg-current transition-opacity duration-200 ${
+                    open ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+                <span
+                  className={`absolute left-0 top-[12px] h-0.5 w-[18px] rounded-full bg-current transition-transform duration-300 ${
+                    open ? "-translate-y-[6px] -rotate-45" : ""
+                  }`}
+                />
+              </span>
+            </button>
           </div>
-
-          <button
-            ref={toggleRef}
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="btn-glass inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-primary sm:h-11 sm:w-11 [@media(min-width:80em)]:hidden"
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
-            aria-controls="mobile-menu"
-          >
-            <span className="relative block h-3.5 w-[18px]" aria-hidden="true">
-              <span
-                className={`absolute left-0 top-0 h-0.5 w-[18px] rounded-full bg-current transition-transform duration-300 ${
-                  open ? "translate-y-[6px] rotate-45" : ""
-                }`}
-              />
-              <span
-                className={`absolute left-0 top-[6px] h-0.5 w-[18px] rounded-full bg-current transition-opacity duration-200 ${
-                  open ? "opacity-0" : "opacity-100"
-                }`}
-              />
-              <span
-                className={`absolute left-0 top-[12px] h-0.5 w-[18px] rounded-full bg-current transition-transform duration-300 ${
-                  open ? "-translate-y-[6px] -rotate-45" : ""
-                }`}
-              />
-            </span>
-          </button>
         </div>
 
         {open && (
@@ -231,31 +232,7 @@ export function Header({ accountLinks = [] }: { accountLinks?: readonly AccountN
                   );
                 })}
               </nav>
-              {mobileAccountLinks.length > 0 && (
-                <nav className="mt-1.5 border-t border-white/10 pt-1 lg:hidden" aria-label="Account" data-testid="mobile-account-links">
-                  <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">Account</p>
-                  {mobileAccountLinks.map((link) => {
-                    const current = isCurrentLink(link, pathname);
-                    return (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        onClick={() => setOpen(false)}
-                        className={`flex items-center justify-between rounded-2xl px-4 py-3 text-base font-medium transition-colors ${
-                          current ? "bg-white/[0.06] text-accent" : "text-text-primary/90 hover:bg-white/[0.05] hover:text-white"
-                        }`}
-                        aria-current={current ? "page" : undefined}
-                      >
-                        {link.label}
-                        <span aria-hidden="true" className={current ? "h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgb(249_194_4/0.8)]" : "text-text-muted"}>
-                          {current ? null : "→"}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              )}
-              {/* From 1024px Get a Quote and the account button are already in the bar, so the menu does not repeat them. */}
+              {/* From 1024px Get a Quote is already in the bar, so the menu does not repeat it. The account control is in the bar at every width. */}
               <div className="mt-2 p-1.5 lg:hidden">
                 <Button href="/build-my-pc" variant="secondary" size="lg" className="w-full">
                   Get a Quote

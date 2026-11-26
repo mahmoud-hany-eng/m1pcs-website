@@ -4,7 +4,7 @@ import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } fro
 import type {
   AuditRow, ClaimCodeRow, CompletedOrdersPage, CustomerDetail, CustomerListRow, CustomerOrdersPage, DashboardSummary, DepositPreview, FinancialReport,
   LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OrdersOverview, OrdersPage, OrdersSort, OverviewSummary, PaymentListRow,
-  PolicyRow, PolicyVersionRow, ReceiptFile,
+  PolicyRow, PolicyVersionRow, ReceiptFile, StaffHeaderProfile,
 } from "./types";
 
 export interface NewOrderItem {
@@ -35,6 +35,8 @@ export function staffApi(staff: VerifiedStaff) {
   const call = <T>(name: Parameters<typeof staffCall>[1], params: readonly unknown[] = []) => staffCall<T>(staff, name, params);
   return {
     isStaffMember: () => call<boolean>("is_staff_member"),
+    /** null when the caller is not active staff; otherwise the display name the staff table holds for them (null when none is set yet). */
+    myStaffProfile: () => call<StaffHeaderProfile | null>("my_staff_profile"),
     permissions: () => call<string[]>("my_permissions"),
     dashboard: () => call<DashboardSummary>("dashboard_summary"),
     previewDeposit: (totalMinor: number) => call<DepositPreview>("preview_deposit", [totalMinor]),

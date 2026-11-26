@@ -454,13 +454,20 @@ describe("M1 order workflow: the customer website at desktop and phone widths (p
         await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 20_000 });
         const unknown = await page.goto(`${adminSite.base}/this-address-does-not-exist`);
         assert.equal(unknown.status(), 404);
-        const reference = await text(page);
+        // The page's CONTENT is compared (the <main> area): the site's header is the same on every page and, since the header names the signed-in person (it asks
+        // who is signed in after the page has loaded), its text depends on when it arrives, which is not what this test is about.
+        const content = async () => {
+          await page.waitForLoadState("networkidle");
+          await page.locator('[aria-busy="true"]').waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
+          return page.locator("main").innerText();
+        };
+        const reference = await content();
         for (const path of ["/admin", "/admin/orders", "/admin/orders/00000000-0000-4000-8000-000000000001", "/admin/payments", "/admin/loyalty", "/admin/policies", "/admin/audit", "/admin/mfa"]) {
           const response = await page.goto(`${adminSite.base}${path}`);
           assert.equal(response.status(), 404, `${path} must answer 404 before anything is streamed`);
-          const body = await text(page);
+          const body = await content();
           assert.equal(body, reference, `${path} must render exactly the ordinary 404`);
-          assert.doesNotMatch(body, /M1 Staff|Staff dashboard|Loading/i, path);
+          assert.doesNotMatch(await text(page), /M1 Staff|Staff dashboard|Loading/i, path);
         }
       } finally {
         await context.close();

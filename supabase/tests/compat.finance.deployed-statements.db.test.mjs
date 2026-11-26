@@ -40,6 +40,8 @@ const NEW_STATEMENTS = [
   "list_orders_page",
   // the simplified Orders page and the PDF receipts (the release after that; earlier websites never call them)
   "add_order_receipt", "get_order_receipt", "list_orders_overview", "remove_order_receipt",
+  // the staff member's own display name for the public header (the unified-login release; earlier websites never call it)
+  "my_staff_profile",
 ];
 
 function drive(db) {

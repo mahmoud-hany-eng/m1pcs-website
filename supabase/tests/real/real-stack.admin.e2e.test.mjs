@@ -135,8 +135,11 @@ describe("staff, in a real browser, against the official Supabase local stack", 
     assert.match(text, /total orders/i);
     assert.match(text, /awaiting deposit/i);
     assert.match(text, /outstanding balances/i);
-    // The public site's header, footer and chat button are not on the admin screen.
-    for (const selector of ["body > header", "body > footer", 'a[aria-label="Chat with M1 on WhatsApp"]']) {
+    // The public site's header stays at the top of the admin screen (one header, with the signed-in name linking to the dashboard); the public footer and
+    // the chat button are left out of the staff area.
+    assert.equal(await desk.page.locator("header").count(), 1, "exactly one header");
+    assert.equal(await desk.page.locator("header").first().isVisible(), true, "the public header is shown above the dashboard");
+    for (const selector of ["body footer", 'a[aria-label="Chat with M1 on WhatsApp"]']) {
       assert.equal(await desk.page.locator(selector).first().isVisible().catch(() => false), false, selector);
     }
     await shot(desk.page, "admin-01-overview-desktop");

@@ -145,6 +145,10 @@ export interface ReceiptMeta {
   size_bytes: number;
   uploaded_at: string;
 }
+/** What admin.my_staff_profile() answers for an active staff member: their own display name (null while none is set). The caller who is not staff gets null instead. */
+export interface StaffHeaderProfile {
+  display_name: string | null;
+}
 /** One receipt's file, as the download route reads it (admin.get_order_receipt). */
 export interface ReceiptFile {
   id: string;

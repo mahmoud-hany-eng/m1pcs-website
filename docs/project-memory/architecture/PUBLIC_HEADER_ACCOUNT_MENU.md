@@ -1,5 +1,9 @@
 # The account menu in the public website's header (PLAT-0007)
 
+> **Update (PLAT-0007-a4, HD-0027).** The menu described below is now only the **signed-out** control, and it has **exactly two entries: Log in and Create account**. Once a person is signed in, the menu is replaced by their
+> name and icon as one link straight to their dashboard (`/admin` for staff, `/account` for a customer); the hamburger menu no longer has an Account group; and the admin shell is no longer an overlay that hides this header. Everything about the
+> signed-out behaviour (animation, keyboard, ARIA, focus, the switches, nothing on Production) is unchanged. **The current design is [UNIFIED_LOGIN_AND_NAVIGATION.md](UNIFIED_LOGIN_AND_NAVIGATION.md); the sections below are the history of how the menu got here** (sections 1 and 3 describe earlier entry sets and the earlier "signed in is unknown" limit, which OQ-0048 asked about and the new header answers).
+
 Status: implemented locally; not pushed or deployed. The brief is HD-0024. It is a **navigation shortcut only**: it adds no sign-in, no session logic and no
 permission. Every address it leads to still passes its own sign-in and second-step (MFA) checks, exactly as before.
 
@@ -20,7 +24,7 @@ short fade and a few pixels of slide; on a phone (below 1024px) the same entries
 onto two rows (found by `header.browser.test.mjs`, run #19). How much room six links need depends on the font the visitor's system really draws, which cannot be known, so the
 layout no longer depends on a guess: the links are in the bar only where there is room to spare even in a wide fallback font (at least 24px free on each side, tested at 1280 and
 1440px in three font conditions), and below that they are in the menu, which does not depend on text width. The switch is written in **em** (`min-width: 80em`), not px, so a visitor
-who has chosen larger default text in the browser gets the menu earlier too (that case follows from the CSS standard; it could not be driven in the automated browser). The links
+who has chosen larger default text in the browser gets the menu earlier too (that case follows from the CSS standard; since PLAT-0007-a4 it is also driven in the automated browser, through the browser's own default text size). The links
 never wrap inside themselves and the group does not shrink. Opening the menu closes the account menu and the other way round (they are side by side from 1024px); widening the window
 past 80em closes an open menu and gives the page its scrolling back.
 

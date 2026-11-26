@@ -1050,11 +1050,13 @@ export function DepositScheduleForm({ defaults }: { defaults: ScheduleDefaults }
 // The second factor
 // ---------------------------------------------------------------------------------------------------------------
 
-function VerifyCodeForm({ factorId }: { factorId: string }) {
+function VerifyCodeForm({ factorId, next }: { factorId: string; next: string }) {
   const [state, action, pending] = useStaffForm(verifyTotpAction);
   return (
     <form action={action} className="flex flex-col gap-3" noValidate>
       <input type="hidden" name="factor_id" value={factorId} />
+      {/* The admin page the person was heading to (checked again on the server); empty means the dashboard. */}
+      <input type="hidden" name="next" value={next} />
       <Feedback state={state} />
       <Field id="m-code" label="6-digit code" error={errorOf(state, "code")}>
         <Input state={state} id="m-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} pattern="[0-9 ]*" />
@@ -1068,9 +1070,9 @@ function VerifyCodeForm({ factorId }: { factorId: string }) {
   );
 }
 
-export function MfaPanel({ factorId }: { factorId: string | null }) {
+export function MfaPanel({ factorId, next = "" }: { factorId: string | null; next?: string }) {
   const [state, action, pending] = useActionState(enrolTotpAction, staffIdleState);
-  if (factorId) return <VerifyCodeForm factorId={factorId} />;
+  if (factorId) return <VerifyCodeForm factorId={factorId} next={next} />;
   if (state.status === "success" && state.enrol) {
     return (
       <div className="flex flex-col gap-4">
@@ -1080,7 +1082,7 @@ export function MfaPanel({ factorId }: { factorId: string | null }) {
         <p className="text-xs text-text-muted">
           Cannot scan it? Enter this setup key by hand: <code className="select-all break-all text-text-secondary">{state.enrol.setupKey}</code>
         </p>
-        <VerifyCodeForm factorId={state.enrol.factorId} />
+        <VerifyCodeForm factorId={state.enrol.factorId} next={next} />
       </div>
     );
   }

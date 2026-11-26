@@ -2,8 +2,10 @@
 // stop the website, and pick free ports. Playwright is NOT a project dependency (the tests skip without it); this finds
 // the copy that is installed on the machine.
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,14 +74,43 @@ export function ensureBuild({ force = false } = {}) {
   return true;
 }
 
-/** Starts `next start` on a free port with the given extra environment. Resolves once it answers. */
-export async function startWebsite(extraEnv = {}) {
+/**
+ * A SECOND build of the same source, made with the customer-account and staff switches ON at build time, in a copy of the project (the ordinary
+ * build in ROOT is left alone). Why it exists: the public pages are built once, and the header's account control is decided by the switches at
+ * BUILD time (the root layout is static). On Vercel the build and the run of a deployment share their variables, so a Preview that has the switches
+ * on carries the control on every public page; the ordinary test build has them off, so it never does. This build is that Preview. Returns the
+ * directory to give to startWebsite. Reused while it is newer than every source file.
+ */
+export function ensureSwitchedBuild() {
+  const dir = join(tmpdir(), `m1-switched-build-${createHash("sha1").update(ROOT).digest("hex").slice(0, 10)}`);
+  const marker = join(dir, ".next", "BUILD_ID");
+  const stamp = join(dir, ".next", "m1-switched-build-env.json");
+  const env = { ...BUILD_ENV, CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" };
+  const wanted = JSON.stringify(env);
+  const sourceTime = Math.max(newestMtime(join(ROOT, "src")), statSync(join(ROOT, "package.json")).mtimeMs, statSync(join(ROOT, "next.config.ts")).mtimeMs);
+  if (existsSync(marker) && statSync(marker).mtimeMs > sourceTime && existsSync(stamp) && readFileSync(stamp, "utf8") === wanted) return dir;
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  for (const name of ["src", "public"]) cpSync(join(ROOT, name), join(dir, name), { recursive: true });
+  for (const name of ["package.json", "package-lock.json", "next.config.ts", "tsconfig.json", "postcss.config.mjs", "tailwind.config.ts", "eslint.config.mjs"]) {
+    if (existsSync(join(ROOT, name))) cpSync(join(ROOT, name), join(dir, name));
+  }
+  symlinkSync(join(ROOT, "node_modules"), join(dir, "node_modules"), "dir");
+  const buildEnv = { ...process.env, ...env };
+  for (const key of Object.keys(buildEnv)) if (key.startsWith("STAFF_GATEWAY") || key === "VERCEL_ENV") delete buildEnv[key];
+  execFileSync("npm", ["run", "build"], { cwd: dir, env: buildEnv, stdio: "ignore", timeout: 600_000 });
+  writeFileSync(stamp, wanted);
+  return dir;
+}
+
+/** Starts `next start` on a free port with the given extra environment (from the build in `dir`, by default the ordinary one). Resolves once it answers. */
+export async function startWebsite(extraEnv = {}, { dir = ROOT } = {}) {
   const port = await freePort();
   const env = { ...process.env, ...BUILD_ENV, PORT: String(port) };
   // The flag and Supabase settings come only from what the caller passes, never from the surrounding shell.
   for (const key of Object.keys(env)) if (key.startsWith("CUSTOMER_ACCOUNTS_") || key.startsWith("STAFF_") || key.startsWith("NEXT_PUBLIC_SUPABASE_") || key === "VERCEL_ENV") delete env[key];
   Object.assign(env, extraEnv);
-  const child = spawn(process.execPath, [join(ROOT, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(port), "-H", "127.0.0.1"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [join(ROOT, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(port), "-H", "127.0.0.1"], { cwd: dir, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   child.stdout.on("data", (chunk) => (log += chunk));
   child.stderr.on("data", (chunk) => (log += chunk));
