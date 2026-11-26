@@ -340,3 +340,52 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** The completed-orders table was the only place ordinary staff could see completion dates (without costs); it was removed at the owner's request. Staff without `finance.read` now see delivered orders in the ordinary list but no completion date. Should the list show the completion date of a delivered order as a column or in the card?
 - **Recommendation:** Not needed for the owner's own use; add a "Completed" date to the list only if staff ask for it (it holds no private data).
 - **Source:** HD-0024.
+
+### OQ-0050 — Where the PDF receipts should live
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** Receipts are stored as bytes in a private table in the database (up to 4 MB each, 10 per order). That needs no new secret or bucket and keeps them behind the same staff permissions, but the database has a size allowance (500 MB on the free plan) and large binary rows make backups bigger. Should they move to object storage (a private bucket served through short-lived links) once there are many, or is the database fine for this business's volume?
+- **Recommendation:** Keep the database while the total stays small (hundreds of receipts); revisit before the database passes about half its allowance. Moving them later is a data copy plus a change inside `admin.get_order_receipt`; the screens do not change.
+- **Source:** HD-0026; [ORDERS_PAGE_AND_RECEIPTS.md](../architecture/ORDERS_PAGE_AND_RECEIPTS.md) section 5.
+
+### OQ-0051 — Scanning uploaded PDFs, and who may upload
+- **Status:** open
+- **Blocks:** nothing now (only the owner can upload)
+- **Question:** A receipt is accepted if it starts with `%PDF-` and is within the limits; it is **not scanned** for malicious content, and "View" opens it in the browser's own PDF viewer on the admin site. Only the owner can attach or remove (`payments.record`). Should uploads be scanned, should "View" be download-only, and should another role ever attach receipts?
+- **Recommendation:** While only the owner uploads PDFs they received themselves, leave it. If receipts ever come from customers or other staff, scan them (or make View download-only) before widening the permission.
+- **Source:** HD-0026.
+
+### OQ-0052 — How long removed receipts are kept
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** Removing a receipt keeps the record, the file, who removed it, when and why (nothing is deleted), because they are financial records. Is that the policy, or should removed files be purged after a period or on request?
+- **Recommendation:** Keep them as financial records; decide a retention period with an accountant before any purge is built (it would be its own reviewed, audited change).
+- **Source:** HD-0026.
+
+### OQ-0053 — Where the monthly financial report belongs
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The brief asked for only search, Sort, Filter and the table on the Orders page. The monthly *Financial performance* report was kept (it is the owner's accepted reporting) but moved below the list as a collapsed "Monthly financial report". Should it stay there, move to the Overview, or become its own page?
+- **Recommendation:** Keep it where it is until the owner has used the simplified page for a while; it is one section, so moving it is cheap.
+- **Source:** HD-0026.
+
+### OQ-0054 — What staff without finance access should see on the Orders page
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** An ordinary staff member sees four columns (Order, Customer, Order price, Placed) and four sorts: no Cost, Profit or Receipts (their answer does not contain them). Is that right, or should staff see the receipts (read-only) so they can answer a customer who asks whether a payment was received?
+- **Recommendation:** Keep it as it is; if staff need to see receipts, grant `payments.read` to a role on purpose (the screen follows the permission by itself).
+- **Source:** HD-0026; related OQ-0045.
+
+### OQ-0055 — "Track my order" and the public menu
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** "Track my order" opens the customer's own orders page, so a visitor who is not signed in is asked to sign in first. Should there also be a public lookup by order number plus a code, for customers who never created an account? And should "Create Account" or a staff link be reachable from the public site (they are not in the menu now; "Create Account" is on the sign-in page)?
+- **Recommendation:** Keep the sign-in route (it protects customer data). A public lookup is a separate, reviewed feature (rate limits, what a code reveals); do not add it as a menu entry alone.
+- **Source:** HD-0026; related OQ-0048.
+
+### OQ-0056 — The pager and the status column on the simplified Orders page
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The brief lists search, Sort, Filter and the table as the page's controls. A small Previous / Next and "Page x of y" remain under the table (without it the page shows only the latest 5 with no way to see older orders except by filtering), and the Status column was dropped (status is a filter and is on the order's page). Is that what the owner wants?
+- **Recommendation:** Keep the pager (it is only shown when there is more than one page). If the status is wanted at a glance, add a small coloured dot to the Order cell rather than a column.
+- **Source:** HD-0026.

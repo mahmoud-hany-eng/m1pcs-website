@@ -38,6 +38,8 @@ const NEW_STATEMENTS = [
   "overview_summary", "set_order_costs_complete", "verify_historical_completion", "void_order_cost",
   // the Orders page's paged list (a later release, one migration of its own; earlier websites never call it)
   "list_orders_page",
+  // the simplified Orders page and the PDF receipts (the release after that; earlier websites never call them)
+  "add_order_receipt", "get_order_receipt", "list_orders_overview", "remove_order_receipt",
 ];
 
 function drive(db) {

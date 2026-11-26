@@ -6,16 +6,17 @@
 //   production both switches on AND VERCEL_ENV=production (a stray variable on the live site: the gates ignore it)
 //
 // The header is evaluated where the page is rendered. The account, sign-in and sign-up pages are rendered per visitor, so the menu is exercised on
-// /auth/check-email (a page where no entry is redundant, so all four entries show). The public pages are built once, with the environment of the
+// /auth/check-email (a page where no entry is redundant, so all three entries show). The public pages are built once, with the environment of the
 // BUILD (on Vercel the build and the run of a deployment share it); for a Preview that has the switches on at build time this was checked by hand,
 // and here the public pages are checked in the default build: they must carry no account link of any kind.
 //
 // What it proves: nothing is offered where the routes are off (no button, no link to /account, /auth or /admin, on any page, including the 404 page of
-// a route that does not exist); the button sits at the right of Get a Quote, the same height, vertically centred; it opens on a click with the four
-// entries and the right addresses, with a short fade and slide (none with reduced motion); it closes on a click outside, on Escape (focus back on the
+// a route that does not exist); the button sits at the right of Get a Quote, the same height, vertically centred; it opens on a click with the three
+// entries (Log in, My account, Track my order) and the right addresses, with a short fade and slide (none with reduced motion); it closes on a click outside, on Escape (focus back on the
 // button), when focus leaves, when a link is used, and on every change of page; it works from the keyboard (Enter, Space, ArrowDown, arrows, Home, End);
 // the ARIA state is right; it is never hidden behind the page's own content; on a phone the same entries are in the hamburger menu without breaking it;
-// the Staff Dashboard link is only a link: a visitor with no session is sent to sign in, not to the dashboard.
+// "My account" and "Track my order" are only links: a visitor with no session is sent to sign in (and back), never shown account data; and the
+// staff dashboard is not offered to the public at all, whatever the switches.
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { startEmulator } from "../emulator/server.mjs";
@@ -27,11 +28,11 @@ const skip = !playwright ? "Playwright is not installed" : !findPgBin() ? "Postg
 if (skip && process.env.M1_REQUIRE_PG === "1") throw new Error(`M1_REQUIRE_PG=1 but ${skip}`);
 const SHOTS = process.env.M1_SCREENSHOT_DIR || null;
 
+// EXACTLY these three, in this order: nothing else is offered to the public (no Create Account, no Staff Dashboard).
 const ENTRIES = [
-  ["My Account", "/account"],
-  ["Customer Sign In", "/auth/sign-in"],
-  ["Create Account", "/auth/sign-up"],
-  ["Staff Dashboard", "/admin"],
+  ["Log in", "/auth/sign-in"],
+  ["My account", "/account"],
+  ["Track my order", "/account/orders"],
 ];
 const MENU_BUTTON = '[data-testid="account-menu-button"]';
 const MENU = '[data-testid="account-menu"]';
@@ -125,11 +126,11 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
       }
     });
 
-    it("with only the customer switch on there is no Staff Dashboard entry, and the three customer entries are the ones shown", async () => {
+    it("with only the customer switch on, the three entries are the ones shown", async () => {
       const { ctx, page } = await open("customer");
       try {
         await page.locator(MENU_BUTTON).click();
-        assert.deepEqual(await links(page), ENTRIES.slice(0, 3));
+        assert.deepEqual(await links(page), ENTRIES);
       } finally {
         await ctx.close();
       }
@@ -348,7 +349,7 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
 
   // =============================================================================================================
   describe("desktop: opening, closing, and what is in it", () => {
-    it("starts closed (collapsed, no menu, no account links in the page), opens on a click with the four entries and the right addresses, and says so with ARIA", async () => {
+    it("starts closed (collapsed, no menu, no account links in the page), opens on a click with the three entries and the right addresses, and says so with ARIA", async () => {
       const { ctx, page } = await open("both");
       try {
         const button = page.locator(MENU_BUTTON);
@@ -365,8 +366,9 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
         assert.equal(await page.locator(MENU).getAttribute("data-state"), "open");
         assert.deepEqual(await links(page), ENTRIES);
         assert.equal(await page.locator(`${MENU} nav`).getAttribute("aria-label"), "Account");
-        // the staff entry is in its own group, after a divider
-        assert.equal(await page.locator(`${MENU} ul`).count(), 2);
+        // one plain list: no second group, no divider, no staff entry
+        assert.equal(await page.locator(`${MENU} ul`).count(), 1);
+        assert.equal(await page.locator(`${MENU} li`).count(), 3);
         if (SHOTS) await page.screenshot({ path: `${SHOTS}/header-open-desktop.png`, clip: { x: 640, y: 0, width: 640, height: 340 } });
       } finally {
         await ctx.close();
@@ -441,14 +443,14 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
         await page.keyboard.press("Enter");
         await page.locator(MENU).waitFor();
         await page.keyboard.press("Tab"); // into the menu: the first link
-        assert.equal(await focused(page), "My Account");
+        assert.equal(await focused(page), "Log in");
         await page.keyboard.press("Escape");
         await gone(page);
         assert.equal(await focused(page), "account-menu-button", "focus is back on the button");
-        // Tab through all four entries and out: the menu closes
+        // Tab through all three entries and out: the menu closes
         await page.keyboard.press("Enter");
         await page.locator(MENU).waitFor();
-        for (const name of ["My Account", "Customer Sign In", "Create Account", "Staff Dashboard"]) {
+        for (const name of ["Log in", "My account", "Track my order"]) {
           await page.keyboard.press("Tab");
           assert.equal(await focused(page), name);
         }
@@ -473,17 +475,17 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
         await button.focus();
         await page.keyboard.press("ArrowDown");
         await page.locator(MENU).waitFor();
-        assert.equal(await focused(page), "My Account", "ArrowDown on the button opens the menu on its first entry");
+        assert.equal(await focused(page), "Log in", "ArrowDown on the button opens the menu on its first entry");
         await page.keyboard.press("ArrowDown");
-        assert.equal(await focused(page), "Customer Sign In");
+        assert.equal(await focused(page), "My account");
         await page.keyboard.press("End");
-        assert.equal(await focused(page), "Staff Dashboard");
+        assert.equal(await focused(page), "Track my order");
         await page.keyboard.press("ArrowDown");
-        assert.equal(await focused(page), "My Account", "it wraps");
+        assert.equal(await focused(page), "Log in", "it wraps");
         await page.keyboard.press("ArrowUp");
-        assert.equal(await focused(page), "Staff Dashboard");
+        assert.equal(await focused(page), "Track my order");
         await page.keyboard.press("Home");
-        assert.equal(await focused(page), "My Account");
+        assert.equal(await focused(page), "Log in");
         // the focus ring is visible on a link reached by keyboard
         const outline = await page.locator(`${MENU} a`).first().evaluate((el) => getComputedStyle(el).outlineStyle);
         assert.notEqual(outline, "none", "a focused entry shows a focus outline");
@@ -539,30 +541,26 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
 
   // =============================================================================================================
   describe("using it", () => {
-    it("the entries lead to the right pages, the menu closes with the change of page, and the entry for the page you are on is left out", async () => {
+    it("the entries lead to the right pages and the menu closes with the change of page; on the sign-in page all three are still offered, with 'Log in' marked as the current page", async () => {
       const { ctx, page } = await open("both");
       try {
         await page.locator(MENU_BUTTON).click();
-        await page.locator(`${MENU} a:has-text("Customer Sign In")`).click();
+        await page.locator(`${MENU} a:has-text("Log in")`).click();
         await page.waitForURL("**/auth/sign-in");
         await gone(page); // closed with the change of page (it may still be finishing its closing animation as the address changes)
         await page.locator(MENU_BUTTON).click();
-        assert.deepEqual((await links(page)).map((l) => l[0]), ["My Account", "Create Account", "Staff Dashboard"], "no link to the page you are on");
-        await page.locator(`${MENU} a:has-text("Create Account")`).click();
-        await page.waitForURL("**/auth/sign-up");
-        await page.locator(MENU_BUTTON).click();
-        assert.deepEqual((await links(page)).map((l) => l[0]), ["My Account", "Customer Sign In", "Staff Dashboard"]);
-        assert.equal(await page.locator(`${MENU} a[aria-current]`).count(), 0, "nothing is marked current among them");
+        assert.deepEqual(await links(page), ENTRIES, "the menu is always the same three");
+        assert.deepEqual(await page.locator(`${MENU} a[aria-current="page"]`).evaluateAll((as) => as.map((a) => a.textContent.trim())), ["Log in"], "the page you are on is marked, not removed");
       } finally {
         await ctx.close();
       }
     });
 
-    it("My Account for a visitor with no session leads to the sign-in page (and back to the account afterwards), never to account data", async () => {
+    it("My account for a visitor with no session leads to the sign-in page (and back to the account afterwards), never to account data", async () => {
       const { ctx, page } = await open("both");
       try {
         await page.locator(MENU_BUTTON).click();
-        await page.locator(`${MENU} a:has-text("My Account")`).click();
+        await page.locator(`${MENU} a:has-text("My account")`).click();
         await page.waitForURL(/\/auth\/sign-in/);
         assert.match(new URL(page.url()).searchParams.get("next") ?? "", /^\/account/);
       } finally {
@@ -570,16 +568,27 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
       }
     });
 
-    it("the Staff Dashboard entry is only a link: with no session it leads to sign-in (with the dashboard as the way back), and no dashboard content is served", async () => {
+    it("Track my order for a visitor with no session leads to sign-in with the orders page as the way back, and no order data is served", async () => {
       const { ctx, page } = await open("both");
       try {
         await page.locator(MENU_BUTTON).click();
-        await page.locator(`${MENU} a:has-text("Staff Dashboard")`).click();
+        await page.locator(`${MENU} a:has-text("Track my order")`).click();
         await page.waitForURL(/\/auth\/sign-in/);
-        assert.equal(new URL(page.url()).searchParams.get("next"), "/admin");
+        assert.equal(new URL(page.url()).searchParams.get("next"), "/account/orders");
         const body = await page.locator("body").innerText();
-        assert.doesNotMatch(body, /Orders|Payments|Loyalty|Audit log|Financial performance/);
-        assert.ok(new URL(page.url()).pathname.startsWith("/auth/"), "still on the sign-in page: the second-step and role checks come after it, on the dashboard's own pages");
+        assert.doesNotMatch(body, /Payments|Loyalty|Deposit|QAR/);
+        assert.ok(new URL(page.url()).pathname.startsWith("/auth/"), "still on the sign-in page: the sign-in comes first, the orders only after it");
+      } finally {
+        await ctx.close();
+      }
+    });
+
+    it("the public menu never offers the staff dashboard or Create Account, with every switch on (the dashboard has its own sign-in route)", async () => {
+      const { ctx, page } = await open("both");
+      try {
+        await page.locator(MENU_BUTTON).click();
+        assert.equal(await page.locator(`${MENU} a[href^="/admin"], ${MENU} a:has-text("Staff"), ${MENU} a[href="/auth/sign-up"]`).count(), 0);
+        assert.equal(await page.locator('header a[href^="/admin"]').count(), 0, "and no link to /admin anywhere in the header");
       } finally {
         await ctx.close();
       }
@@ -599,7 +608,7 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
   // =============================================================================================================
   describe("a phone: the same entries in the hamburger menu", () => {
     const PHONE = { viewport: { width: 390, height: 844 } };
-    it("the account button is not drawn on a phone; the hamburger menu has an Account group with the same four entries below the six links, and Get a Quote is still there", async () => {
+    it("the account button is not drawn on a phone; the hamburger menu has an Account group with the same three entries below the six links, and Get a Quote is still there", async () => {
       const { ctx, page } = await open("both", HERE, PHONE);
       try {
         assert.equal(await page.locator(MENU_BUTTON).isVisible(), false, "the desktop button is hidden below the large breakpoint");
@@ -630,23 +639,24 @@ describe("the public header's account menu, in a real browser", { skip, timeout:
         assert.ok(m.bottom <= 560, `the menu ends inside the screen (${Math.round(m.bottom)}px of 560)`);
         assert.equal(m.overflowY, "auto");
         // the last entry can be reached
-        await page.locator('[data-testid="mobile-account-links"] a:has-text("Staff Dashboard")').scrollIntoViewIfNeeded();
-        assert.equal(await page.locator('[data-testid="mobile-account-links"] a:has-text("Staff Dashboard")').isVisible(), true);
+        await page.locator('[data-testid="mobile-account-links"] a:has-text("Track my order")').scrollIntoViewIfNeeded();
+        assert.equal(await page.locator('[data-testid="mobile-account-links"] a:has-text("Track my order")').isVisible(), true);
       } finally {
         await ctx.close();
       }
     });
 
-    it("an entry in the hamburger menu leads to its page and closes the menu; the entry for the current page is left out", async () => {
+    it("an entry in the hamburger menu leads to its page and closes the menu; the three stay on the sign-in page, with the current one marked", async () => {
       const { ctx, page } = await open("both", HERE, PHONE);
       try {
         await page.locator('button[aria-label="Open menu"]').click();
-        await page.locator('[data-testid="mobile-account-links"] a:has-text("Customer Sign In")').click();
+        await page.locator('[data-testid="mobile-account-links"] a:has-text("Log in")').click();
         await page.waitForURL("**/auth/sign-in");
         assert.equal(await page.locator("#mobile-menu").count(), 0, "the menu closed with the change of page");
         await page.locator('button[aria-label="Open menu"]').click();
         const names = await page.locator('[data-testid="mobile-account-links"] a').evaluateAll((as) => as.map((a) => a.textContent.replace("→", "").trim()));
-        assert.deepEqual(names, ["My Account", "Create Account", "Staff Dashboard"]);
+        assert.deepEqual(names, ENTRIES.map((e) => e[0]));
+        assert.deepEqual(await page.locator('[data-testid="mobile-account-links"] a[aria-current="page"]').evaluateAll((as) => as.map((a) => a.textContent.replace("→", "").trim())), ["Log in"]);
       } finally {
         await ctx.close();
       }

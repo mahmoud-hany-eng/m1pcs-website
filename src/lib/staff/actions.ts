@@ -36,6 +36,7 @@ import {
   parseTrackingCorrection,
   STALE_FORM_MESSAGE,
 } from "./validation";
+import { parseReceiptReason, parseReceiptUpload } from "./receipts";
 import {
   COMPLETION_VERIFIED,
   COSTS_MARKED_COMPLETE,
@@ -43,6 +44,8 @@ import {
   costEditedMessage,
   costSavedMessage,
   costVoidedMessage,
+  receiptAddedMessage,
+  receiptRemovedMessage,
 } from "./outcomes";
 
 const ORDER_STATUS = /^[a-z_]{3,40}$/;
@@ -297,6 +300,38 @@ export async function addOrderCostAction(_previous: StaffFormState, formData: Fo
     revalidatePath("/admin/orders");
     revalidatePath("/admin");
     return { status: "success", message: costSavedMessage(replayed) };
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// PDF receipts on an order (payments.record: the owner). The browser sends the file and the id it chose for this upload; everything else
+// (who, what the file is, whether it is a real PDF) is decided here and again in the database.
+// ---------------------------------------------------------------------------------------------------------------
+
+export async function uploadReceiptAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const orderId = field(formData, "order_id");
+  return run("/admin/orders", "payments.record", formData, async ({ api }) => {
+    if (!isUuid(orderId)) return badId();
+    // The receipt id was chosen by the form: sending the same upload again (a double click, a retry) stores it once.
+    const receiptId = parseEntryId(formData);
+    if (!receiptId) return { status: "error", message: STALE_FORM_MESSAGE };
+    const upload = await parseReceiptUpload(formData);
+    if (!upload.ok) return { status: "error", fieldErrors: { file: upload.message } };
+    const { replayed } = await api.addOrderReceipt(orderId, receiptId, upload.name, Buffer.from(upload.bytes));
+    revalidatePath("/admin/orders");
+    return { status: "success", message: receiptAddedMessage(replayed) };
+  });
+}
+
+export async function removeReceiptAction(_previous: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const receiptId = field(formData, "receipt_id");
+  return run("/admin/orders", "payments.record", formData, async ({ api }) => {
+    if (!isUuid(receiptId)) return badId();
+    const reason = parseReceiptReason(formData);
+    if (!reason.ok) return { status: "error", fieldErrors: reason.errors };
+    const { replayed } = await api.removeOrderReceipt(receiptId, reason.value);
+    revalidatePath("/admin/orders");
+    return { status: "success", message: receiptRemovedMessage(replayed) };
   });
 }
 

@@ -223,13 +223,15 @@ describe("the public website does not depend on the customer-account code (Phase
     assert.match(layout, /<Header accountLinks=\{headerAccountLinks\(process\.env\)\} \/>/, "the links come from the environment of THIS deployment");
     // The layout stays static: no cookie, no request header, no forced dynamic rendering (the public pages are cached, not rendered per visitor).
     assert.doesNotMatch(strip(layout), /next\/headers|cookies\(|headers\(|force-dynamic|connection\(|noStore/, "the root layout must not make the public pages dynamic");
-    // The module is plain: it imports only the two switches and the link type, reads nothing of its own, and returns data.
+    // The module is plain: it imports only the customer switch and the link type, reads nothing of its own, and returns data.
     const nav = read("src/lib/accounts/shared/header-nav.ts");
     const code = strip(nav);
-    assert.deepEqual([...code.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]).sort(), ["./flag", "@/lib/account-nav", "@/lib/staff/flag"].sort());
+    assert.deepEqual([...code.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]).sort(), ["./flag", "@/lib/account-nav"].sort());
     assert.doesNotMatch(code, /process\.env|next\/|cookies|supabase|server-only|fetch\(/i, "header-nav.ts reads only the environment it is handed");
     assert.match(code, /customerAccountsGate\(env\)\.enabled\) return \[\]/, "no links at all unless the customer switch is on (and never on production, by the gate)");
-    assert.match(code, /staffAdminGate\(env\)\.enabled\)/, "the staff entry needs the staff switch as well");
+    // Exactly three entries, in this order, with these names and addresses: Log in, My account, Track my order. The staff dashboard is not offered to the public.
+    assert.deepEqual([...code.matchAll(/\{ href: "([^"]+)", label: "([^"]+)"/g)].map((m) => [m[1], m[2]]), [["/auth/sign-in", "Log in"], ["/account", "My account"], ["/account/orders", "Track my order"]]);
+    assert.doesNotMatch(code, /staffAdminGate|\/admin"\s*,\s*label|Staff Dashboard|Create Account/, "no staff entry and no extra entry in the public menu");
     // The header, the menu and the shared link rule import NOTHING from the account code, the platform code, Supabase, or the server.
     for (const p of ["src/components/layout/Header.tsx", "src/components/layout/AccountMenu.tsx", "src/lib/account-nav.ts"]) {
       const text = strip(read(p));
@@ -316,7 +318,7 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const text = read(p);
       if (!/^\s*["']use client["']/.test(text)) continue;
       seen += 1;
-      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form|finance)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form|finance|receipts|types)/, `${p}: a client component may import only the staff form helpers and server actions`);
       assert.doesNotMatch(text, /from\s+["']pg["']/, p);
     }
     assert.ok(seen >= 8);

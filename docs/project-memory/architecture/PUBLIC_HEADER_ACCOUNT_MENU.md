@@ -31,6 +31,14 @@ past 80em closes an open menu and gives the page its scrolling back.
 | Create Account | `/auth/sign-up` | the same (left out inside `/account`, `/admin` and on the sign-up page itself) |
 | Staff Dashboard | `/admin` | the staff switch **and** the account switch are on (the admin layout needs both); drawn after a divider; left out inside `/admin` |
 
+### The three entries (PLAT-0007-a3, HD-0026)
+
+The menu offers **exactly three entries, in this order: Log in (`/auth/sign-in`), My account (`/account`), Track my order (`/account/orders`)**. Earlier it also offered Create Account (it is on the sign-in
+page) and, with the staff switch on, a Staff Dashboard link (staff already have their sign-in; the public menu no longer points at an admin area). Only "Log in" is left out where it is plainly redundant
+(inside `/account` and `/admin`, where the person is signed in); on the sign-in page it stays, marked as the current page, so the menu is always the same three. "My account" is marked current only on
+`/account` itself (not on `/account/orders`). "My account" and "Track my order" send a visitor who is not signed in to the sign-in page and back to where they were going; no account data is served before sign-in.
+The same three are the **Account** group of the hamburger menu below 1024 px. Everything in section 2 (the switches, nothing at all on Production) is unchanged.
+
 ## 2. The feature switches (the production guarantee)
 
 The routes themselves answer the site's ordinary 404 unless their switches are on, and **on a Vercel production deployment both switches are ignored** whatever the
@@ -71,10 +79,10 @@ Account" sends a visitor who is not signed in to the sign-in page with the way b
 
 ## 5. Tests
 
-`orders-list-lib.test.mjs` (the link rules: nothing unless the switch is on, nothing in production, the staff entry needs both switches, the redundancy rules),
+`orders-list-lib.test.mjs` (the link rules: nothing unless the switch is on, nothing in production, exactly the three entries whatever the staff switch says, the redundancy rule for "Log in", the exact "current page" rule),
 `static.test.mjs` (the isolation exception and the layout's constraints), `header.browser.test.mjs` (25: four copies of the site: off, customer switch, both, and
 production with both forced on; **the bar at 1024, 1060, 1100, 1280 and 1440px in three font conditions (the site's fonts, the web fonts blocked, a wide fallback): Get a Quote and the account button always in the bar, no wrap, overlap or overflow, links inline only from 1280px with room to spare, the menu below it; the menu's contents, keyboard and reduced motion at tablet widths; the two menus never open together**; open and close; animation and reduced motion; click outside, Escape and focus; the
-keyboard; never covered by the page; the entries' destinations; the Staff Dashboard link leading a visitor with no session to sign in; the quotation builder; the
+keyboard; never covered by the page; the entries' destinations; "My account" and "Track my order" leading a visitor with no session to sign in and back (and no staff or Create Account entry anywhere in the header); the quotation builder; the
 phone menu at 390 and 360 px; no account group when the switches are off).
 
 Four deliberate breakages of the menu (no close on an outside click, Escape without returning focus, a button that never reports `aria-expanded`, a hamburger with no Account group) were each caught by this file; see the run record.

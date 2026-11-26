@@ -52,6 +52,7 @@ suite("the finance screens in a real browser: desktop and phone widths", { skip 
     searchCustomers: async () => [],
     listOrders: async ({ status = null, search = null, limit = 50, offset = 0 } = {}) => q(`select admin.list_orders(${lit(status)}, ${lit(search)}, ${limit}, ${offset})::text`, AS.olivia),
     listOrdersPage: async (o) => q(`select admin.list_orders_page(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`, AS.olivia),
+    listOrdersOverview: async (o) => q(`select admin.list_orders_overview(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`, AS.olivia),
     overview: async (year = null) => q(`select admin.overview_summary(${num(year)})::text`, AS.olivia),
     financialReport: async (year = null, month = null) => q(`select admin.financial_report(${num(year)}, ${num(month)})::text`, AS.olivia),
     completedOrders: async (year = null, month = null, limit = 50, offset = 0) => q(`select admin.list_completed_orders(${num(year)}, ${num(month)}, ${limit}, ${offset})::text`, AS.olivia),

@@ -9,8 +9,8 @@ export interface AccountNavLink {
   label: string;
   /** Address prefixes on which this entry is redundant and therefore left out ("/account" covers "/account" and everything below it). */
   hiddenOn: readonly string[];
-  /** The staff group is drawn after a divider. */
-  group: "customer" | "staff";
+  /** Marks the entry as the current page only on its own address, not on the pages below it ("My account" is not current on "/account/orders"). */
+  exact?: boolean;
 }
 
 /** The entries that are not redundant on the page being viewed. */
@@ -19,6 +19,6 @@ export function linksForPath(links: readonly AccountNavLink[], pathname: string)
 }
 
 /** True when `pathname` is the entry's page or somewhere below it, so the entry can say it is the current page. */
-export function isCurrentLink(link: Pick<AccountNavLink, "href">, pathname: string): boolean {
-  return pathname === link.href || pathname.startsWith(`${link.href}/`);
+export function isCurrentLink(link: Pick<AccountNavLink, "href" | "exact">, pathname: string): boolean {
+  return pathname === link.href || (!link.exact && pathname.startsWith(`${link.href}/`));
 }

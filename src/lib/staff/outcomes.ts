@@ -55,6 +55,12 @@ export function duplicateWarning(similar: readonly SimilarOrderRow[], now: Date 
 export const COST_SAVED = "Cost saved. The order's costs were recalculated.";
 export const COST_ALREADY_SAVED = "This cost was already saved earlier, so nothing new was saved. It is in the list below.";
 export const costSavedMessage = (replayed: boolean): string => (replayed ? COST_ALREADY_SAVED : COST_SAVED);
+export const RECEIPT_ADDED = "Receipt attached.";
+export const RECEIPT_ALREADY_ADDED = "This receipt was already attached earlier, so nothing new was saved.";
+export const receiptAddedMessage = (replayed: boolean): string => (replayed ? RECEIPT_ALREADY_ADDED : RECEIPT_ADDED);
+export const RECEIPT_REMOVED = "Receipt removed. It stays in the history.";
+export const RECEIPT_ALREADY_REMOVED = "This receipt was already removed, so nothing was changed.";
+export const receiptRemovedMessage = (replayed: boolean): string => (replayed ? RECEIPT_ALREADY_REMOVED : RECEIPT_REMOVED);
 export const COST_EDITED = "Cost updated. The previous value is kept in the history.";
 export const COST_ALREADY_EDITED = "This change was already saved earlier, so nothing new was saved.";
 export const costEditedMessage = (replayed: boolean): string => (replayed ? COST_ALREADY_EDITED : COST_EDITED);

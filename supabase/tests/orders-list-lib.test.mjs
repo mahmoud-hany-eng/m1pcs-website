@@ -104,11 +104,42 @@ describe("the Orders list's choices in the address bar", { skip }, () => {
     assert.deepEqual(hidden, { status: "delivered", sort: "oldest", size: "10", page: "3" }, "the report's form keeps the list exactly where it is");
   });
 
-  test("the sort choices are the four the owner asked for, newest first being the default", () => {
-    assert.deepEqual(list.ORDER_SORTS.map((s) => s.value), ["newest", "oldest", "price_asc", "price_desc"]);
-    assert.deepEqual(list.ORDER_SORTS.map((s) => s.label), ["Newest orders first", "Oldest orders first", "Lowest order price first", "Highest order price first"]);
+  test("the sort choices are the six the owner asked for, newest first being the default; the two profit sorts are only for a person who may see costs", () => {
+    assert.deepEqual(list.ORDER_SORTS.map((s) => s.value), ["newest", "oldest", "price_asc", "price_desc", "profit_asc", "profit_desc"]);
+    assert.deepEqual(list.ORDER_SORTS.map((s) => s.label), ["Newest first", "Oldest first", "Price: low to high", "Price: high to low", "Profit: low to high", "Profit: high to low"]);
+    assert.deepEqual(list.ORDER_SORTS.filter((s) => s.needsFinance).map((s) => s.value), ["profit_asc", "profit_desc"]);
+    assert.deepEqual(list.sortsFor(true).map((s) => s.value), list.ORDER_SORTS.map((s) => s.value));
+    assert.deepEqual(list.sortsFor(false).map((s) => s.value), ["newest", "oldest", "price_asc", "price_desc"], "no profit sort is offered to a person who may not see costs");
     assert.deepEqual([...list.PAGE_SIZES], [5, 10, 25]);
     assert.equal(list.DEFAULT_PAGE_SIZE, 5);
+    assert.equal(list.DEFAULT_QUERY.sort, "newest");
+    assert.equal(list.DEFAULT_QUERY.size, 5, "the default is the latest 5, newest first");
+  });
+
+  test("the Sort button says the sort in force, whichever it is (never a fixed phrase)", () => {
+    for (const sort of list.ORDER_SORTS) assert.equal(list.sortLabel(sort.value), sort.label);
+    assert.equal(list.sortLabel("nonsense"), "Newest first", "an unknown value falls back to the default's label");
+  });
+
+  test("a profit sort in the address is kept for a person who may see costs and falls back to newest for anyone else", () => {
+    assert.equal(parse({ sort: "profit_desc" }).query.sort, "profit_desc");
+    assert.equal(list.parseOrdersListQuery({ sort: "profit_asc" }, STATUSES, { canSeeFinance: true }).query.sort, "profit_asc");
+    for (const sort of ["profit_asc", "profit_desc"]) assert.equal(list.parseOrdersListQuery({ sort }, STATUSES, { canSeeFinance: false }).query.sort, "newest", sort);
+    assert.equal(list.parseOrdersListQuery({ sort: "price_desc" }, STATUSES, { canSeeFinance: false }).query.sort, "price_desc", "the price sorts stay open to everyone");
+    assert.equal(list.ordersHref({ ...list.DEFAULT_QUERY, sort: "profit_desc" }), "/admin/orders?sort=profit_desc");
+  });
+
+  test("the Filter button counts the filters in use: status, a period (month and/or year) and a date range; the search and the sort are not filters", () => {
+    const n = (o) => list.activeFilterCount({ ...list.DEFAULT_QUERY, ...o });
+    assert.equal(n({}), 0);
+    assert.equal(n({ q: "alice", sort: "oldest", size: 25, page: 3 }), 0);
+    assert.equal(n({ status: "delivered" }), 1);
+    assert.equal(n({ month: 3 }), 1);
+    assert.equal(n({ year: 2026 }), 1);
+    assert.equal(n({ year: 2026, month: 3 }), 1, "a month and a year are one period");
+    assert.equal(n({ from: "2026-01-01" }), 1);
+    assert.equal(n({ from: "2026-01-01", to: "2026-01-31" }), 1, "both ends of a range are one range");
+    assert.equal(n({ status: "delivered", month: 3, to: "2026-01-31" }), 3);
   });
 
   test("the sentence under the filters says exactly what the database applied", () => {
@@ -148,40 +179,45 @@ describe("the account links the public header may offer", { skip }, () => {
     assert.deepEqual(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", VERCEL_ENV: "production" }), []);
   });
 
-  test("in a Preview with the customer switch on the three customer entries appear, with the staff entry only when the staff switch is on too", () => {
+  test("in a Preview with the customer switch on EXACTLY three entries appear, in this order: Log in, My account, Track my order (the staff switch adds nothing)", () => {
     const customer = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", VERCEL_ENV: "preview" });
-    assert.deepEqual(labels(customer), ["My Account /account", "Customer Sign In /auth/sign-in", "Create Account /auth/sign-up"]);
-    assert.ok(customer.every((l) => l.group === "customer"));
+    assert.deepEqual(labels(customer), ["Log in /auth/sign-in", "My account /account", "Track my order /account/orders"]);
     const both = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true", VERCEL_ENV: "preview" });
-    assert.deepEqual(labels(both), ["My Account /account", "Customer Sign In /auth/sign-in", "Create Account /auth/sign-up", "Staff Dashboard /admin"]);
-    assert.equal(both.at(-1).group, "staff");
+    assert.deepEqual(labels(both), labels(customer), "the public menu never offers the staff dashboard");
     // a local run (no VERCEL_ENV at all) behaves like a preview
-    assert.equal(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" }).length, 4);
+    assert.equal(header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" }).length, 3);
+    assert.ok(customer.every((l) => !("group" in l)), "there is one list, not a customer group and a staff group");
   });
 
   test("every link goes to a plain address on this site: no external link, no query, no fragment, nothing that carries a token", () => {
     for (const link of header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" })) assert.match(link.href, /^\/[a-z/-]*$/, link.href);
   });
 
-  test("an entry is left out where it is plainly redundant: sign-in inside the account and the dashboard, the page's own link on itself", () => {
+  test("only 'Log in' is left out where it is plainly redundant (inside the account and the dashboard, where the person is signed in); everywhere else all three show", () => {
     const all = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true", STAFF_ADMIN_ENABLED: "true" });
     const at = (path) => labels(nav.linksForPath(all, path));
-    assert.deepEqual(at("/"), ["My Account /account", "Customer Sign In /auth/sign-in", "Create Account /auth/sign-up", "Staff Dashboard /admin"]);
-    assert.deepEqual(at("/build-my-pc"), at("/"));
-    assert.deepEqual(at("/account"), ["My Account /account", "Staff Dashboard /admin"], "inside the account the person is signed in");
-    assert.deepEqual(at("/account/orders/O-1"), ["My Account /account", "Staff Dashboard /admin"]);
-    assert.deepEqual(at("/admin"), ["My Account /account"], "in the dashboard: no sign-in links and no link to where they are");
-    assert.deepEqual(at("/admin/orders"), ["My Account /account"]);
-    assert.deepEqual(at("/auth/sign-in"), ["My Account /account", "Create Account /auth/sign-up", "Staff Dashboard /admin"]);
-    assert.deepEqual(at("/auth/sign-up"), ["My Account /account", "Customer Sign In /auth/sign-in", "Staff Dashboard /admin"]);
-    assert.deepEqual(at("/accounts-and-more"), at("/"), "a prefix is a whole path segment: /accounts-and-more is not inside /account");
-    assert.deepEqual(at("/administration"), at("/"), "...nor is /administration inside /admin");
+    const three = ["Log in /auth/sign-in", "My account /account", "Track my order /account/orders"];
+    assert.deepEqual(at("/"), three);
+    assert.deepEqual(at("/build-my-pc"), three);
+    assert.deepEqual(at("/auth/sign-in"), three, "on the sign-in page the entry stays (it is the current page), so the menu is always the same three");
+    assert.deepEqual(at("/auth/sign-up"), three);
+    assert.deepEqual(at("/account"), ["My account /account", "Track my order /account/orders"], "inside the account the person is signed in");
+    assert.deepEqual(at("/account/orders/O-1"), ["My account /account", "Track my order /account/orders"]);
+    assert.deepEqual(at("/admin"), ["My account /account", "Track my order /account/orders"]);
+    assert.deepEqual(at("/accounts-and-more"), three, "a prefix is a whole path segment: /accounts-and-more is not inside /account");
+    assert.deepEqual(at("/administration"), three, "...nor is /administration inside /admin");
   });
 
-  test("a link says it is the current page for the page itself and everything below it, and for nothing else", () => {
-    assert.equal(nav.isCurrentLink({ href: "/account" }, "/account"), true);
-    assert.equal(nav.isCurrentLink({ href: "/account" }, "/account/orders"), true);
+  test("a link says it is the current page for the page itself and everything below it (unless it is exact), and for nothing else", () => {
+    assert.equal(nav.isCurrentLink({ href: "/account/orders" }, "/account/orders"), true);
+    assert.equal(nav.isCurrentLink({ href: "/account/orders" }, "/account/orders/O-1"), true);
     assert.equal(nav.isCurrentLink({ href: "/account" }, "/accounts"), false);
     assert.equal(nav.isCurrentLink({ href: "/auth/sign-in" }, "/auth/sign-up"), false);
+    // "My account" is exact: on "Track my order" only that entry is the current page.
+    const mine = header.headerAccountLinks({ CUSTOMER_ACCOUNTS_ENABLED: "true" }).find((l) => l.href === "/account");
+    assert.equal(mine.exact, true);
+    assert.equal(nav.isCurrentLink(mine, "/account"), true);
+    assert.equal(nav.isCurrentLink(mine, "/account/orders"), false);
+    assert.equal(nav.isCurrentLink(mine, "/account/orders/O-1"), false);
   });
 });

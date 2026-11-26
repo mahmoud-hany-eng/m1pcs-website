@@ -30,8 +30,6 @@ export function AccountMenu({ links }: { links: readonly AccountNavLink[] }) {
   const focusFirst = useRef(false);
   const panelId = useId();
   const visible = linksForPath(links, pathname);
-  const customer = visible.filter((l) => l.group === "customer");
-  const staff = visible.filter((l) => l.group === "staff");
   const mounted = state !== "closed";
 
   const close = useCallback(
@@ -157,10 +155,7 @@ export function AccountMenu({ links }: { links: readonly AccountNavLink[] }) {
         <div id={panelId} data-state={state} data-testid="account-menu" className="account-menu absolute right-0 top-full z-[60] mt-3 w-60" onKeyDown={onPanelKeyDown}>
           <div className="glass-strong rounded-glass-lg p-1.5">
             <nav aria-label="Account">
-              {customer.length > 0 ? <ul className="flex flex-col">{customer.map(item)}</ul> : null}
-              {staff.length > 0 ? (
-                <ul className={`flex flex-col ${customer.length > 0 ? "mt-1.5 border-t border-white/10 pt-1.5" : ""}`}>{staff.map(item)}</ul>
-              ) : null}
+              <ul className="flex flex-col">{visible.map(item)}</ul>
             </nav>
           </div>
         </div>

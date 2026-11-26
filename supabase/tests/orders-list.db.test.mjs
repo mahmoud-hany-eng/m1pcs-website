@@ -27,6 +27,7 @@ if (!haveServer && process.env.M1_REQUIRE_PG === "1") throw new Error("M1_REQUIR
 const suite = haveServer ? describe : describe.skip;
 
 const MIGRATION = "20261125120000_orders_list_paging.sql";
+const NEXT_RELEASE = "20261126120000_orders_overview_and_receipts.sql"; // the release after this one: not part of what this suite compares
 const FN = "admin.list_orders_page(text, text, integer, integer, date, date, text, integer, integer)";
 const lit = (v) => (v === null || v === undefined ? "null" : typeof v === "number" ? String(v) : `'${String(v).replaceAll("'", "''")}'`);
 
@@ -526,9 +527,12 @@ suite("the Orders list: filtered, sorted, counted and paged in the database", ()
         );
       const without = startDatabase({ schedule: "confirmed", before: MIGRATION });
       seedIdempotencyFixtures(without); // the same test helper functions this suite installed, so only the migration differs
+      // The database WITH this migration is the one built from every migration up to (not including) the next release's, so a later release's objects do not count here.
+      const through = startDatabase({ schedule: "confirmed", before: NEXT_RELEASE });
+      seedIdempotencyFixtures(through);
       try {
         const a = fingerprint(without);
-        const b = fingerprint(db);
+        const b = fingerprint(through);
         const added = Object.keys(b.functions).filter((k) => !(k in a.functions));
         const changed = Object.keys(a.functions).filter((k) => a.functions[k] !== b.functions[k]);
         const removed = Object.keys(a.functions).filter((k) => !(k in b.functions));
@@ -538,6 +542,7 @@ suite("the Orders list: filtered, sorted, counted and paged in the database", ()
         for (const k of ["columns", "indexes", "constraints", "triggers", "policies"]) assert.equal(b[k], a[k], `${k} are unchanged`);
       } finally {
         without.stop();
+        through.stop();
       }
     });
 

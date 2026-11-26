@@ -95,6 +95,12 @@ const CALLS = {
   // The Orders page: filter by search, status and the Qatar date an order was placed, sort, count and page, all in the database (admin.list_orders_page).
   list_orders_page: "select admin.list_orders_page($1::text, $2::text, $3::integer, $4::integer, $5::date, $6::date, $7::text, $8::integer, $9::integer) as r",
   get_order: "select admin.get_order($1::uuid) as r",
+  // The simplified Orders page: one page of orders with the order price, and (by permission, decided by the database) cost, profit and the receipts.
+  list_orders_overview: "select admin.list_orders_overview($1::text, $2::text, $3::integer, $4::integer, $5::date, $6::date, $7::text, $8::integer, $9::integer) as r",
+  // PDF receipts on an order. The file travels as a bound bytea parameter, never as text in the statement. Adding is keyed by the receipt id the form chose.
+  add_order_receipt: "with c as materialized (select admin.add_order_receipt($1::uuid, $2::uuid, $3::text, $4::bytea) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  remove_order_receipt: "with c as materialized (select admin.remove_order_receipt($1::uuid, $2::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
+  get_order_receipt: "select admin.get_order_receipt($1::uuid) as r",
   // The three keyed calls also report whether the answer is a REPEAT of an earlier request (the database sets the
   // transaction-local flag m1.replayed), so the screen can say "already recorded" instead of "recorded".
   create_order: "with c as materialized (select admin.create_order($1::uuid, $2::jsonb, null::uuid, 'admin'::text, $3::text, $4::text, $5::text) as r) select r, coalesce(current_setting('m1.replayed', true), '') = 'true' as replayed from c",
@@ -144,10 +150,12 @@ const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
   "create_customer", "issue_claim_code", "revoke_claim_code", "create_order", "create_order_priced", "create_order_costed", "add_order_cost", "edit_order_cost",
   "void_order_cost", "set_order_costs_complete", "verify_historical_completion", "transition_order", "publish_tracking_event",
   "publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow", "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
+  "add_order_receipt", "remove_order_receipt",
 ]);
 /** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
 const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
   "create_order", "create_order_priced", "create_order_costed", "record_payment", "add_order_cost", "edit_order_cost", "void_order_cost", "set_order_costs_complete",
+  "add_order_receipt", "remove_order_receipt",
 ]);
 export const isWriteCall = (name: StaffCallName): boolean => WRITE_CALLS.has(name);
 

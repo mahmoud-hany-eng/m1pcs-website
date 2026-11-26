@@ -11,7 +11,8 @@
  *   from     first Qatar calendar day, inclusive (YYYY-MM-DD)  \  a custom range wins over the year and the month
  *   to       last Qatar calendar day, inclusive (YYYY-MM-DD)   /  either end may be left open
  *   sort     newest (default) | oldest | price_asc | price_desc   (price = what the customer has to pay)
- *   size     5 (default) | 10 | 25 rows per page
+ *            | profit_asc | profit_desc                           (profit = price less cost; only for a person who may see costs)
+ *   size     5 (default) | 10 | 25 rows per page (not offered on screen; an address that carries one is still honoured)
  *   page     1-based
  *
  * The financial report's own choices (fy, fm: by COMPLETION date) are separate, and are carried through untouched.
@@ -19,12 +20,19 @@
 import { MONTH_NAMES } from "./finance";
 import type { OrdersPage, OrdersSort } from "./types";
 
-export const ORDER_SORTS: readonly { value: OrdersSort; label: string }[] = [
-  { value: "newest", label: "Newest orders first" },
-  { value: "oldest", label: "Oldest orders first" },
-  { value: "price_asc", label: "Lowest order price first" },
-  { value: "price_desc", label: "Highest order price first" },
+/** The sorts, in the order the Sort menu lists them. The two profit sorts reveal the order of the private costs, so they are only offered to (and only accepted from) a person who may see costs. */
+export const ORDER_SORTS: readonly { value: OrdersSort; label: string; needsFinance: boolean }[] = [
+  { value: "newest", label: "Newest first", needsFinance: false },
+  { value: "oldest", label: "Oldest first", needsFinance: false },
+  { value: "price_asc", label: "Price: low to high", needsFinance: false },
+  { value: "price_desc", label: "Price: high to low", needsFinance: false },
+  { value: "profit_asc", label: "Profit: low to high", needsFinance: true },
+  { value: "profit_desc", label: "Profit: high to low", needsFinance: true },
 ];
+/** The sorts a person is offered. */
+export const sortsFor = (canSeeFinance: boolean): readonly { value: OrdersSort; label: string; needsFinance: boolean }[] => ORDER_SORTS.filter((s) => canSeeFinance || !s.needsFinance);
+/** The Sort button's wording for a sort that was chosen: always the label of the sort in force, never a fixed phrase. */
+export const sortLabel = (sort: OrdersSort): string => ORDER_SORTS.find((s) => s.value === sort)?.label ?? ORDER_SORTS[0].label;
 export const PAGE_SIZES: readonly number[] = [5, 10, 25];
 export const DEFAULT_PAGE_SIZE = 5;
 export const MIN_YEAR = 2020;
@@ -79,7 +87,7 @@ export function parseDay(text: string): Day {
  * exist), EXCEPT the two dates and their order: a date that is not real, or a start after the end, is an ERROR the screen explains, because
  * quietly showing a different list than the one asked for would mislead. `statuses` is the list of status codes the screen offers.
  */
-export function parseOrdersListQuery(raw: RawParams, statuses: readonly string[]): { query: OrdersListQuery; error: string | null } {
+export function parseOrdersListQuery(raw: RawParams, statuses: readonly string[], options: { canSeeFinance?: boolean } = {}): { query: OrdersListQuery; error: string | null } {
   const q = first(raw.q).trim().slice(0, 80);
   const requestedStatus = first(raw.status);
   const status = statuses.includes(requestedStatus) ? requestedStatus : "";
@@ -88,7 +96,8 @@ export function parseOrdersListQuery(raw: RawParams, statuses: readonly string[]
   const monthText = first(raw.month);
   const month = /^[0-9]{1,2}$/.test(monthText) && Number(monthText) >= 1 && Number(monthText) <= 12 ? Number(monthText) : null;
   const sortText = first(raw.sort);
-  const sort = (ORDER_SORTS.find((s) => s.value === sortText)?.value ?? "newest") as OrdersSort;
+  // A profit sort in the address of a person who may not see costs falls back to the default (the database would refuse it anyway).
+  const sort = (sortsFor(options.canSeeFinance ?? true).find((s) => s.value === sortText)?.value ?? "newest") as OrdersSort;
   const sizeText = first(raw.size);
   const size = /^[0-9]{1,3}$/.test(sizeText) && PAGE_SIZES.includes(Number(sizeText)) ? Number(sizeText) : DEFAULT_PAGE_SIZE;
   const pageText = first(raw.page);
@@ -147,6 +156,11 @@ export function periodWords(filters: OrdersPage["filters"]): string | null {
   if (filters.year !== null && filters.month !== null) return `placed in ${MONTH_NAMES[filters.month - 1]} ${filters.year}`;
   if (filters.year !== null) return `placed in ${filters.year}`;
   return null;
+}
+
+/** How many of the three lightweight filters are in use (status; a month and/or year; a date range). Shown on the Filter button. The search and the sort are not filters. */
+export function activeFilterCount(query: OrdersListQuery): number {
+  return (query.status ? 1 : 0) + (query.year !== null || query.month !== null ? 1 : 0) + (query.from || query.to ? 1 : 0);
 }
 
 /** "Showing 1–5 of 23 orders", or "No orders match" when nothing does. */

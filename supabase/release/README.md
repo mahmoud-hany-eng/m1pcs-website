@@ -197,3 +197,33 @@ select has_function_privilege('authenticated', 'admin.list_orders_page(text, tex
 select count(*) from public.orders;                                              -- unchanged (2 on the hosted synthetic data)
 select count(*) from private.security_audit();                                   -- 0
 ```
+
+## Orders overview and PDF receipts (PLAT-0007-a3): one migration
+
+`20261126120000_orders_overview_and_receipts.sql` is additive and rerunnable. It adds **four staff functions** (`admin.list_orders_overview`, `admin.add_order_receipt`, `admin.remove_order_receipt`,
+`admin.get_order_receipt`), **two helpers** in schema `private` (`receipt_file_name`, `guard_order_receipt_identity`) and **one table**, `private.order_receipts` (row-level security on, no privilege for `anon`,
+`authenticated` or `service_role`, append-only). It changes nothing that exists: `admin.list_orders` and `admin.list_orders_page` are untouched, so every earlier website and Preview keeps working. A comparison of a
+database with and without it (`orders-overview.db.test.mjs`) shows exactly those six functions and that one table differing. There is no destructive undo on purpose: removing the table would destroy financial
+records. The design is `docs/project-memory/architecture/ORDERS_PAGE_AND_RECEIPTS.md`. **Nothing here has been applied to any hosted database, and nothing has been pushed.**
+
+**The order matters: the database first, then the website.** The new Orders page calls `admin.list_orders_overview`; pushed first, its list would show an error until the migration is applied (the monthly
+report would still load; nothing is lost). Applied first, nothing visible changes until the website is pushed. The website also raises the server-action request limit to 4.5 MB (`next.config.ts`) for the PDF upload.
+
+| Step | Action | Needs |
+| --- | --- | --- |
+| 1 | Preflight: worktree clean, HEAD is the approved commit, DEV is at `20261125120000_orders_list_paging.sql`; record a recovery baseline (a logical export of the business rows, **not** a backup). | owner authorization |
+| 2 | Apply `20261126120000_orders_overview_and_receipts.sql` to DEVELOPMENT only, through the Supabase migration tool, without bypassing any prompt. | the same |
+| 3 | Verify: the recorded statement's md5 equals the file's; the function fingerprint differs from before by **exactly six functions**, the table fingerprint by exactly one table; every other table's data digest is unchanged; the four admin functions are executable by `authenticated` and `m1_staff_gateway` and not by `anon`, PUBLIC or `service_role`; `private.order_receipts` has row-level security on and no API privilege. | the same |
+| 4 | One normal, non-force push of the approved commit; wait for CI and the Vercel Preview; confirm it is Ready, in `bom1`, and that no Production deployment occurred. | owner approval |
+| 5 | Owner acceptance in a real browser: rows 8.1 to 8.30 of `FINANCIAL_OWNER_ACCEPTANCE_CHECKLIST.md` (the simplified Orders page, receipts, the three-entry account menu). | owner |
+
+Read-only checks after step 2 (expect the stated results):
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'admin' and p.proname in ('list_orders_overview', 'add_order_receipt', 'remove_order_receipt', 'get_order_receipt');   -- 4
+select relrowsecurity from pg_class where oid = 'private.order_receipts'::regclass;                                                                  -- true
+select has_any_column_privilege('authenticated', 'private.order_receipts', 'select,insert,update,references');                                      -- false
+select has_function_privilege('anon', 'admin.add_order_receipt(uuid, uuid, text, bytea)', 'execute');                                               -- false
+select count(*) from private.order_receipts;                                                                                                         -- 0 (until the owner attaches one)
+select count(*) from private.security_audit();                                                                                                       -- 0
+```

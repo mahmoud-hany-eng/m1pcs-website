@@ -3,8 +3,8 @@ import "server-only";
 import { StaffOperationError, staffCall, staffCallMeta, type VerifiedStaff } from "./gateway";
 import type {
   AuditRow, ClaimCodeRow, CompletedOrdersPage, CustomerDetail, CustomerListRow, CustomerOrdersPage, DashboardSummary, DepositPreview, FinancialReport,
-  LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OrdersPage, OrdersSort, OverviewSummary, PaymentListRow,
-  PolicyRow, PolicyVersionRow,
+  LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OrdersOverview, OrdersPage, OrdersSort, OverviewSummary, PaymentListRow,
+  PolicyRow, PolicyVersionRow, ReceiptFile,
 } from "./types";
 
 export interface NewOrderItem {
@@ -53,6 +53,19 @@ export function staffApi(staff: VerifiedStaff) {
     listOrdersPage: (o: { search: string | null; status: string | null; year: number | null; month: number | null; from: string | null; to: string | null; sort: OrdersSort; page: number; pageSize: number }) =>
       call<OrdersPage>("list_orders_page", [o.search, o.status, o.year, o.month, o.from, o.to, o.sort, o.page, o.pageSize]),
     getOrder: (id: string) => call<OrderDetail>("get_order", [id]),
+    // The simplified Orders page: the same filters and paging, plus the order price, and cost, profit and receipts only where the database allows them.
+    listOrdersOverview: (o: { search: string | null; status: string | null; year: number | null; month: number | null; from: string | null; to: string | null; sort: OrdersSort; page: number; pageSize: number }) =>
+      call<OrdersOverview>("list_orders_overview", [o.search, o.status, o.year, o.month, o.from, o.to, o.sort, o.page, o.pageSize]),
+    // PDF receipts on an order. The receipt id is chosen once by the form: sending the same upload again stores it once. The file is a bound bytea parameter.
+    addOrderReceipt: async (orderId: string, receiptId: string, fileName: string, content: Buffer): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "add_order_receipt", [orderId, receiptId, fileName, content]);
+      return { id: value, replayed };
+    },
+    removeOrderReceipt: async (receiptId: string, reason: string): Promise<KeyedResult> => {
+      const { value, replayed } = await staffCallMeta<string>(staff, "remove_order_receipt", [receiptId, reason]);
+      return { id: value, replayed };
+    },
+    getOrderReceipt: (receiptId: string) => call<ReceiptFile>("get_order_receipt", [receiptId]),
     // The idempotency key is chosen once per intended action and reused by every retry of it: a repeat returns the same order.
     createOrder: async (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string): Promise<KeyedResult> => {
       const { value, replayed } = await staffCallMeta<string>(staff, "create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]);

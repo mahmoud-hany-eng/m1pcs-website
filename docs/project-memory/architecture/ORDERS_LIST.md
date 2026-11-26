@@ -4,6 +4,11 @@ Status: implemented locally on `claude/plat-0004-order-hardening`; **nothing is 
 `supabase/release/README.md`). The brief is HD-0024. The financial design this builds on is
 [FINANCIAL_REPORTING.md](FINANCIAL_REPORTING.md); the staff gateway is [STAFF_GATEWAY.md](STAFF_GATEWAY.md).
 
+> **Update (PLAT-0007-a3, HD-0026).** The page described below was simplified afterwards: it now shows only a search field, a Sort button, a Filter button and a seven-column table (Order,
+> Customer, Order price, Cost, Profit, Placed, Receipts), with Sort and Filter as compact menus and PDF receipts per order. **Sections 1, 2 ("Layout") and 4 describe the earlier screen and are
+> superseded by [ORDERS_PAGE_AND_RECEIPTS.md](ORDERS_PAGE_AND_RECEIPTS.md).** What stays true here: the filtering rules (placed date, Qatar days, a range overriding month and year, the address as the single
+> source of truth), the `admin.list_orders_page` function and its compatibility promise (the new page calls `admin.list_orders_overview`, which answers identically for every choice; this function is untouched).
+
 ## 1. What changed on `/admin/orders`
 
 1. **The separate "Orders completed in <period>" table is gone**, with its anchor (`#completed-orders`), its own pagination (`fp`) and every link that pointed at it.

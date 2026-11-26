@@ -63,6 +63,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
     searchCustomers: async () => [],
     listOrders: async ({ status = null, search = null, limit = 50, offset = 0 } = {}) => q(`select admin.list_orders(${lit(status)}, ${lit(search)}, ${limit}, ${offset})::text`, who),
     listOrdersPage: async (o) => q(`select admin.list_orders_page(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`, who),
+    listOrdersOverview: async (o) => q(`select admin.list_orders_overview(${lit(o.search)}, ${lit(o.status)}, ${num(o.year)}, ${num(o.month)}, ${lit(o.from)}::date, ${lit(o.to)}::date, ${lit(o.sort)}, ${o.page}, ${o.pageSize})::text`, who),
     overview: async (year = null) => q(`select admin.overview_summary(${num(year)})::text`, who),
     financialReport: async (year = null, month = null) => q(`select admin.financial_report(${num(year)}, ${num(month)})::text`, who),
     completedOrders: async (year = null, month = null, limit = 50, offset = 0) => q(`select admin.list_completed_orders(${num(year)}, ${num(month)}, ${limit}, ${offset})::text`, who),
@@ -74,6 +75,8 @@ suite("the finance screens, rendered with the database's own answers (real funct
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions, api: apiFor(who) };
     return renderToStaticMarkup(await page.default(args));
   }
+  /** The Orders section alone (the monthly report sits below it, collapsed), from its start to the report's toggle. */
+  const ordersPart = (html) => html.slice(html.indexOf('id="orders-list"'), html.indexOf('data-testid="financial-details"') > 0 ? html.indexOf('data-testid="financial-details"') : undefined);
   const ordersHtml = (search = {}, opts) => render(pages.orders, { searchParams: Promise.resolve(search) }, opts);
   const overviewHtml = (search = {}, opts) => render(pages.overview, { searchParams: Promise.resolve(search) }, opts);
   const orderHtml = (id, opts) => render(pages.order, { params: Promise.resolve({ id }) }, opts);
@@ -138,10 +141,10 @@ suite("the finance screens, rendered with the database's own answers (real funct
   });
   after(() => db?.stop());
 
-  describe("Orders: Financial performance above the operational list", () => {
-    it("the section is above the Orders list, with the year and month selectors and the five figures from the database", async () => {
+  describe("Orders: the monthly Financial performance report below the operational list (collapsed)", () => {
+    it("the section is BELOW the Orders list (in the collapsed monthly report), with the year and month selectors and the five figures from the database", async () => {
       const html = await ordersHtml({ fy: String(YEAR) });
-      assert.ok(html.indexOf('id="financial-performance"') > -1 && html.indexOf('id="financial-performance"') < html.indexOf('placeholder="Search by order number or customer"'), "Financial performance comes first");
+      assert.ok(html.indexOf('id="financial-performance"') > html.indexOf('id="orders-list"'), "the list comes first, the report is one click below it");
       assert.ok(has(html, "period-selector"));
       for (const month of ["January", "June", "December"]) assert.ok(html.includes(`<option value="${["January", "June", "December"].indexOf(month) * 5 + 1}"`) || html.includes(month), month);
       const report = q(`select admin.financial_report(${YEAR}, null)::text`, AS.olivia);
@@ -176,13 +179,13 @@ suite("the finance screens, rendered with the database's own answers (real funct
       assert.ok(!html.includes("#completed-orders") && !html.includes("completed-orders"), "no link or anchor to it is left");
       assert.ok(html.includes('id="financial-performance"') && html.includes("#financial-performance"), "the month links lead to the Financial performance section");
       const ref = (id) => read(`select order_ref from public.orders where id = '${id}'`);
-      const list = html.slice(html.indexOf('id="orders-list"'));
+      const list = ordersPart(html);
       assert.ok(list.includes('data-testid="orders-summary"'), "the operational list has its own summary");
       // (the table and the phone cards both link each order, so count the DIFFERENT orders linked)
       assert.equal(new Set(list.match(/href="\/admin\/orders\/[0-9a-f-]{36}"/g) ?? []).size <= 5, true, "the operational list shows one page of at most 5");
       // Choosing the month changed the report only: the list is the same page as with no month chosen.
       const without = await ordersHtml({ fy: String(YEAR) });
-      assert.equal(text(list), text(without.slice(without.indexOf('id="orders-list"'))).replace(/\s+/g, " "), "the list below is identical whatever month the report shows");
+      assert.equal(text(list), text(ordersPart(without)).replace(/\s+/g, " "), "the list is identical whatever month the report shows");
       assert.ok(ref(ids.jan).length > 0);
     });
 
@@ -243,7 +246,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
 
     it("the layout works on a phone: the month table is also drawn as cards, with the same figures", async () => {
       const html = await ordersHtml({ fy: String(YEAR) });
-      const section = html.slice(html.indexOf('id="financial-performance"'), html.indexOf('placeholder="Search by order number or customer"'));
+      const section = html.slice(html.indexOf('id="financial-performance"'));
       assert.ok(section.includes("hidden overflow-x-auto md:block"), "the table for wide screens");
       assert.ok(section.includes("flex flex-col gap-3 md:hidden"), "the cards for phones");
       assert.equal((section.match(/<li class="rounded-glass-sm border border-border bg-white\/\[0\.025\] p-4">/g) ?? []).length >= 12, true, "twelve month cards");
@@ -269,7 +272,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
       // The operational list is a page of 5, counted over ALL orders (the 120 included), not the first 100 of them.
       const total = Number(read("select count(*) from public.orders"));
       assert.ok(total > 120);
-      assert.match(text(html), new RegExp(`Showing 1–5 of ${total} orders`));
+      assert.match(text(html), new RegExp(`Latest 5 of ${total} orders`));
       rewrite(`delete from private.order_completions where order_id in (select id from public.orders where order_ref like 'BULK-%'); delete from public.orders where order_ref like 'BULK-%';`);
     });
   });

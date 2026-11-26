@@ -111,7 +111,7 @@ export interface OrderListRow {
   net_payable_minor?: number;
 }
 /** The Orders list for one page, worked out entirely by the database (admin.list_orders_page): filtered, sorted, counted and cut to the page. */
-export type OrdersSort = "newest" | "oldest" | "price_asc" | "price_desc";
+export type OrdersSort = "newest" | "oldest" | "price_asc" | "price_desc" | "profit_asc" | "profit_desc";
 export interface OrdersPage {
   /** Orders that match every filter, across ALL pages. */
   total: number;
@@ -137,6 +137,49 @@ export interface OrdersPage {
   /** Years in which orders were placed (Qatar calendar), plus the current one, newest first. */
   years: number[];
   rows: OrderListRow[];
+}
+/** One PDF receipt attached to an order, as listed (never the file itself). */
+export interface ReceiptMeta {
+  id: string;
+  file_name: string;
+  size_bytes: number;
+  uploaded_at: string;
+}
+/** One receipt's file, as the download route reads it (admin.get_order_receipt). */
+export interface ReceiptFile {
+  id: string;
+  order_id: string;
+  file_name: string;
+  size_bytes: number;
+  content_base64: string;
+}
+/**
+ * One row of the simplified Orders page (admin.list_orders_overview). The cost and profit keys exist ONLY for a person with finance.read and the
+ * receipt keys ONLY for a person with payments.read: for anyone else the database leaves the keys out, so there is nothing to hide or to leak.
+ */
+export interface OverviewOrderRow {
+  id: string;
+  order_ref: string;
+  customer_name: string;
+  /** What the customer has to PAY: the order total less the discount and the redeemed loyalty credit (never the original total). */
+  net_payable_minor: number;
+  created_at: string;
+  /** Recorded cost (actual + estimated); null when no cost has been entered (unknown, never zero). */
+  cost_minor?: number | null;
+  cost_state?: "missing" | "incomplete" | "complete";
+  /** Order price less cost; null when the cost is unknown. */
+  profit_minor?: number | null;
+  /** True unless every cost is actual and was declared complete. */
+  profit_is_provisional?: boolean;
+  receipt_count?: number;
+  receipts?: ReceiptMeta[];
+}
+/** The Orders page: one page of overview rows, worked out entirely by the database. */
+export interface OrdersOverview extends Omit<OrdersPage, "rows"> {
+  can_see_finance: boolean;
+  can_see_receipts: boolean;
+  can_manage_receipts: boolean;
+  rows: OverviewOrderRow[];
 }
 export interface OrderItemDetail {
   position: number;
