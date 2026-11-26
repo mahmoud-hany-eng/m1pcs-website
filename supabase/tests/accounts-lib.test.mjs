@@ -370,6 +370,13 @@ describe("the address that email links point back to", { skip }, () => {
   test("the confirmation address carries the next path", () => {
     assert.equal(siteUrl.confirmUrl("https://preview.example.test", "/account"), "https://preview.example.test/auth/confirm?next=%2Faccount");
   });
+
+  test("the confirmation address ALWAYS has a query string (the email templates append '&token_hash=' to it), with /account when no page is given", () => {
+    for (const next of [undefined, ""]) {
+      assert.equal(siteUrl.confirmUrl("https://preview.example.test", next), "https://preview.example.test/auth/confirm?next=%2Faccount");
+    }
+    assert.equal(siteUrl.confirmUrl("https://preview.example.test", "/auth/reset-password"), "https://preview.example.test/auth/confirm?next=%2Fauth%2Freset-password");
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

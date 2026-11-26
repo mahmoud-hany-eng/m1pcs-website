@@ -32,9 +32,18 @@ export function resolveSiteOrigin(env: EnvSource, requestHost: string | null, re
   return origin(`${requestProto === "https" ? "https" : "http"}://${requestHost}`);
 }
 
-/** The address a confirmation or password-reset link should open. */
+const DEFAULT_CONFIRM_NEXT = "/account";
+
+/**
+ * The address a confirmation or password-reset link should open.
+ *
+ * It ALWAYS carries a query string. The email templates (supabase/templates) build the link as `{{ .RedirectTo }}&token_hash=...&type=...`, which is
+ * a valid link only when this address already contains a "?". Without a `next` the address was `/auth/confirm` alone and the emailed link became
+ * `/auth/confirm&token_hash=...` (a page that does not exist). "/account" is the usual landing place, not a request: the sign-in router
+ * (shared/post-auth.ts) drops it and decides the destination from verified staff membership, so a default `next` never changes where anyone goes.
+ */
 export function confirmUrl(siteOrigin: string, next?: string): string {
   const url = new URL("/auth/confirm", siteOrigin);
-  if (next) url.searchParams.set("next", next);
+  url.searchParams.set("next", next || DEFAULT_CONFIRM_NEXT);
   return url.toString();
 }

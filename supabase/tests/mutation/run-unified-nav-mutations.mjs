@@ -1,4 +1,4 @@
-// Mutation check for the unified login, the personalised header and the dashboards under the public header (PLAT-0007-a4), and for the removal of the passwordless sign-in (PLAT-0007-a5, the L rules). Not part of CI (it runs the suites
+// Mutation check for the unified login, the personalised header and the dashboards under the public header (PLAT-0007-a4), for the removal of the passwordless sign-in (PLAT-0007-a5, the L rules), and for the confirmation and recovery email links (PLAT-0007-a6, the E rules). Not part of CI (it runs the suites
 // many times): run it by hand with
 //   node --disable-warning=ExperimentalWarning supabase/tests/mutation/run-unified-nav-mutations.mjs [id ...]
 // Each mutation breaks ONE rule in a COPY of the working tree (the real files are never touched), runs the suites that are supposed to notice (cheapest first,
@@ -35,6 +35,11 @@ const GATEWAY = "src/lib/staff/gateway.ts";
 const MFAACTIONS = "src/lib/staff/mfa-actions.ts";
 const FORMS = "src/components/account/forms.tsx";
 const MAGIC_TEMPLATE = "supabase/templates/magic_link.html";
+const EMAILLINKS = "supabase/tests/email-links.test.mjs";
+const ACCOUNTSLIB = "supabase/tests/accounts-lib.test.mjs";
+const SITEURL = "src/lib/accounts/shared/site-url.ts";
+const CONFIRM_TEMPLATE = "supabase/templates/confirmation.html";
+const RECOVERY_TEMPLATE = "supabase/templates/recovery.html";
 
 /** [id, what the mutation breaks, [[file, text to find, replacement, occurrences?]...], the suites, any of which must catch it] */
 const MUTATIONS = [
@@ -81,6 +86,15 @@ const MUTATIONS = [
   ["L05", "email templates: the sign-in-link email carries a working link and token again", [[MAGIC_TEMPLATE, "<p>Signing in by email link is not offered on this site.", "<p><a href=\"{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink\">Sign in</a></p><p>Signing in by email link is not offered on this site."]], [USTATIC]],
   ["L06", "the sign-in form's main button no longer says Log in", [[FORMS, "        Log in\n      </Submit>", "        Sign in\n      </Submit>"]], [USTATIC]],
   ["L07", "the forgot-password action is removed (password recovery would stop working)", [[ACTIONS, "supabase.auth.resetPasswordForEmail(parsed.value.email, redirectTo ? { redirectTo } : undefined)", "Promise.resolve({ error: null })"]], [USTATIC]],
+  // The confirmation and recovery emails (PLAT-0007-a6, the E rules): each puts one piece of the 2cd3424 sign-up bug (or a neighbour of it) back.
+  ["E01", "the confirmation address has no query string when no page is given (the 2cd3424 bug: the template's '&token_hash=' then makes '/auth/confirm&token_hash=')", [[SITEURL, "url.searchParams.set(\"next\", next || DEFAULT_CONFIRM_NEXT);", "if (next) url.searchParams.set(\"next\", next);"]], [EMAILLINKS, ACCOUNTSLIB]],
+  ["E02", "the confirmation template joins the token with '?' instead of '&'", [[CONFIRM_TEMPLATE, "{{ .RedirectTo }}&token_hash=", "{{ .RedirectTo }}?token_hash="]], [EMAILLINKS]],
+  ["E03", "the recovery template carries a type the confirmation route refuses", [[RECOVERY_TEMPLATE, "&type=recovery", "&type=magiclink"]], [EMAILLINKS]],
+  ["E04", "the confirmation template drops the verification type", [[CONFIRM_TEMPLATE, "&type=email", ""]], [EMAILLINKS]],
+  ["E05", "the site address is taken from the request even for a remote host", [[SITEURL, "  if (host !== \"localhost\" && host !== \"127.0.0.1\") return null;\n", ""]], [EMAILLINKS, ACCOUNTSLIB]],
+  ["E06", "sign-up and resend send no address to the Auth service at all", [[ACTIONS, "options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,", "options: undefined,", 2]], [EMAILLINKS]],
+  ["E07", "the confirmation route accepts a sign-in (magic) link again", [[CONFIRM, "const ALLOWED_TYPES: readonly EmailOtpType[] = [\"signup\", \"email\", \"recovery\"];", "const ALLOWED_TYPES: readonly EmailOtpType[] = [\"signup\", \"email\", \"magiclink\", \"recovery\"];"]], [EMAILLINKS, USTATIC]],
+  ["E08", "a recovery link ends at the dashboard instead of the new-password page", [[CONFIRM, "if (!error && type === \"recovery\") return redirect(\"/auth/reset-password\");", ""]], [EMAILLINKS]],
 ];
 
 const only = new Set(process.argv.slice(2));

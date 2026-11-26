@@ -5,7 +5,26 @@
 // email links), so the real @supabase/ssr code can be exercised end to end. It proves nothing about the real service:
 // real token issuance, rate limits, email delivery and dashboard settings need a real Supabase project.
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { sha256Base64Url, signJwt, verifyJwt } from "./jwt.mjs";
+
+// The email templates of the repository (supabase/templates), the SAME files a project's dashboard is set up from. For the two emails the site depends on
+// (account confirmation and password recovery) the emulator fills them in the way the Auth service does ({{ .RedirectTo }}, {{ .TokenHash }}, ...) and the
+// link in the recorded email is the link that comes OUT of the template, not one the emulator composes itself. So a redirect address the template cannot
+// turn into a working link (the sign-up bug of 2cd3424: an address with no "?" turned "{{ .RedirectTo }}&token_hash=" into "/auth/confirm&token_hash=")
+// breaks every browser journey that opens the emailed link.
+const TEMPLATE_FILES = { signup: "confirmation.html", recovery: "recovery.html" };
+function readTemplate(type) {
+  return readFileSync(new URL(`../templates/${TEMPLATE_FILES[type]}`, import.meta.url), "utf8");
+}
+const decodeEntities = (text) => text.replace(/&amp;/g, "&").replace(/&#x3D;|&#61;/g, "=").replace(/&#x3F;|&#63;/g, "?");
+/** Fills in `{{ .Name }}` the way the service does. A variable the emulator does not know fails loudly: a template that needs a new one must be reviewed. */
+export function renderTemplate(template, variables) {
+  return template.replace(/\{\{\s*\.(\w+)\s*\}\}/g, (_, name) => {
+    if (!(name in variables)) throw new Error(`the email template uses {{ .${name} }}, which the emulator does not provide`);
+    return variables[name];
+  });
+}
 
 const REFRESH_REUSE_SECONDS = 10;
 
@@ -120,7 +139,15 @@ export function createAuth({ secret, accessTtl = 3600, onUserCreated = () => {},
     otps.set(tokenHash, { type, userId: user.id, expiresAt: nowSeconds() + 3600, used: false });
     const origin = redirectTo ? new URL(redirectTo).origin : "http://localhost:3000";
     const next = redirectTo ? new URL(redirectTo).searchParams.get("next") : null;
-    const tokenHashLink = `${origin}/auth/confirm?token_hash=${tokenHash}&type=${type}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
+    // Confirmation and recovery: the link is what the repository's template produces. Anything else (the sign-in link of a project whose Magic Link template
+    // still carries a token) is composed here, as the worst case the site must refuse.
+    let tokenHashLink;
+    if (TEMPLATE_FILES[type]) {
+      const rendered = renderTemplate(readTemplate(type), { RedirectTo: redirectTo ?? "http://localhost:3000", TokenHash: tokenHash, SiteURL: "http://localhost:3000" });
+      tokenHashLink = decodeEntities(rendered.match(/href="([^"]+)"/)[1]);
+    } else {
+      tokenHashLink = `${origin}/auth/confirm?token_hash=${tokenHash}&type=${type}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
+    }
     let codeLink = null;
     if (challenge) {
       const code = randomBytes(12).toString("hex");

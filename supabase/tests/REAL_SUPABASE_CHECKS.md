@@ -79,6 +79,14 @@ Use a project with synthetic data only, set `CUSTOMER_ACCOUNTS_ENABLED=true` in 
       and no second email reveals anything (email confirmation must be ON for the service to answer this way).
 - [ ] The confirmation link works in the `token_hash` format (switch the email templates to it) on a different device,
       and works once. The default PKCE link works only in the browser that signed up.
+- [ ] READ the hosted templates (Authentication > Email Templates) and compare them with `supabase/templates`: **Confirm sign up**
+      must build its link as `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email` (or be the Supabase default,
+      `{{ .ConfirmationURL }}`, which works in the same browser only); **Reset password** as `...&type=recovery`; **Magic Link**
+      must carry no `{{ .ConfirmationURL }}`, `{{ .Token }}` or `{{ .TokenHash }}`. A link that opens a page-not-found whose address
+      contains `/auth/confirm&token_hash=` means the site sent an address without a query string (fixed in a6; tested in
+      `email-links.test.mjs`).
+- [ ] The Preview address is in the redirect list (Authentication > URL Configuration), e.g. `https://<preview-host>/**`.
+- [ ] Settings that must not be switched on: anonymous sign-ins, phone, any OAuth / SAML / Web3 provider, auto-confirm of sign-ups.
 - [ ] There is no sign-in by email link: the sign-in page offers none, and a magic-link email requested straight from the
       Auth API (public key) ends at "That link did not work" on `/auth/confirm` and creates no session. Check what the
       project's "Magic Link" email template says: the repository's reference template carries no link and no token.

@@ -56,8 +56,10 @@ double_confirm_changes = true
 enable_confirmations = true
 
 # Links carry a one-time token hash and are completed on the server by /auth/confirm, so they work in any browser
-# (the default link format only works in the browser that asked for it). {{ .RedirectTo }} is the site address the
-# request came from and always contains "?next=" (the app always sends it).
+# (the default link format only works in the browser that asked for it). {{ .RedirectTo }} is the address the app sent
+# with the request (src/lib/accounts/shared/site-url.ts, confirmUrl). The templates append "&token_hash=..." to it, so it MUST already contain a "?":
+# confirmUrl always adds "?next=" (to /account when no page is given). supabase/tests/email-links.test.mjs fills these templates in with the
+# real addresses and fails if a link is not a working /auth/confirm link.
 [auth.email.template.confirmation]
 subject = "Confirm your M1 Gaming PCs account"
 content_path = "./supabase/templates/confirmation.html"

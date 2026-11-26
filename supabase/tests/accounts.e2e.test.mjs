@@ -856,7 +856,10 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       const signUpContext = await newContext();
       await signUp(await signUpContext.newPage(), email);
       const mail = lastMail(email);
-      const unsafe = mail.tokenHashLink.replace(/&next=[^&]*/, "&next=%2F%2Fevil.example");
+      // The emailed link is the one the repository's template produces: its `next` is the first parameter ("?next=..."), so it is replaced wherever it is.
+      const unsafe = mail.tokenHashLink.replace(/([?&])next=[^&]*/, "$1next=%2F%2Fevil.example");
+      assert.notEqual(unsafe, mail.tokenHashLink, "the unsafe next was put in the link");
+      assert.match(unsafe, /next=%2F%2Fevil\.example/);
       const context = await newContext();
       const page = await context.newPage();
       await page.goto(unsafe);
@@ -908,14 +911,44 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       const signUpContext = await newContext();
       await signUp(await signUpContext.newPage(), email);
       const mail = lastMail(email);
-      const link = mail.tokenHashLink.replace("type=signup", "type=email");
+      // The recorded link is what the repository's confirmation template produces, and that template carries type=email (the emulator's own record says "signup").
+      const link = mail.tokenHashLink;
       assert.match(link, /type=email/);
+      assert.equal(new URL(link).pathname, "/auth/confirm", "a working address: the path is /auth/confirm");
+      assert.ok(new URL(link).searchParams.get("token_hash"), "and token_hash is a real query parameter");
       const context = await newContext();
       const page = await context.newPage();
       await page.goto(link);
       await page.waitForURL("**/account**", { timeout: 20_000 });
       assert.notDeepEqual(await sessionCookies(context), [], "signed in after confirming");
       await Promise.all([signUpContext.close(), context.close()]);
+    });
+
+    it("\"Send the link again\" sends a second confirmation email whose link (from the repository's template) works on another device", async () => {
+      const email = uniqueEmail("rosa");
+      const signUpContext = await newContext();
+      const signUpPage = await signUpContext.newPage();
+      await signUp(signUpPage, email);
+      const first = lastMail(email);
+      const before = emu.outbox.filter((mail) => mail.to === email && mail.type === "signup").length;
+      await fillAndSubmit(signUpPage, { "#resend-email": email }, "form:has(#resend-email)");
+      await signUpPage.getByText("If that address is waiting for confirmation").waitFor({ timeout: 15_000 });
+      const after = emu.outbox.filter((mail) => mail.to === email && mail.type === "signup");
+      assert.equal(after.length, before + 1, "a second confirmation email was recorded");
+      const second = after[after.length - 1];
+      assert.notEqual(second.tokenHashLink, first.tokenHashLink);
+      for (const link of [first.tokenHashLink, second.tokenHashLink]) {
+        const url = new URL(link);
+        assert.equal(url.pathname, "/auth/confirm", link);
+        assert.ok(url.searchParams.get("token_hash"), `token_hash is a real query parameter: ${link}`);
+        assert.equal(url.searchParams.get("type"), "email", link);
+      }
+      const device = await newContext();
+      const page = await device.newPage();
+      await page.goto(second.tokenHashLink);
+      await page.waitForURL("**/account**", { timeout: 20_000 });
+      assert.notDeepEqual(await sessionCookies(device), [], "signed in with the link from the resent email");
+      await Promise.all([signUpContext.close(), device.close()]);
     });
 
     it("the default-template link (PKCE code) works in the browser that signed up, and not in another", async () => {

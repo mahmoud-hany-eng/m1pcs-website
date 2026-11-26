@@ -93,6 +93,11 @@ export async function resolve(specifier, context, nextResolve) {
   }
   resolved ??= await aliasResolve(specifier, context, nextResolve);
 
+  // The Supabase client of the account server code, wherever it is imported from (the actions import it as "./client"): a stand-in the test controls.
+  if (resolved.url.startsWith("file:") && pathOf(resolved.url) === join(ROOT, "src", "lib", "accounts", "server", "client.ts")) {
+    return { url: pathToFileURL(join(HERE, "accounts-client-stub.mjs")).href, shortCircuit: true };
+  }
+
   // The server / client boundary: a server module importing a client module gets client references.
   if (resolved.url.startsWith("file:") && !resolved.url.includes("?") && /\.tsx?$/.test(resolved.url) && context.parentURL?.startsWith("file:")) {
     const target = pathOf(resolved.url);
