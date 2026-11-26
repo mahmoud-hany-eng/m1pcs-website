@@ -417,3 +417,10 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** If the staff service or database does not answer, the sign-in router shows "We could not finish signing you in" with Try again and Sign out, and the header says "My account" linking to the router. It deliberately does not fall back to the customer dashboard (that could present a staff member as a customer) or to `/admin`. Is a retry screen the right experience for the short outages this covers?
 - **Recommendation:** Keep it; it is the fail-safe the brief asks for. Review the wording after the DEV Preview shows how often it appears.
 - **Source:** HD-0027.
+
+### OQ-0061 — The hosted Auth project can still send a sign-in-link email when called directly
+- **Status:** open
+- **Blocks:** nothing now
+- **Question:** The site no longer offers, requests or accepts a magic-link sign-in (HD-0028). Supabase Auth has no switch that turns off its one-time-link email while keeping password sign-in, so anyone who holds the project's public key could still call the Auth API directly and ask for one for an address they control. The link would go to `/auth/confirm`, which refuses the `magiclink` type; whether the service would also accept such a token presented as `type=email` (the type the confirmation template uses) cannot be tested here (the local emulator is not the real service). Should the **hosted** project's "Magic Link" email template be replaced by the inert text in `supabase/templates/magic_link.html` (no link, no token), and should the redirect list and the template be checked on the DEV project after the next release?
+- **Recommendation:** Yes: after the DEV release, the owner replaces the hosted Magic Link template with the inert one (a dashboard setting, separate authorization) and tests once against the real DEV project that a directly requested link ends at "That link did not work" and creates no session.
+- **Source:** HD-0028.

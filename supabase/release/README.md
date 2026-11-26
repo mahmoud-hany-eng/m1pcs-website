@@ -245,7 +245,7 @@ signing in works either way.
 | 2 | Apply `20261127120000_staff_header_profile.sql` to DEVELOPMENT only, through the Supabase migration tool, without bypassing any prompt. | the same |
 | 3 | Verify (read-only, below): the function exists, the privileges are exactly as stated, every other function's fingerprint and every table's data digest are unchanged. | |
 | 4 | One normal, non-force push of the approved commit; wait for CI and the Vercel Preview; confirm it is Ready, in `bom1`, and that no Production deployment occurred. | owner approval |
-| 5 | Add the Preview URL to the Supabase Auth redirect list (needed for the e-mail confirmation, magic-link and recovery flows). | owner |
+| 5 | Add the Preview URL to the Supabase Auth redirect list (needed for the e-mail confirmation and password-recovery flows). | owner |
 | 6 | Owner acceptance in a real browser: rows 9.1 to 9.12 of `UNIFIED_LOGIN_AND_NAVIGATION.md` (the owner's login with the second factor, the header, the dashboards). | owner |
 
 Read-only checks after step 2 (expect the stated results):

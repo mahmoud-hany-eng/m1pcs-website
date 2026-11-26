@@ -446,12 +446,12 @@ describe("every customer-account entry point is guarded", () => {
     assert.match(guard, /default:\s*throw new AccountsUnavailableError\(session\.state\)/);
   });
 
-  it("the confirm route answers 404 while the flag is off, and only accepts the four email types the feature sends", () => {
+  it("the confirm route answers 404 while the flag is off, and only accepts the three email types the feature sends (no magic link)", () => {
     const route = read("src/app/auth/confirm/route.ts");
     assert.match(route, /customerAccountsGate\(process\.env\)\.enabled/);
     assert.match(route, /status: 404/);
     const types = route.match(/ALLOWED_TYPES[^=]*=\s*\[([^\]]*)\]/)[1].match(/"[a-z_]+"/g).sort();
-    assert.deepEqual(types, ['"email"', '"magiclink"', '"recovery"', '"signup"']);
+    assert.deepEqual(types, ['"email"', '"recovery"', '"signup"']);
     // A recovery link always ends at the reset page, whatever `next` says; the only other destination is a checked path.
     assert.match(route, /type === "recovery"\) return redirect\("\/auth\/reset-password"\)/);
   });

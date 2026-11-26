@@ -62,8 +62,10 @@ enable_confirmations = true
 subject = "Confirm your M1 Gaming PCs account"
 content_path = "./supabase/templates/confirmation.html"
 
+# Passwordless sign-in is not offered by the site (the only way in is an email address and a password; see docs/project-memory/architecture/CUSTOMER_ACCOUNTS.md).
+# The service itself can still send this email if its API is called directly, so the template carries NO link and NO token: it only points back to the password form.
 [auth.email.template.magic_link]
-subject = "Your M1 Gaming PCs sign-in link"
+subject = "Sign in to M1 Gaming PCs with your password"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.recovery]

@@ -7,8 +7,9 @@ import { safeNextPath } from "@/lib/accounts/shared/redirect";
 import { createSupabaseServerClient } from "@/lib/accounts/server/client";
 
 /**
- * Where the link in a confirmation or sign-in email lands. It completes the sign-in on the server, so the session is
- * set in an HttpOnly cookie and never touches script on the page.
+ * Where the link in a confirmation or password-recovery email lands. It completes the step on the server, so the session is
+ * set in an HttpOnly cookie and never touches script on the page. There is no passwordless sign-in on this site: the only way in is an
+ * email address and password, so a "magiclink" token is not accepted here (see ALLOWED_TYPES below).
  *
  * Two link formats are accepted, so it works with either email template in the auth dashboard:
  *   ?token_hash=...&type=...   the recommended template; works on any device the email is opened on
@@ -23,8 +24,10 @@ import { createSupabaseServerClient } from "@/lib/accounts/server/client";
  */
 export const dynamic = "force-dynamic";
 
-// Only the kinds of email this feature sends. Invitations and address changes are not offered.
-const ALLOWED_TYPES: readonly EmailOtpType[] = ["signup", "email", "magiclink", "recovery"];
+// Only the kinds of email this feature sends: account confirmation ("email" is the type the confirmation template in supabase/templates carries,
+// "signup" the older name for it) and password recovery. Invitations, address changes and sign-in (magic) links are not offered, so a link of
+// those kinds ends at the same "That link did not work" page and creates no session.
+const ALLOWED_TYPES: readonly EmailOtpType[] = ["signup", "email", "recovery"];
 // A recovery link signs the person in for one purpose and always ends at the same page, whatever `next` says.
 
 function isAllowedType(value: string | null): value is EmailOtpType {

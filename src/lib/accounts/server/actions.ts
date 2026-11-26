@@ -94,28 +94,6 @@ export async function signInAction(_previous: FormState, formData: FormData): Pr
   redirect(continueUrl(next));
 }
 
-/** Sends a one-time sign-in link to an EXISTING account. The answer is the same whether or not the address has one. */
-export async function emailLinkAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  assertEnabled();
-  const parsed = parseEmailOnly(formData);
-  if (!parsed.ok) return { status: "error", fieldErrors: parsed.errors };
-  const next = safeNextPath(formData.get("next"), "");
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return failureState("unavailable");
-
-  const redirectTo = await emailLinkTarget(next || undefined);
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.value.email,
-    options: { shouldCreateUser: false, ...(redirectTo ? { emailRedirectTo: redirectTo } : {}) },
-  });
-  if (error) {
-    const failure = classifyAuthError(error);
-    // Only a rate limit or an outage is reported. Anything else, including "no such user", looks like success.
-    if (failure === "rate_limited" || failure === "unavailable") return failureState(failure);
-  }
-  return { status: "success", message: "If that address has an account, we have sent a sign-in link. It works once and expires soon." };
-}
-
 /** Sends the confirmation email again. The answer is the same whether or not the address has an account. */
 export async function resendConfirmationAction(_previous: FormState, formData: FormData): Promise<FormState> {
   assertEnabled();

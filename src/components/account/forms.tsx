@@ -10,7 +10,6 @@ import { AFTER_SUCCESS_PATH, idleState, type FormState } from "@/lib/accounts/sh
 import {
   claimAction,
   createProfileAction,
-  emailLinkAction,
   requestPasswordResetAction,
   resendConfirmationAction,
   signInAction,
@@ -87,8 +86,8 @@ export function SignInForm({ next }: { next: string }) {
         <TextInput id="signin-password" name="password" type="password" autoComplete="current-password" required aria-invalid={Boolean(errorOf(state, "password"))} aria-describedby="signin-password-error" />
         <FieldError id="signin-password-error" message={errorOf(state, "password")} />
       </FieldWrapper>
-      <Submit pending={pending} pendingLabel="Signing in…">
-        Sign in
+      <Submit pending={pending} pendingLabel="Logging in…">
+        Log in
       </Submit>
     </form>
   );
@@ -129,25 +128,6 @@ export function ResetPasswordForm() {
       <Submit pending={pending} pendingLabel="Saving…">
         Change password
       </Submit>
-    </form>
-  );
-}
-
-export function EmailLinkForm({ next }: { next: string }) {
-  const [state, action, pending] = useActionState(emailLinkAction, idleState);
-  // Controlled, so the address survives an error: React clears an uncontrolled form after every submit.
-  const [email, setEmail] = useState("");
-  return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
-      <input type="hidden" name="next" value={next} />
-      <Feedback state={state} />
-      <FieldWrapper label="Email" htmlFor="link-email" hint="We will email you a link that signs you in once. No password needed.">
-        <TextInput id="link-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" inputMode="email" required aria-invalid={Boolean(errorOf(state, "email"))} aria-describedby="link-email-error" />
-        <FieldError id="link-email-error" message={errorOf(state, "email")} />
-      </FieldWrapper>
-      <button type="submit" disabled={pending} aria-busy={pending} className="btn-sheen btn-glass inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-60">
-        {pending ? "Sending…" : "Email me a sign-in link"}
-      </button>
     </form>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/account/AccountShell";
-import { EmailLinkForm, SignInForm } from "@/components/account/forms";
+import { SignInForm } from "@/components/account/forms";
 import { Notice } from "@/components/account/ui";
 import { signInNotice } from "@/lib/accounts/shared/auth-errors";
 import { safeNextPath } from "@/lib/accounts/shared/redirect";
@@ -20,7 +20,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
   const session = await getSession();
   let routerUnavailable = false;
   if (session.state === "signed_in") {
-    // Already signed in: the same router as after a password or an e-mail link. A failed staff check is shown, never read as "customer".
+    // Already signed in: the same router as after a password. A failed staff check is shown, never read as "customer".
     const route = await resolveAfterSignIn(next);
     if (route.kind === "go") redirect(route.to);
     routerUnavailable = route.kind === "unavailable";
@@ -29,15 +29,13 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
 
   return (
     <AuthCard
-      title="Sign in"
-      description="See your orders, tracking updates, payments and loyalty points."
+      title="Welcome back"
       footer={
         <p>
           New here?{" "}
           <Link href="/auth/sign-up" className="font-semibold text-accent underline-offset-2 hover:underline">
-            Create an account
+            Create account
           </Link>
-          . You do not need an account to request a quote: that stays open to everyone.
         </p>
       }
     >
@@ -52,15 +50,9 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
       <SignInForm next={next} />
       <p className="-mt-2 text-center text-sm">
         <Link href="/auth/forgot-password" className="text-text-secondary underline-offset-2 hover:text-white hover:underline">
-          Forgot your password?
+          Forgot password?
         </Link>
       </p>
-      <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-text-muted">
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
-      </div>
-      <EmailLinkForm next={next} />
     </AuthCard>
   );
 }

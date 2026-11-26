@@ -198,12 +198,19 @@ describe("the sign-in page for someone who is already signed in, and for everyon
     assert.match(text(result.html), /signed in, but we could not check where to take you/i);
     assert.match(text(result.html), /Sign out/);
   });
-  it("a signed-out visitor sees the one sign-in form, with 'Create an account' and the e-mail link, and no staff or admin wording", async () => {
+  it("a signed-out visitor sees the one sign-in form, with the Forgot password and Create account links, no sign-in link, and no staff or admin wording", async () => {
     install({ pathname: "/auth/sign-in", session: { state: "signed_out" }, cookies: [] });
     const result = await run("/admin/orders");
     assert.equal(result.to, null);
     assert.match(result.html, /name="next" value="\/admin\/orders"/, "the page they wanted is carried by the form (and checked again when it is sent)");
-    assert.match(text(result.html), /Create an account/);
+    assert.match(text(result.html), /Welcome back/);
+    assert.match(text(result.html), /Forgot password\?/);
+    assert.match(text(result.html), /Create account/);
+    assert.equal((result.html.match(/<form\b/g) ?? []).length, 1, "exactly one form on the page");
+    assert.equal((result.html.match(/type="password"/g) ?? []).length, 1, "exactly one password field");
+    assert.equal((result.html.match(/type="email"/g) ?? []).length, 1, "exactly one email field: there is no second, passwordless one");
+    assert.doesNotMatch(text(result.html), /sign-in link|no password needed|email me|one-time/i, "no passwordless wording");
+    assert.doesNotMatch(result.html, /link-email/, "no field for a sign-in link");
     assert.doesNotMatch(text(result.html), /admin login|staff login|staff dashboard|are you staff/i, "the sign-in page does not tell people apart");
     assert.equal(globalThis.__M1_NAV__.staffCalls ?? 0, 0, "the staff check is not asked for a visitor who is not signed in");
   });

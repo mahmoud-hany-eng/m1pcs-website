@@ -1,10 +1,12 @@
 // STATIC CHECKS FOR THE UNIFIED LOGIN AND THE PERSONALISED HEADER: what the source files must and must not contain, with no server and no database.
-//   * every sign-in entry point (password, sign-up, e-mail link, confirmation, the sign-in page when already signed in) goes through the ONE shared
+//   * every sign-in entry point (password, sign-up, confirmation, the sign-in page when already signed in) goes through the ONE shared
 //     post-sign-in router and never sends the browser to a raw "next" value or to a hard-coded destination;
 //   * there is no public staff login, no Admin / Staff link in the public header, and no "My account" / "Track my order" entry;
 //   * the root layout stays static (nothing in it can read a cookie), and the person's name arrives from an uncached route handler;
 //   * the identity answer carries only a label and one of three fixed addresses; the dashboard link is never prefetched;
-//   * the admin shell is ordinary page content under the public header: no full-screen overlay, no z-index war, no global rule that hides the header.
+//   * the admin shell is ordinary page content under the public header: no full-screen overlay, no z-index war, no global rule that hides the header;
+//   * there is NO passwordless sign-in (no magic link): one email-and-password form, no action that can send a sign-in link, no sign-in-link type accepted
+//     by the confirmation route, and every way of becoming signed in that remains is listed.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -28,7 +30,7 @@ const sourceFiles = () => walk("src", (p) => /\.(ts|tsx|js|jsx|mjs)$/.test(p));
 describe("one universal sign-in: every entry point uses the shared router", () => {
   const actions = strip(read("src/lib/accounts/server/actions.ts"));
 
-  it("signInAction, signUpAction and the e-mail-link action finish by handing the browser to /auth/continue (continueUrl), never to a raw next value", () => {
+  it("signInAction and signUpAction finish by handing the browser to /auth/continue (continueUrl), never to a raw next value", () => {
     assert.match(actions, /redirect\(continueUrl\(next\)\)/, "signInAction must redirect through continueUrl(next)");
     assert.match(actions, /if \(data\?\.session\) redirect\(continueUrl\(\)\)/, "signUpAction with an immediate session must go through continueUrl()");
     assert.doesNotMatch(actions, /redirect\(next\)/, "no action may redirect straight to the supplied next value");
@@ -226,5 +228,72 @@ describe("the security boundaries of this change", () => {
     const body = data.slice(start, start + 900);
     assert.match(body, /customer_user_links|customer_links|linked/i);
     assert.doesNotMatch(body, /\.ilike\(|\.eq\("phone|\.eq\("full_name|\.eq\("email/);
+  });
+});
+
+describe("there is no passwordless sign-in: one email-and-password form, and nothing that can issue a sign-in link", () => {
+  const actions = strip(read("src/lib/accounts/server/actions.ts"));
+  const forms = strip(read("src/components/account/forms.tsx"));
+  const page = strip(read("src/app/auth/sign-in/page.tsx"));
+  const route = strip(read("src/app/auth/confirm/route.ts"));
+  const authCalls = () => {
+    const found = [];
+    for (const file of sourceFiles()) for (const [, name] of strip(read(file)).matchAll(/\.auth\.(signIn\w*|verifyOtp|exchangeCodeForSession|signUp|resend|resetPasswordForEmail|setSession|refreshSession)\b/g)) found.push(`${file}:${name}`);
+    return found.sort();
+  };
+
+  it("the only way to sign in anywhere in the source is signInWithPassword: no OTP, magic link, anonymous, OAuth, ID-token, SSO or web3 sign-in is called", () => {
+    const signIns = authCalls().filter((c) => /:signIn/.test(c));
+    assert.deepEqual(signIns, ["src/lib/accounts/server/actions.ts:signInWithPassword"]);
+    for (const file of sourceFiles()) {
+      const text = strip(read(file));
+      assert.doesNotMatch(text, /signInWithOtp|signInAnonymously|signInWithOAuth|signInWithIdToken|signInWithSSO|signInWithWeb3|shouldCreateUser/, `${file} must not offer a passwordless sign-in`);
+    }
+  });
+
+  it("the account server actions are exactly the known set: a new one (for instance an e-mail-link action) must be added to this list on purpose", () => {
+    const names = [...actions.matchAll(/^export async function (\w+)\(/gm)].map((m) => m[1]).sort();
+    assert.deepEqual(names, ["claimAction", "createProfileAction", "requestPasswordResetAction", "resendConfirmationAction", "signInAction", "signOutAction", "signUpAction", "updatePasswordAction", "updateProfileAction"]);
+    assert.doesNotMatch(actions, /emailLinkAction/);
+  });
+
+  it("the token-checking calls are only in the confirmation route, which is the one place a link from an email is completed", () => {
+    const calls = authCalls().filter((c) => /:(verifyOtp|exchangeCodeForSession)$/.test(c));
+    assert.deepEqual(calls, ["src/app/auth/confirm/route.ts:exchangeCodeForSession", "src/app/auth/confirm/route.ts:verifyOtp"]);
+  });
+
+  it("the confirmation route accepts exactly the three kinds of email the site still sends (confirmation as email or signup, and recovery); a magic-link token is refused", () => {
+    const types = route.match(/ALLOWED_TYPES[^=]*=\s*\[([^\]]*)\]/)[1].match(/"[a-z_]+"/g).sort();
+    assert.deepEqual(types, ['"email"', '"recovery"', '"signup"']);
+    assert.doesNotMatch(route, /magiclink/);
+  });
+
+  it("the sign-in page is the welcome heading, ONE form (email, password, Log in), the Forgot password link and the Create account link: no second form, no \"or\" divider", () => {
+    assert.match(page, /title="Welcome back"/);
+    assert.equal([...page.matchAll(/<SignInForm\b/g)].length, 1);
+    assert.doesNotMatch(page, /EmailLinkForm|<form\b/);
+    assert.match(page, /href="\/auth\/forgot-password"/);
+    assert.match(page, /href="\/auth\/sign-up"/);
+    assert.doesNotMatch(page, /\bor\b\s*\n\s*<span/, "no divider between two ways of signing in");
+    assert.doesNotMatch(page, /sign-in link|no password needed|email me/i);
+    assert.doesNotMatch(forms, /EmailLinkForm|Email me a sign-in link|signs you in once|No password needed/i);
+    // the main button says Log in
+    assert.match(forms, /<Submit pending=\{pending\} pendingLabel="Logging in…">\s*Log in\s*<\/Submit>/);
+  });
+
+  it("the forms that remain are the ones the site needs: sign in, sign up, forgot password, reset password, resend confirmation, profile and claim", () => {
+    const names = [...forms.matchAll(/^export function (\w+Form)\(/gm)].map((m) => m[1]).sort();
+    assert.ok(!names.includes("EmailLinkForm"));
+    for (const needed of ["SignInForm", "SignUpForm", "ForgotPasswordForm", "ResetPasswordForm"]) assert.ok(names.includes(needed), `${needed} must still exist`);
+    assert.match(actions, /resetPasswordForEmail/);
+    assert.match(actions, /type: "signup"/);
+  });
+
+  it("the email templates: confirmation and recovery still carry the token link, and the sign-in-link template carries no link and no token", () => {
+    assert.match(read("supabase/templates/confirmation.html"), /token_hash=\{\{ \.TokenHash \}\}&type=email/);
+    assert.match(read("supabase/templates/recovery.html"), /token_hash=\{\{ \.TokenHash \}\}&type=recovery/);
+    const inert = read("supabase/templates/magic_link.html");
+    assert.doesNotMatch(inert, /\{\{|<a\b|href|token/i, "the sign-in-link email must carry no link and no token");
+    assert.match(inert, /password/i);
   });
 });

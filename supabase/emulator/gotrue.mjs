@@ -185,6 +185,18 @@ export function createAuth({ secret, accessTtl = 3600, onUserCreated = () => {},
       return result.error ?? ok(userView(result.user));
     }
 
+    // Choosing a new password (what the page after a recovery link does). Like the real service it refuses a weak password and the same one again.
+    if (route === "PUT /auth/v1/user") {
+      const result = authenticate(headers);
+      if (result.error) return result.error;
+      if (typeof body?.password === "string") {
+        if (body.password.length < 6) return { status: 422, body: { code: 422, error_code: "weak_password", msg: "Password should be at least 6 characters.", weak_password: { reasons: ["length"] } } };
+        if (checkPassword(body.password, result.user.passwordHash)) return fail(422, "same_password", "New password should be different from the old password.");
+        result.user.passwordHash = hashPassword(body.password);
+      }
+      return ok(userView(result.user));
+    }
+
     if (route === "POST /auth/v1/logout") {
       const result = authenticate(headers);
       if (result.error) return { status: 204, body: null };
@@ -217,6 +229,15 @@ export function createAuth({ secret, accessTtl = 3600, onUserCreated = () => {},
         return ok({});
       }
       sendEmail({ user, type: "magiclink", redirectTo: query.get("redirect_to"), challenge: body?.code_challenge, method: body?.code_challenge_method });
+      return ok({});
+    }
+
+    // "Forgot password": like the real service it answers the same for an address with an account and one without, and only the first gets an email.
+    if (route === "POST /auth/v1/recover") {
+      const email = String(body?.email ?? "").trim().toLowerCase();
+      if (!emailAllowed(email)) return fail(429, "over_email_send_rate_limit", "email rate limit exceeded");
+      const user = byEmail.has(email) ? users.get(byEmail.get(email)) : null;
+      if (user) sendEmail({ user, type: "recovery", redirectTo: query.get("redirect_to"), challenge: body?.code_challenge, method: body?.code_challenge_method });
       return ok({});
     }
 

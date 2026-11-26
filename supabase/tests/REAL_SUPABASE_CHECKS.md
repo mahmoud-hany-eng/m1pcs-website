@@ -79,8 +79,11 @@ Use a project with synthetic data only, set `CUSTOMER_ACCOUNTS_ENABLED=true` in 
       and no second email reveals anything (email confirmation must be ON for the service to answer this way).
 - [ ] The confirmation link works in the `token_hash` format (switch the email templates to it) on a different device,
       and works once. The default PKCE link works only in the browser that signed up.
-- [ ] The email-link ("magic link") sign-in for an unknown address creates no account and answers the same as for a
-      known one (`shouldCreateUser: false`).
+- [ ] There is no sign-in by email link: the sign-in page offers none, and a magic-link email requested straight from the
+      Auth API (public key) ends at "That link did not work" on `/auth/confirm` and creates no session. Check what the
+      project's "Magic Link" email template says: the repository's reference template carries no link and no token.
+- [ ] Forgot password for an unknown address answers the same as for a known one and sends no email; the recovery link
+      opens the new-password page on any device, works once, and ends the account's other sessions.
 - [ ] Wrong password and unknown address give the same message; the service's rate limits answer with the "wait a few
       minutes" notice; note the actual limits and decide whether to tighten them.
 - [ ] The session cookie set by `@supabase/ssr` against the real service is HttpOnly, SameSite=Lax, Secure on HTTPS,

@@ -24,8 +24,8 @@ records no business decision: where a rule belongs to the owner it stays a datab
 |---|---|---|
 | Get a price without an account | the existing quote form and WhatsApp handoff | **Unchanged.** No account is needed and nothing in this feature touches that path. |
 | Create an account | `/auth/sign-up` | Email and password. A confirmation email is required. |
-| Sign in | `/auth/sign-in` | Password, or a one-time email link for an existing account. |
-| Confirm an email address | `/auth/confirm` (a link in the email) | Completes sign-in on the server. |
+| Sign in | `/auth/sign-in` | Email address and password, for staff and customers alike. There is no passwordless (magic-link) sign-in: it was removed (HD-0028). |
+| Confirm an email address | `/auth/confirm` (a link in the email) | Completes the confirmation on the server. |
 | See an overview | `/account` | Open orders, balance to pay, loyalty points, latest update. |
 | See orders | `/account/orders`, `/account/orders/[ref]` | Status, progress, items, money, tracking timeline. |
 | See payments | `/account/payments` | What is owed and every recorded payment. |
@@ -88,12 +88,11 @@ already allows (and that is used only on the server here).
   `not_configured`. An outage of the auth service is **not** treated as a logout: a signed-in customer sees a "could
   not load, try again" screen and keeps the session, instead of being thrown to the sign-in page.
 * **Email confirmation** accepts both link formats: `?token_hash=…&type=…` (recommended; works on any device) and
-  `?code=…` (PKCE; works only in the browser that asked). Only `signup`, `email` and `magiclink` are accepted; a
-  recovery, invite or address-change link is refused. Email confirmation must stay switched on in the project: that is
+  `?code=…` (PKCE; works only in the browser that asked). Only `signup`, `email` (the type the confirmation template carries) and `recovery` are accepted; a
+  magic-link, invite or address-change link is refused and ends at the same "That link did not work" page with no session. Email confirmation must stay switched on in the project: that is
   what makes the auth service answer the same for an existing address.
 * **No account enumeration.** These pairs give identical responses: sign-up for a new and an existing address; the
-  email-link request for an address with and without an account (and `shouldCreateUser` is false, so it never creates
-  one); resend-confirmation; every claim failure. A wrong password and an unknown user share one message.
+  forgot-password request for an address with and without an account; resend-confirmation; every claim failure. A wrong password and an unknown user share one message.
 * **No open redirect.** Every `next` value goes through `safeAccountPath` (`shared/redirect.ts`): one leading slash,
   no control characters, backslashes or encoded slashes and dots, same origin, and the path must be `/account` or
   below. Only the *path* is returned, never a query string or a host. Several of these checks overlap on purpose.

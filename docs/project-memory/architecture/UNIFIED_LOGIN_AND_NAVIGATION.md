@@ -13,7 +13,7 @@ Every way of becoming signed in ends at **one router**, `/auth/continue`, which 
 | --- | --- |
 | Password sign-in (`signInAction`) | ends with `redirect(continueUrl(next))` |
 | Sign-up when the service returns a session at once | `redirect(continueUrl())` |
-| E-mail link (magic link) and e-mail confirmation (`/auth/confirm`) | after the token is verified: `redirect(continueUrl(next))` (a **recovery** link still goes to the new-password page first, and from there to sign-in) |
+| E-mail confirmation (`/auth/confirm`) | after the token is verified: `redirect(continueUrl(next))` (a **recovery** link still goes to the new-password page first, and from there to sign-in). There is no magic-link sign-in any more (HD-0028): a `magiclink` token is refused here |
 | Visiting `/auth/sign-in` while already signed in | the page asks the same resolver and redirects (or, if the check could not be made, says so and offers **Sign out**) |
 | Coming back from the second step | `/admin/mfa?next=<admin page>`: after a good code the person goes to the page they were heading to, not back to the second-step page |
 | Session expired, re-authenticate | `/auth/sign-in?reason=expired&next=...`; the way back is the same-site `next` |
@@ -128,7 +128,7 @@ Vercel Preview is (build and run share their variables). The default test build 
 
 ## 7. Limits (what was not and could not be tested locally)
 * The owner's real login with a real authenticator code was **not** driven: no local test can complete a real second factor. The staff header and the router's staff branches are covered by server tests with the verified-staff state controlled, by the database tests of the new function, and by layout tests that give the real header the answer the route gives a verified staff member. **The authenticated owner flow is for the owner to test in the DEV Preview.**
-* E-mail confirmation, magic link and password recovery were driven against the local emulator (real cookies, real policies; mocked e-mail delivery). The hosted Supabase Auth redirect list must contain the Preview URL before those e-mails are tested there.
+* E-mail confirmation and password recovery were driven against the local emulator (the magic link was removed afterwards, HD-0028) (real cookies, real policies; mocked e-mail delivery). The hosted Supabase Auth redirect list must contain the Preview URL before those e-mails are tested there.
 * The staff dashboard layout is verified in a real browser with the real header and real `AdminShell` markup placed in a real page; the live `/admin` pages themselves need a second factor.
 
 ## 8. Owner acceptance steps for the DEV Preview (rows 9.x)

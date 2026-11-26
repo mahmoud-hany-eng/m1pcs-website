@@ -291,12 +291,74 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       }
     });
 
-    it("the email-link form answers the same for an address with an account and one without", async () => {
+    it("the sign-in page is one email-and-password form: welcome heading, Forgot password, Create account, and no sign-in link of any kind", async () => {
+      const context = await newContext();
+      const page = await context.newPage();
+      await page.goto(`${on.base}/auth/sign-in`);
+      assert.equal((await page.locator("h1").innerText()).trim(), "Welcome back");
+      assert.equal(await page.locator("form").count(), 1, "one form on the page");
+      assert.equal(await page.locator("input[type=email]").count(), 1, "one email field: there is no second, passwordless one");
+      assert.equal(await page.locator("input[type=password]").count(), 1, "one password field");
+      assert.equal(await page.locator("#link-email").count(), 0);
+      assert.deepEqual(await page.locator("form button[type=submit]").allInnerTexts(), ["Log in"], "one button, and it says Log in");
+      assert.doesNotMatch(await text(page), /sign-in link|No password needed|Email me|one-time|passwordless|magic/i);
+      assert.equal(await page.locator("main :text-is('or')").count(), 0, "no 'or' divider");
+      const links = await page.locator("main a").evaluateAll((as) => as.map((a) => [a.textContent.trim(), a.getAttribute("href")]));
+      assert.ok(links.some(([label, href]) => label === "Forgot password?" && href === "/auth/forgot-password"), JSON.stringify(links));
+      assert.ok(links.some(([label, href]) => label === "Create account" && href === "/auth/sign-up"), JSON.stringify(links));
+      assert.ok(!links.some(([, href]) => /admin|staff/i.test(href ?? "")), "no staff or admin link on the sign-in page");
+      await context.close();
+    });
+
+    it("empty, malformed and wrong credentials are refused with messages a screen reader announces, no session is created, and the address stays typed", async () => {
+      const context = await newContext();
+      const page = await context.newPage();
+      await page.goto(`${on.base}/auth/sign-in`);
+      await page.click("form:has(#signin-email) button[type=submit]");
+      await page.locator("#signin-email-error").waitFor({ timeout: 15_000 });
+      await page.locator("#signin-password-error").waitFor({ timeout: 15_000 });
+      assert.equal(await page.locator("#signin-email-error").getAttribute("role"), "alert");
+      assert.equal(await page.locator("#signin-email").getAttribute("aria-invalid"), "true");
+      assert.equal(await page.locator("#signin-email").getAttribute("aria-describedby"), "signin-email-error");
+      assert.equal(await page.locator("#signin-password").getAttribute("aria-invalid"), "true");
+      assert.equal(new URL(page.url()).pathname, "/auth/sign-in");
+      await fillAndSubmit(page, { "#signin-email": "not-an-address", "#signin-password": "x" }, "form:has(#signin-email)");
+      await page.getByText("Enter a valid email address.").waitFor({ timeout: 15_000 });
+      await fillAndSubmit(page, { "#signin-email": emu.users.alice.email, "#signin-password": "" }, "form:has(#signin-email)");
+      await page.locator("#signin-password-error").waitFor({ timeout: 15_000 });
+      assert.equal(await page.locator("#signin-email").inputValue(), emu.users.alice.email, "the address survives an error");
+      await fillAndSubmit(page, { "#signin-password": "definitely-not-the-password" }, "form:has(#signin-email)");
+      await page.getByText("The email or password is not correct.").waitFor({ timeout: 15_000 });
+      assert.deepEqual(await sessionCookies(context), [], "none of these created a session");
+      assert.equal(new URL(page.url()).pathname, "/auth/sign-in");
+      await context.close();
+    });
+
+    it("the sign-in page fits a phone, a tablet and a desktop: nothing scrolls sideways and the Log in button is entirely on the screen", async () => {
+      for (const [width, height] of [[360, 740], [390, 844], [768, 1024], [1280, 900]]) {
+        const context = await newContext({ viewport: { width, height } });
+        const page = await context.newPage();
+        await page.goto(`${on.base}/auth/sign-in?reason=expired`);
+        const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+        assert.ok(scrollWidth <= clientWidth, `${width}px: the page scrolls sideways (${scrollWidth} > ${clientWidth})`);
+        const box = await page.locator("form button[type=submit]").boundingBox();
+        assert.ok(box && box.x >= 0 && box.x + box.width <= width, `${width}px: the Log in button is not entirely on the screen`);
+        for (const selector of ["#signin-email", "#signin-password"]) {
+          const field = await page.locator(selector).boundingBox();
+          assert.ok(field && field.x >= 0 && field.x + field.width <= width, `${width}px: ${selector} leaves the screen`);
+        }
+        await context.close();
+      }
+    });
+
+    it("Forgot password: the answer is the same for an address with an account and one without, and only the first gets an email", async () => {
       const ask = async (email) => {
         const context = await newContext();
         const page = await context.newPage();
         await page.goto(`${on.base}/auth/sign-in`);
-        await fillAndSubmit(page, { "#link-email": email }, "form:has(#link-email)");
+        await page.click("text=Forgot password?");
+        await page.waitForURL("**/auth/forgot-password");
+        await fillAndSubmit(page, { "#forgot-email": email }, "form:has(#forgot-email)");
         await page.getByText("If that address has an account").waitFor({ timeout: 15_000 });
         const answer = await text(page);
         await context.close();
@@ -305,8 +367,56 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       const unknown = "no.such.account@example.test";
       const accountsBefore = emu.query("select count(*) from auth.users;");
       assert.equal(await ask(emu.users.alice.email), await ask(unknown));
-      assert.equal(emu.query("select count(*) from auth.users;"), accountsBefore, "asking for a link never creates an account");
-      assert.ok(!emu.outbox.some((mail) => mail.to === unknown), "and sends no email to an address that has none");
+      assert.equal(emu.query("select count(*) from auth.users;"), accountsBefore, "asking for a reset never creates an account");
+      assert.ok(lastMail(emu.users.alice.email, "recovery"), "the address with an account was sent a recovery email");
+      assert.ok(!emu.outbox.some((mail) => mail.to === unknown), "and no email goes to an address that has none");
+    });
+
+    it("the recovery link opens the new-password page on another device, sets the new password, ends the other sessions, and works once", async () => {
+      const email = uniqueEmail("rita");
+      const first = await registerAndConfirm(email);
+      const before = await newContext();
+      const asking = await before.newPage();
+      await asking.goto(`${on.base}/auth/forgot-password`);
+      await fillAndSubmit(asking, { "#forgot-email": email }, "form:has(#forgot-email)");
+      await asking.getByText("If that address has an account").waitFor({ timeout: 15_000 });
+      const mail = lastMail(email, "recovery");
+      assert.ok(mail, "a recovery email was recorded");
+      const device = await newContext();
+      const page = await device.newPage();
+      await page.goto(mail.tokenHashLink);
+      await page.waitForURL("**/auth/reset-password", { timeout: 20_000 });
+      await fillAndSubmit(page, { "#reset-password": "A-brand-new-pass-9", "#reset-confirm": "A-brand-new-pass-9" }, "form:has(#reset-password)");
+      await page.waitForURL("**/account**", { timeout: 20_000 });
+      // the sign-in the person had before the change is over; the one that changed the password stays
+      await first.page.goto(`${on.base}/account`);
+      assert.equal(new URL(first.page.url()).pathname, "/auth/sign-in", "the older session was ended");
+      // the old password no longer works and the new one does
+      const oldWay = await newContext();
+      const oldPage = await oldWay.newPage();
+      await signIn(oldPage, { email, password: PASSWORD });
+      await oldPage.getByText("The email or password is not correct.").waitFor({ timeout: 15_000 });
+      const newWay = await newContext();
+      const newPage = await newWay.newPage();
+      await signInOk(newPage, { email, password: "A-brand-new-pass-9" });
+      assert.equal(new URL(newPage.url()).pathname, "/account");
+      // the link works once
+      const again = await newContext();
+      const againPage = await again.newPage();
+      await againPage.goto(mail.tokenHashLink);
+      await againPage.waitForURL("**/auth/error**");
+      assert.deepEqual(await sessionCookies(again), []);
+      await Promise.all([first.context.close(), before.close(), device.close(), oldWay.close(), newWay.close(), again.close()]);
+    });
+
+    it("a reset page opened without a recovery link sends the visitor to start again, and shows no form", async () => {
+      const context = await newContext();
+      const page = await context.newPage();
+      await page.goto(`${on.base}/auth/reset-password`);
+      assert.equal(new URL(page.url()).pathname, "/auth/sign-in");
+      assert.equal(await page.locator("#reset-password").count(), 0);
+      assert.deepEqual(await sessionCookies(context), []);
+      await context.close();
     });
 
     it("a new account has no profile, and must choose between claiming earlier orders and starting new", async () => {
@@ -764,24 +874,48 @@ describe("customer accounts: browser journeys against the local emulator", { ski
       await context.close();
     });
 
-    it("a sign-in link sent by email works once", async () => {
+    it("there is no sign-in by email link: one requested straight from the sign-in service (what anyone with the public key could do) signs nobody in on this site", async () => {
+      // The Auth service itself can be asked for a link by anyone who holds the project's public key. The site must not complete it.
+      const asked = await fetch(`${emu.url}/auth/v1/otp?redirect_to=${encodeURIComponent(`${on.base}/auth/confirm`)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: emu.users.bob.email, create_user: false }),
+      });
+      assert.equal(asked.status, 200);
+      const mail = lastMail(emu.users.bob.email, "magiclink");
+      assert.ok(mail, "the service sent a sign-in link (the emulator behaves like the real service here)");
+      assert.match(mail.tokenHashLink, /type=magiclink/);
+      {
+        const link = mail.tokenHashLink;
+        const context = await newContext();
+        const page = await context.newPage();
+        await page.goto(link);
+        assert.equal(new URL(page.url()).pathname, "/auth/error", "the confirmation address does not accept a sign-in (magiclink) link");
+        assert.match(await text(page), /That link did not work/);
+        assert.deepEqual(await sessionCookies(context), [], "no session was created");
+        await page.goto(`${on.base}/account`);
+        assert.equal(new URL(page.url()).pathname, "/auth/sign-in", "and the visitor is still signed out");
+        await context.close();
+      }
+      // the same address can still sign in with its password: nothing about the account changed
+      const context = await newContext();
+      await signInOk(await context.newPage(), emu.users.bob);
+      await context.close();
+    });
+
+    it("the confirmation email's own link type (type=email, what the template in supabase/templates sends) still confirms and signs in a new account", async () => {
+      const email = uniqueEmail("tina");
+      const signUpContext = await newContext();
+      await signUp(await signUpContext.newPage(), email);
+      const mail = lastMail(email);
+      const link = mail.tokenHashLink.replace("type=signup", "type=email");
+      assert.match(link, /type=email/);
       const context = await newContext();
       const page = await context.newPage();
-      await page.goto(`${on.base}/auth/sign-in`);
-      await fillAndSubmit(page, { "#link-email": emu.users.bob.email }, "form:has(#link-email)");
-      await page.getByText("If that address has an account").waitFor({ timeout: 15_000 });
-      const mail = lastMail(emu.users.bob.email, "magiclink");
-      assert.ok(mail, "a link was recorded");
-      const device = await newContext();
-      const devicePage = await device.newPage();
-      await devicePage.goto(mail.tokenHashLink);
-      await devicePage.waitForURL("**/account**", { timeout: 20_000 });
-      assert.match(await text(devicePage), /Welcome back, Bob/);
-      const again = await newContext();
-      const againPage = await again.newPage();
-      await againPage.goto(mail.tokenHashLink);
-      await againPage.waitForURL("**/auth/error**");
-      await Promise.all([context.close(), device.close(), again.close()]);
+      await page.goto(link);
+      await page.waitForURL("**/account**", { timeout: 20_000 });
+      assert.notDeepEqual(await sessionCookies(context), [], "signed in after confirming");
+      await Promise.all([signUpContext.close(), context.close()]);
     });
 
     it("the default-template link (PKCE code) works in the browser that signed up, and not in another", async () => {

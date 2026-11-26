@@ -24,7 +24,7 @@ This file is the practical guide: layout, how to run the tests, and how the foun
 | --- | --- |
 | `migrations/` | Fifteen ordered SQL migrations (eleven from Phase 1; 12 and 13 the Phase 2 corrections; 14 the confirmed deposit schedule; 15 the staff gateway role, claim-code revocation and multiple links, receipts and the staff functions). Apply in file order. Each one is complete on its own and safe to read. |
 | `config.toml` | Supabase CLI configuration for a **local** stack. Exposes only the `public` schema. No secret, no project reference. |
-| `templates/` | The three email templates (confirmation, sign-in link, password recovery). Links carry a one-time token hash and work in any browser. |
+| `templates/` | The email templates: confirmation and password recovery (links carry a one-time token hash and work in any browser), and an inert "sign in with your password" message for the service's sign-in-link email, which has no link or token because the site offers no passwordless sign-in. |
 | `tests/db.plat0003.test.mjs`, `tests/staff-lib.test.mjs` | PLAT-0003 database tests (deposit schedule, gateway, claim links, staff functions) and unit tests for the admin form parsing. |
 | `tests/real/` | **Official-stack tests** (API, staff and gateway, and browser journeys). They need the Supabase local stack running and skip otherwise. Kept apart from the emulator tests on purpose. |
 | `tests/db.test.mjs` | Database tests against a real PostgreSQL server that the harness starts and removes. |

@@ -32,7 +32,7 @@ export function resolveSiteOrigin(env: EnvSource, requestHost: string | null, re
   return origin(`${requestProto === "https" ? "https" : "http"}://${requestHost}`);
 }
 
-/** The address a confirmation or sign-in link should open. */
+/** The address a confirmation or password-reset link should open. */
 export function confirmUrl(siteOrigin: string, next?: string): string {
   const url = new URL("/auth/confirm", siteOrigin);
   if (next) url.searchParams.set("next", next);

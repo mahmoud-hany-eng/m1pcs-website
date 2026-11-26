@@ -1,4 +1,4 @@
-// Mutation check for the unified login, the personalised header and the dashboards under the public header (PLAT-0007-a4). Not part of CI (it runs the suites
+// Mutation check for the unified login, the personalised header and the dashboards under the public header (PLAT-0007-a4), and for the removal of the passwordless sign-in (PLAT-0007-a5, the L rules). Not part of CI (it runs the suites
 // many times): run it by hand with
 //   node --disable-warning=ExperimentalWarning supabase/tests/mutation/run-unified-nav-mutations.mjs [id ...]
 // Each mutation breaks ONE rule in a COPY of the working tree (the real files are never touched), runs the suites that are supposed to notice (cheapest first,
@@ -33,6 +33,8 @@ const SIGNIN = "src/app/auth/sign-in/page.tsx";
 const SESSION = "src/lib/staff/session.ts";
 const GATEWAY = "src/lib/staff/gateway.ts";
 const MFAACTIONS = "src/lib/staff/mfa-actions.ts";
+const FORMS = "src/components/account/forms.tsx";
+const MAGIC_TEMPLATE = "supabase/templates/magic_link.html";
 
 /** [id, what the mutation breaks, [[file, text to find, replacement, occurrences?]...], the suites, any of which must catch it] */
 const MUTATIONS = [
@@ -71,6 +73,14 @@ const MUTATIONS = [
   ["D05", "migration: a blank name is returned as a blank string instead of null", [[MIG, "nullif(btrim(member.display_name), '')", "member.display_name"]], [UDB]],
   ["D06", "migration: a customer or anonymous caller gets an answer (the staff check is gone)", [[MIG, "  select * into member from private.staff_members sm where sm.user_id = uid and sm.is_active;\n  if not found then\n    return null;\n  end if;", "  select * into member from private.staff_members sm where sm.user_id = uid and sm.is_active;"]], [UDB]],
   ["D07", "gateway: the fixed statement for the staff name is changed", [[GATEWAY, "my_staff_profile: \"select admin.my_staff_profile() as r\"", "my_staff_profile: \"select admin.my_staff_profile()::text as r\""]], [COMPAT, USTATIC, UDB]],
+  // The removal of the passwordless (magic-link) sign-in: each of these puts one piece of it back.
+  ["L01", "confirmation route: a magic-link token is accepted again", [[CONFIRM, "const ALLOWED_TYPES: readonly EmailOtpType[] = [\"signup\", \"email\", \"recovery\"];", "const ALLOWED_TYPES: readonly EmailOtpType[] = [\"signup\", \"email\", \"magiclink\", \"recovery\"];"]], [USTATIC, STATIC_MAIN]],
+  ["L02", "actions: an action that signs in by emailed link is added again", [[ACTIONS, "export async function signOutAction(): Promise<void> {", "export async function emailLinkAction(): Promise<void> {\n  assertEnabled();\n  const supabase = await createSupabaseServerClient();\n  await supabase?.auth.signInWithOtp({ email: \"someone@example.test\" });\n}\n\nexport async function signOutAction(): Promise<void> {"]], [USTATIC]],
+  ["L03", "sign-in page: the welcome heading is lost", [[SIGNIN, "title=\"Welcome back\"", "title=\"Sign in\""]], [USTATIC, SERVER]],
+  ["L04", "sign-in page: a second form (a sign-in-link form) is put back under an \"or\" divider", [[SIGNIN, "      <SignInForm next={next} />", "      <SignInForm next={next} />\n      <SignInForm next={next} />"]], [USTATIC, SERVER]],
+  ["L05", "email templates: the sign-in-link email carries a working link and token again", [[MAGIC_TEMPLATE, "<p>Signing in by email link is not offered on this site.", "<p><a href=\"{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink\">Sign in</a></p><p>Signing in by email link is not offered on this site."]], [USTATIC]],
+  ["L06", "the sign-in form's main button no longer says Log in", [[FORMS, "        Log in\n      </Submit>", "        Sign in\n      </Submit>"]], [USTATIC]],
+  ["L07", "the forgot-password action is removed (password recovery would stop working)", [[ACTIONS, "supabase.auth.resetPasswordForEmail(parsed.value.email, redirectTo ? { redirectTo } : undefined)", "Promise.resolve({ error: null })"]], [USTATIC]],
 ];
 
 const only = new Set(process.argv.slice(2));
