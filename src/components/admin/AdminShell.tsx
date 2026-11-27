@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { signOutAction } from "@/lib/accounts/server/actions";
 
-export type AdminSection = "overview" | "customers" | "orders" | "payments" | "loyalty" | "policies" | "audit";
+export type AdminSection = "overview" | "customers" | "orders" | "payments" | "loyalty" | "import" | "policies" | "audit";
 
 interface NavItem {
   key: AdminSection;
@@ -18,6 +18,8 @@ const NAV: NavItem[] = [
   { key: "orders", href: "/admin/orders", label: "Orders", permission: "orders.read", icon: "M6 3h12l2 4H4l2-4ZM4 7v13h16V7M9 12h6" },
   { key: "payments", href: "/admin/payments", label: "Payments", permission: "payments.read", icon: "M3 7h18v10H3V7ZM3 11h18M7 15h3" },
   { key: "loyalty", href: "/admin/loyalty", label: "Loyalty", permission: "loyalty.read", icon: "m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" },
+  // Owner only (import.manage): earlier WhatsApp purchases, imported once, reviewed first, reported under the month they were completed.
+  { key: "import", href: "/admin/import", label: "Import orders", permission: "import.manage", icon: "M12 16V4M7 9l5-5 5 5M4 20h16" },
   { key: "policies", href: "/admin/policies", label: "Policies", permission: "policies.read", icon: "M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6l-8-3Zm-3 9 2 2 4-4" },
   { key: "audit", href: "/admin/audit", label: "Audit log", permission: "audit.read", icon: "M7 3h8l4 4v14H7V3Zm8 0v4h4M10 12h6M10 16h6" },
 ];

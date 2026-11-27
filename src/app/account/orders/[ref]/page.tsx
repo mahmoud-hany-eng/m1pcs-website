@@ -40,11 +40,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
   const latest = timeline.length > 0 ? timeline[timeline.length - 1] : null;
 
   return (
-    <AccountShell active="orders" email={user.email} title={`Order ${summary.ref}`} description={`Placed ${summary.placedOn}`}>
+    <AccountShell active="orders" email={user.email} title={`Order ${summary.ref}`} description={`${summary.dateLabel} ${summary.placedOn}${summary.isHistorical ? " · Historical WhatsApp order" : ""}`}>
       <Link href="/account/orders" className="text-sm font-semibold text-accent underline-offset-2 hover:underline">
         ← All orders
       </Link>
 
+      {summary.isHistorical ? (
+        <Panel title="Your order" aside={<StatusPill status={summary.status} />}>
+          <p className="text-sm text-text-secondary" data-testid="historical-note">
+            You bought this from M1 on WhatsApp, before our website existed. It was completed on {summary.placedOn}. Tracking updates were not recorded for it, and nothing is outstanding.
+          </p>
+        </Panel>
+      ) : (
       <Panel title="Where your order is" aside={<StatusPill status={summary.status} />}>
         <div className="flex flex-col gap-4">
           {workflow ? null : <ProgressSteps status={summary.status} />}
@@ -59,6 +66,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
           ) : null}
         </div>
       </Panel>
+      )}
 
       <Panel title="Payments and balance">
         <div className="flex flex-col gap-6">
@@ -68,6 +76,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
           ) : null}
           {payments.length > 0 ? (
             <PaymentList payments={payments} />
+          ) : summary.isHistorical ? (
+            <p className="text-sm text-text-secondary">This purchase was settled before the website existed, so there are no individual payment records to list here.</p>
           ) : (
             <p className="text-sm text-text-secondary">No payment has been recorded on this order yet. A payment appears here only after M1 confirms it was received.</p>
           )}
@@ -78,7 +88,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ re
         <ItemsTable items={items} />
       </Panel>
 
-      {workflow ? null : (
+      {workflow || summary.isHistorical ? null : (
       <Panel title="Tracking timeline">
         {timeline.length > 0 ? (
           <Timeline entries={timeline} />

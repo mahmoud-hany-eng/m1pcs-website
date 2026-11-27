@@ -59,6 +59,7 @@ suite("the finance screens in a real browser: desktop and phone widths", { skip 
     customerOrders: async (cid, limit = 25, offset = 0) => q(`select admin.customer_orders(${lit(cid)}, ${limit}, ${offset})::text`, AS.olivia),
     orderCosts: async (oid) => q(`select admin.order_costs(${lit(oid)})::text`, AS.olivia),
     orderCompletion: async (oid) => q(`select admin.order_completion(${lit(oid)})::text`, AS.olivia),
+    orderOrigin: async (oid) => q(`select admin.order_origin(${lit(oid)})::text`, AS.olivia),
   };
   async function draw(page, args) {
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions: ownerPerms, api };

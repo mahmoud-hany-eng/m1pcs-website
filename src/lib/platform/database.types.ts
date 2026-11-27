@@ -152,10 +152,21 @@ export interface OrderRow {
    * costs, profit and margin are in the owner-only private schema and never reach a customer.
    */
   completed_at: Timestamp | null;
+  /**
+   * `platform` for every order this system created; `historical_import` for a purchase made on WhatsApp before the website existed, brought in by the
+   * owner's import. Set once. Optional because a database from before the import has neither column.
+   */
+  origin?: OrderOrigin;
+  /**
+   * The date an order is listed by: the creation date of every ordinary order and the COMPLETION date of a historical one (whose placement date is not known).
+   * Never a placement date for a historical order.
+   */
+  order_date?: Timestamp;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
 
+export type OrderOrigin = "platform" | "historical_import";
 export type FulfillmentType = "custom_pc_build" | "parts_only";
 export type OrderItemKind = "component" | "build_service" | "delivery" | "discount" | "other";
 

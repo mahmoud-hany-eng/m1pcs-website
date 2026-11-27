@@ -26,7 +26,9 @@ const MIGRATION = "20261126120000_orders_overview_and_receipts.sql";
 const OVERVIEW = "admin.list_orders_overview(text, text, integer, integer, date, date, text, integer, integer)";
 const FUNCTIONS = [OVERVIEW, "admin.add_order_receipt(uuid, uuid, text, bytea)", "admin.remove_order_receipt(uuid, text)", "admin.get_order_receipt(uuid)"];
 const lit = (v) => (v === null || v === undefined ? "null" : typeof v === "number" ? String(v) : `'${String(v).replaceAll("'", "''")}'`);
-const BASE_KEYS = ["created_at", "customer_name", "id", "net_payable_minor", "order_ref"];
+// order_date and origin were added by the historical-orders import: the date an order is listed by (its completion date for a historical WhatsApp order) and what it is.
+// Two plain keys, the same for every staff member; nothing private.
+const BASE_KEYS = ["created_at", "customer_name", "id", "net_payable_minor", "order_date", "order_ref", "origin"];
 const FINANCE_KEYS = ["cost_minor", "cost_state", "profit_is_provisional", "profit_minor"];
 const RECEIPT_KEYS = ["receipt_count", "receipts"];
 
@@ -500,10 +502,14 @@ suite("the simplified Orders page: overview figures and PDF receipts, in the dat
           ).pop(),
         );
       const without = startDatabase({ schedule: "confirmed", before: MIGRATION });
+      // "With" is the database up to and including the migration just before the historical-orders import (20261128120000): that import re-states
+      // admin.overview_summary, admin.customer_orders and admin.get_customer, which is its own release's doing and is proven in historical.db.test.mjs.
+      const upToHere = startDatabase({ schedule: "confirmed", before: "20261128120000_historical_import_schema.sql" });
       seedIdempotencyFixtures(without);
+      seedIdempotencyFixtures(upToHere);
       try {
         const a = fingerprint(without);
-        const b = fingerprint(db);
+        const b = fingerprint(upToHere);
         // Migrations that come AFTER this one (20261127120000_staff_header_profile.sql adds admin.my_staff_profile()) are not this migration's doing: leave them out of the comparison.
         for (const later of ["admin.my_staff_profile()"]) delete b.functions[later];
         const added = Object.keys(b.functions).filter((k) => !(k in a.functions)).sort();
@@ -523,6 +529,7 @@ suite("the simplified Orders page: overview figures and PDF receipts, in the dat
         assert.equal(Number(without.ok("select count(*) from pg_class where oid = to_regclass('private.order_receipts');").trim().split("\n").pop()), 0, "the table is new");
       } finally {
         without.stop();
+        upToHere.stop();
       }
     });
 
@@ -537,11 +544,14 @@ suite("the simplified Orders page: overview figures and PDF receipts, in the dat
 
     it("running the migration a second time succeeds and changes nothing (rerunnable): the receipts and the overview are the same", () => {
       const sql = readFileSync(join(ROOT, "supabase/migrations", MIGRATION), "utf8");
-      const before = JSON.stringify(overview({ sort: "profit_desc", size: 100 }));
+      // The historical-orders import (a later migration) re-states this function with two more plain keys on each order. Re-running THIS migration puts its own
+      // definition back, so the comparison is on what this migration produces: those two later keys are left out of the "before" answer.
+      const withoutLaterKeys = (page) => JSON.stringify(page, (key, value) => (key === "order_date" || key === "origin" ? undefined : value));
+      const before = withoutLaterKeys(overview({ sort: "profit_desc", size: 100 }));
       const receipts = scalar("select count(*) from private.order_receipts");
       const result = db.cluster.psql(sql);
       assert.ok(result.ok, result.err);
-      assert.equal(JSON.stringify(overview({ sort: "profit_desc", size: 100 })), before);
+      assert.equal(withoutLaterKeys(overview({ sort: "profit_desc", size: 100 })), before);
       assert.equal(scalar("select count(*) from private.order_receipts"), receipts, "the stored receipts are untouched");
     });
   });

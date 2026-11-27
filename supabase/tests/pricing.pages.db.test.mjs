@@ -54,6 +54,7 @@ suite("the pricing and rewards screens, rendered with the database's own answers
     searchCustomers: async () => [],
     orderCosts: async (oid) => q(`select admin.order_costs(${lit(oid)})::text`, who),
     orderCompletion: async (oid) => q(`select admin.order_completion(${lit(oid)})::text`, who),
+    orderOrigin: async (oid) => q(`select admin.order_origin(${lit(oid)})::text`, who),
   });
   async function render(module, args, { who = AS.olivia, permissions = ownerPerms } = {}) {
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions, api: apiFor(who) };

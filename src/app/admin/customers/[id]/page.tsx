@@ -4,7 +4,7 @@ import { Badge, DataTable, Empty, KeyValues, LinkButton, Money, Section, StatusB
 import { CustomerOrderHistory } from "@/components/admin/finance";
 import { IssueClaimCodeForm, RevokeClaimCodeForm } from "@/components/admin/forms";
 import { Notice } from "@/components/account/ui";
-import { formatDay, formatWhen, sourceLabel } from "@/lib/staff/format";
+import { formatDay, formatWhen, orderDateParts, sourceLabel } from "@/lib/staff/format";
 import { StaffOperationError } from "@/lib/staff/gateway";
 import { isUuid } from "@/lib/staff/validation";
 import { requireStaff } from "@/lib/staff/session";
@@ -110,7 +110,15 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               { key: "total", header: "Order value", cell: (o) => <Money minor={o.total_minor} />, align: "right" },
               { key: "paid", header: "Paid", cell: (o) => <Money minor={o.amount_paid_minor} />, align: "right" },
               { key: "balance", header: "Balance due", cell: (o) => <Money minor={o.balance_due_minor} />, align: "right" },
-              { key: "date", header: "Placed", cell: (o) => formatDay(o.created_at), hideOnCard: true },
+              {
+                key: "date",
+                header: "Placed",
+                cell: (o) => {
+                  const d = orderDateParts(o);
+                  return d.historical ? `Completed ${formatDay(d.iso)} · Historical WhatsApp order` : formatDay(d.iso);
+                },
+                hideOnCard: true,
+              },
             ]}
           />
         )}

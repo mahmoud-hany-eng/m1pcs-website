@@ -67,8 +67,28 @@ describe("migrations are well formed", () => {
         assert.doesNotMatch(stmt, /\bpassword\b/i, `${p}: a password must never be committed`);
       }
       assert.doesNotMatch(sql, /^\s*create\s+extension\b/im, `${p}: an extension is a deliberate, reviewed change`);
-      assert.doesNotMatch(sql, /^\s*(drop\s+(table|schema|view|function)|truncate|delete\s+from)\b/im, `${p}: destructive statement`);
+      // A statement of the migration itself. Rows a FUNCTION deletes when it later runs are a different matter: they are listed one by one in the
+      // next test, so each is a reviewed decision and a new one cannot slip in unnoticed.
+      const outsideFunctionBodies = sql.replace(/\$\$[\s\S]*?\$\$/g, "$$$$");
+      assert.doesNotMatch(outsideFunctionBodies, /^\s*(drop\s+(table|schema|view|function)|truncate|delete\s+from)\b/im, `${p}: destructive statement`);
     }
+  });
+
+  it("the only rows a function of a migration deletes are the staging rows of a DISCARDED historical import and the placeholder item lines of a historical order (kept in a revision first)", () => {
+    const found = [];
+    for (const p of migrations) {
+      const sql = read(p).replace(/--.*$/gm, "");
+      for (const [, body] of sql.matchAll(/\$\$([\s\S]*?)\$\$/g)) {
+        for (const [, target] of body.matchAll(/\bdelete\s+from\s+([a-z_.]+)/gi)) found.push(`${p.split("/").pop()}: ${target}`);
+      }
+    }
+    assert.deepEqual(found.sort(), [
+      "20261128120100_historical_import_functions.sql: private.historical_import_attachments",
+      "20261128120100_historical_import_functions.sql: private.historical_import_groups",
+      "20261128120100_historical_import_functions.sql: private.historical_import_resolutions",
+      "20261128120100_historical_import_functions.sql: private.historical_import_rows",
+      "20261128120100_historical_import_functions.sql: public.order_items",
+    ]);
   });
 
   it("the test-only shim is not a migration", () => {
@@ -318,7 +338,7 @@ describe("the staff gateway keeps its privileged path narrow", () => {
       const text = read(p);
       if (!/^\s*["']use client["']/.test(text)) continue;
       seen += 1;
-      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form|finance|receipts|types)/, `${p}: a client component may import only the staff form helpers and server actions`);
+      assert.doesNotMatch(text, /from\s+["']@\/lib\/staff\/(?!form-state|validation|format|actions|mfa-actions|idempotency-client|pricing-form|finance|receipts|types|historical\/(?:actions|choices|types))/, `${p}: a client component may import only the staff form helpers and server actions`);
       assert.doesNotMatch(text, /from\s+["']pg["']/, p);
     }
     assert.ok(seen >= 8);

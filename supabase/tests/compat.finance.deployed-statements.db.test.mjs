@@ -42,7 +42,15 @@ const NEW_STATEMENTS = [
   "add_order_receipt", "get_order_receipt", "list_orders_overview", "remove_order_receipt",
   // the staff member's own display name for the public header (the unified-login release; earlier websites never call it)
   "my_staff_profile",
+  // the owner's historical-orders import wizard and what an order is (the import release: 20261128120000 / 20261128120100; earlier websites never call them)
+  ...[
+  "hist_add_attachment", "hist_commit_batch", "hist_discard_batch", "hist_get_attachment", "hist_get_batch", "hist_list_batches", "hist_mark_attachment_unavailable", "hist_merge_groups",
+  "hist_order_info", "hist_resolve_flag", "hist_set_attachment_class", "hist_set_group_customer", "hist_set_order_items", "hist_set_row_decision", "hist_stage_batch",
+  "hist_store_attachment", "hist_unmerge_group", "hist_update_row", "order_origin",
+],
 ];
+/** Keys the historical-import release adds to the order rows of staff reads, so a historical order is listed by the day it was completed (additive; the deployed pages ignore keys they do not know). */
+const HISTORICAL_ADDED_KEYS = new Set(["order_date", "origin"]);
 
 function drive(db) {
   seedIdempotencyFixtures(db, { probes: false });
@@ -168,11 +176,16 @@ suite("the website deployed today (Pricing & Rewards), run statement by statemen
     for (const name of ["after1", "after2"]) assert.deepEqual(results[name].T, results.control.T, `${name}: transcript differs from the control`);
   });
 
-  it("every read statement answers byte for byte the same in every state (no key added, none removed, none changed)", () => {
-    const stable = (o) => JSON.stringify(JSON.parse(norm(JSON.stringify(o))), (k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([x], [y]) => x.localeCompare(y))) : v));
+  it("every read statement answers byte for byte the same in every state (no key added, none removed, none changed), except the two plain keys the historical-import release adds to a customer's order rows", () => {
+    const stable = (o, drop = new Set()) => JSON.stringify(JSON.parse(norm(JSON.stringify(o))), (k, v) => (drop.has(k) ? undefined : v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([x], [y]) => x.localeCompare(y))) : v));
     for (const name of ["after1", "after2"]) {
       assert.deepEqual(Object.keys(results[name].reads).sort(), Object.keys(results.control.reads).sort());
-      for (const key of Object.keys(results.control.reads)) assert.equal(stable(results[name].reads[key]), stable(results.control.reads[key]), `${name}: read ${key}`);
+      // "after2" is everything, including the later releases: the only difference a deployed website could see is the two additive keys, and only on the order rows of a customer.
+      const drop = name === "after2" ? HISTORICAL_ADDED_KEYS : new Set();
+      for (const key of Object.keys(results.control.reads)) assert.equal(stable(results[name].reads[key], drop), stable(results.control.reads[key]), `${name}: read ${key}`);
     }
+    const orders = results.after2.reads.customer?.orders ?? [];
+    assert.ok(orders.length > 0 && orders.every((o) => o.origin === "platform" && typeof o.order_date === "string"), "a customer's orders now say what they are and the date they are listed by");
+    assert.equal(JSON.stringify(Object.keys(results.control.reads.customer.orders[0]).sort()), JSON.stringify(Object.keys(orders[0]).filter((k) => !HISTORICAL_ADDED_KEYS.has(k)).sort()));
   });
 });

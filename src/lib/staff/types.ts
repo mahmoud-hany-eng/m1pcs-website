@@ -60,6 +60,9 @@ export interface CustomerOrderRow {
   amount_paid_minor: number;
   balance_due_minor: number;
   created_at: string;
+  /** The date the order is listed by: its creation date, or the completion date of a historical WhatsApp order (whose placement date is not known). */
+  order_date?: string;
+  origin?: "platform" | "historical_import";
 }
 export interface CustomerDetail {
   id: string;
@@ -168,6 +171,9 @@ export interface OverviewOrderRow {
   /** What the customer has to PAY: the order total less the discount and the redeemed loyalty credit (never the original total). */
   net_payable_minor: number;
   created_at: string;
+  /** The date the order is listed and sorted by (completion date for a historical order). Absent from a database from before the import. */
+  order_date?: string;
+  origin?: "platform" | "historical_import";
   /** Recorded cost (actual + estimated); null when no cost has been entered (unknown, never zero). */
   cost_minor?: number | null;
   cost_state?: "missing" | "incomplete" | "complete";
@@ -532,7 +538,7 @@ export interface OverviewSummary {
     deposit_shortfalls?: number;
     completed_with_balance?: number;
   };
-  recent_orders: { id: string; order_ref: string; status: string; status_label: string; total_minor: number; net_payable_minor: number; created_at: string; customer_name: string }[];
+  recent_orders: { id: string; order_ref: string; status: string; status_label: string; total_minor: number; net_payable_minor: number; created_at: string; order_date?: string; origin?: "platform" | "historical_import"; customer_name: string }[];
   /** Present only for a person who holds finance.read. */
   financial?: {
     net_revenue_minor: number;
@@ -575,6 +581,9 @@ export interface CustomerOrderDetail {
   delivery_method: string | null;
   created_at: string;
   completed_at: string | null;
+  /** The date the order is listed by (the completion date of a historical WhatsApp order) and where it came from. Absent from a database from before the import. */
+  order_date?: string;
+  origin?: "platform" | "historical_import";
   needs_completion_verification: boolean;
   gross_minor: number;
   discount_minor: number;

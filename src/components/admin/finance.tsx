@@ -12,7 +12,7 @@ import { Badge, DataTable, Empty, KeyValues, Money, Section, StatusBadge } from 
 import { AddCostForm, CostsCompleteForm, EditCostForm, VerifyCompletionForm, VoidCostForm } from "@/components/admin/forms";
 import { formatQar } from "@/lib/platform/money";
 import { costCategoryLabel, costKindLabel, costStateLabel, describeRevision, marginText, MONTH_NAMES, monthName, profitStateLabel } from "@/lib/staff/finance";
-import { formatDay, formatWhen, methodLabel, purposeLabel } from "@/lib/staff/format";
+import { formatDay, formatWhen, methodLabel, orderDateParts, purposeLabel } from "@/lib/staff/format";
 import type {
   CostState,
   CustomerOrderDetail,
@@ -420,8 +420,8 @@ export function CustomerOrderHistory({ orders, total, canSeePayments }: { orders
                   {o.order_ref}
                 </Link>
                 <p className="mt-0.5 text-xs text-text-muted">
-                  {orderTypeText(o)} · placed {formatDay(o.created_at)}
-                  {o.completed_at ? ` · completed ${formatDay(o.completed_at)}` : o.needs_completion_verification ? " · completion date to be verified" : ""}
+                  {orderDateParts(o).historical ? `Historical WhatsApp order · completed ${formatDay(orderDateParts(o).iso)}` : `${orderTypeText(o)} · placed ${formatDay(o.created_at)}`}
+                  {orderDateParts(o).historical ? "" : o.completed_at ? ` · completed ${formatDay(o.completed_at)}` : o.needs_completion_verification ? " · completion date to be verified" : ""}
                 </p>
               </div>
               <StatusBadge code={o.status} label={o.status_label} />

@@ -18,11 +18,15 @@ export function OrderCard({ order }: { order: OrderSummaryView }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-lg font-semibold text-white">Order {order.ref}</h3>
-          <p className="text-sm text-text-muted">Placed {order.placedOn}</p>
+          <p className="text-sm text-text-muted">
+            {order.dateLabel} {order.placedOn}
+            {order.isHistorical ? " · Historical WhatsApp order" : ""}
+          </p>
         </div>
         <StatusPill status={order.status} />
       </div>
-      <ProgressSteps status={order.status} />
+      {/* A historical WhatsApp order has no tracking stages to show: it is shown as completed, never as a journey that did not happen on this system. */}
+      {order.isHistorical ? null : <ProgressSteps status={order.status} />}
       <dl className="grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-text-muted">{order.adjusted ? "Total payable" : "Total"}</dt>
@@ -39,7 +43,7 @@ export function OrderCard({ order }: { order: OrderSummaryView }) {
       </dl>
       {order.depositOutstanding ? <p className="text-sm text-warning">Deposit still to pay: {order.depositOutstanding}</p> : null}
       <Link href={order.href} className="btn-sheen btn-glass inline-flex items-center justify-center self-start rounded-full px-5 py-2.5 text-sm font-semibold">
-        View order and tracking
+        {order.isHistorical ? "View order" : "View order and tracking"}
       </Link>
     </article>
   );
@@ -68,6 +72,25 @@ export function MoneySummary({ order }: { order: OrderSummaryView }) {
           Deposit required: <span className="font-semibold text-white">{order.depositRequired}</span>. It is worked out from the order value before the discount, so a discount or loyalty credit does not lower it.
         </p>
       </div>
+    );
+  }
+  if (order.isHistorical) {
+    // A purchase settled on WhatsApp before the website existed: there was no deposit step on this system, so none is shown.
+    return (
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3" data-testid="historical-money">
+        <div>
+          <dt className="text-text-muted">Order total</dt>
+          <dd className="mt-0.5 font-display text-lg font-semibold text-white">{order.adjusted ? order.netPayable : order.total}</dd>
+        </div>
+        <div>
+          <dt className="text-text-muted">Paid</dt>
+          <dd className="mt-0.5 font-display text-lg font-semibold text-white">{order.paid}</dd>
+        </div>
+        <div>
+          <dt className="text-text-muted">Balance</dt>
+          <dd className={`mt-0.5 font-display text-lg font-semibold ${order.fullyPaid ? "text-success" : "text-accent"}`}>{order.fullyPaid ? "Paid in full" : order.balanceDue}</dd>
+        </div>
+      </dl>
     );
   }
   return (

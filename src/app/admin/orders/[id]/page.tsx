@@ -14,6 +14,7 @@ import {
   TransitionForm,
 } from "@/components/admin/forms";
 import { CompletionBanner, CostStateBadge, OrderCostsSection } from "@/components/admin/finance";
+import { HistoricalOrderNote, HistoricalOrderPanel } from "@/components/admin/historical-review";
 import { Notice } from "@/components/account/ui";
 import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
 import { fulfillmentLabel } from "@/lib/workflow/labels";
@@ -38,7 +39,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     throw error;
   }
   // The completion date is shown to anyone who can read orders; the private costs only to a person who may read finance (the database refuses the rest).
-  const [completion, costs] = await Promise.all([settle(() => api.orderCompletion(id)), can("finance.read") ? settle(() => api.orderCosts(id)) : null]);
+  const [completion, costs, origin] = await Promise.all([
+    settle(() => api.orderCompletion(id)),
+    can("finance.read") ? settle(() => api.orderCosts(id)) : null,
+    // A historical WhatsApp order (a purchase made before the website existed) has no tracking, no deposit step and no payment records: the page says so instead of showing empty ones.
+    settle(() => api.orderOrigin(id)),
+  ]);
+  const historical = origin.ok && origin.value.origin === "historical_import";
+  const historicalInfo = historical && can("import.manage") ? await settle(() => api.histOrderInfo(id)) : null;
   const fixed = order.deposit_fixed_at !== null;
   const payments = order.payments;
   // A discount or redeemed points make the amount payable differ from the order total (the gross value, which never changes).
@@ -83,10 +91,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       email={staff.email}
       can={can}
       title={order.order_ref}
-      description={`${order.customer.full_name} · placed ${formatDay(order.created_at)}`}
+      description={historical && origin.ok ? `${order.customer.full_name} · completed ${formatDay(origin.value.order_date)} · Historical WhatsApp order` : `${order.customer.full_name} · placed ${formatDay(order.created_at)}`}
       previewLabel={process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null}
       actions={
         <div className="flex flex-wrap items-center gap-2">
+          {historical ? <Badge tone="neutral">Historical WhatsApp order</Badge> : null}
           {onCurrentWorkflow ? <Badge tone="neutral">{fulfillmentLabel(type)}</Badge> : null}
           <StatusBadge code={order.status} label={order.status_label} />
         </div>
@@ -95,7 +104,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       <div className={`grid gap-3 sm:grid-cols-2 sm:gap-4 ${adjusted ? "xl:grid-cols-5" : "xl:grid-cols-4"}`} data-testid="order-money">
         <Money3 label={adjusted ? "Order total (before discount)" : "Order total"} minor={order.total_minor} />
         {adjusted ? <Money3 label="Final amount payable" minor={order.net_payable_minor ?? order.total_minor} hint="After the discount and loyalty credit" /> : null}
-        <Money3 label={fixed ? "Deposit required" : "Deposit (provisional)"} minor={order.deposit_required_minor} hint={fixed ? `Fixed ${formatDay(order.deposit_fixed_at)}` : "Fixed when the order is confirmed"} />
+        {historical ? null : <Money3 label={fixed ? "Deposit required" : "Deposit (provisional)"} minor={order.deposit_required_minor} hint={fixed ? `Fixed ${formatDay(order.deposit_fixed_at)}` : "Fixed when the order is confirmed"} />}
         {payments !== undefined ? <Money3 label="Received" minor={order.amount_paid_minor} /> : null}
         {payments !== undefined ? <Money3 label="Balance due" minor={order.balance_due_minor} tone="red" /> : null}
       </div>
@@ -112,7 +121,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="flex min-w-0 flex-col gap-6">
-          {timeline ? (
+          {historical && origin.ok ? (
+            historicalInfo?.ok && historicalInfo.value ? <HistoricalOrderPanel info={historicalInfo.value} orderId={order.id} netMinor={order.net_payable_minor ?? order.total_minor} /> : <HistoricalOrderNote completedIso={origin.value.order_date} />
+          ) : null}
+          {historicalInfo && !historicalInfo.ok ? <Notice tone="error">{historicalInfo.error} The import details could not be loaded.</Notice> : null}
+
+          {timeline && !historical ? (
             <Section title="Order progress" aside={onCurrentWorkflow ? undefined : <Badge tone="paused">Earlier workflow</Badge>}>
               <WorkflowTimeline
                 timeline={timeline}
@@ -131,13 +145,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </Section>
           ) : null}
 
-          {can("orders.transition") ? (
+          {can("orders.transition") && !historical ? (
             <Section title="Status">
               <TransitionForm orderId={order.id} next={order.next_statuses} />
             </Section>
           ) : null}
 
-          {onCurrentWorkflow ? (
+          {onCurrentWorkflow && !historical ? (
             <Section title="Order type">
               {can("orders.transition") ? (
                 <FulfillmentTypeForm orderId={order.id} current={type} locked={order.fulfillment_locked === true || order.status === "cancelled"} />
@@ -147,7 +161,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </Section>
           ) : null}
 
-          {order.adoption_options && order.adoption_options.length > 0 && can("orders.adopt") ? (
+          {order.adoption_options && order.adoption_options.length > 0 && can("orders.adopt") && !historical ? (
             <Section title="Move to the current workflow">
               <AdoptWorkflowForm orderId={order.id} options={order.adoption_options} />
             </Section>
@@ -168,7 +182,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             />
           </Section>
 
-          {onCurrentWorkflow ? null : (
+          {onCurrentWorkflow || historical ? null : (
             <Section title="Tracking updates shown to the customer">
               {order.tracking.length === 0 ? (
                 <Empty>No update has been published yet.</Empty>
@@ -200,6 +214,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </Section>
           )}
 
+          {historical ? null : (
           <Section title="Status history">
             <DataTable
               rows={order.history}
@@ -213,6 +228,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               ]}
             />
           </Section>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">
@@ -263,6 +279,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </Section>
           ) : null}
 
+          {historical ? null : (
           <Section title="Deposit">
             {fixed ? (
               <div className="flex flex-col gap-2 text-sm">
@@ -280,10 +297,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               {order.deposit_received ? <Badge tone="done">Deposit received (recorded by staff)</Badge> : <Badge tone="paused">Deposit not received yet</Badge>}
             </p>
           </Section>
+          )}
         </div>
       </div>
 
-      {payments !== undefined ? (
+      {payments !== undefined && !historical ? (
         <Section title="Payments">
           <DataTable
             rows={payments}

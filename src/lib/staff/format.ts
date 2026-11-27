@@ -71,3 +71,13 @@ export function ageText(createdAt: string, now: Date = new Date()): string {
   const hours = Math.round(minutes / 60);
   return `${hours} hour${hours === 1 ? "" : "s"} ago`;
 }
+
+/**
+ * The date an order is shown by, and what to call it. An ordinary order has a creation date ("Placed"). A historical WhatsApp order (a purchase made
+ * before the website existed) has no known placement date: it is shown by the day it was COMPLETED, and is never said to be "placed" on that day or
+ * on the day it was imported. Works with a database from before the import, whose orders carry neither field.
+ */
+export function orderDateParts(order: { origin?: string | null; order_date?: string | null; created_at: string }): { label: "Placed" | "Completed"; iso: string; historical: boolean } {
+  const historical = order.origin === "historical_import";
+  return { label: historical ? "Completed" : "Placed", iso: historical ? (order.order_date ?? order.created_at) : order.created_at, historical };
+}

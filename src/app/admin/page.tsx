@@ -5,7 +5,7 @@ import { ProfitFigure, ProfitStateBadge } from "@/components/admin/finance";
 import { DataTable, LinkButton, Money, Section, Stat, StatusBadge } from "@/components/admin/ui";
 import { Notice } from "@/components/account/ui";
 import { marginText, parseReportParams } from "@/lib/staff/finance";
-import { formatDay } from "@/lib/staff/format";
+import { formatDay, orderDateParts } from "@/lib/staff/format";
 import { requireStaff } from "@/lib/staff/session";
 import { settle } from "@/lib/staff/settle";
 
@@ -40,7 +40,12 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
     title: "Overview",
     description: "Where the business stands: current work, finished orders and the money they brought in.",
     previewLabel: process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null,
-    actions: can("orders.create") ? <LinkButton href="/admin/orders/new" variant="red">New order</LinkButton> : undefined,
+    actions: (
+      <>
+        {can("import.manage") ? <LinkButton href="/admin/import">Import historical orders</LinkButton> : null}
+        {can("orders.create") ? <LinkButton href="/admin/orders/new" variant="red">New order</LinkButton> : null}
+      </>
+    ),
   };
   if (!result.ok) {
     return (
@@ -149,7 +154,14 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
             { key: "status", header: "Status", cell: (r) => <StatusBadge code={r.status} label={r.status_label} /> },
             { key: "total", header: "Original total", cell: (r) => <Money minor={r.total_minor} />, align: "right", hideOnCard: true },
             { key: "payable", header: "Net payable", cell: (r) => <Money minor={r.net_payable_minor} />, align: "right" },
-            { key: "date", header: "Placed", cell: (r) => formatDay(r.created_at) },
+            {
+              key: "date",
+              header: "Placed",
+              cell: (r) => {
+                const d = orderDateParts(r);
+                return d.historical ? `Completed ${formatDay(d.iso)} · Historical WhatsApp order` : formatDay(d.iso);
+              },
+            },
           ]}
         />
       </Section>

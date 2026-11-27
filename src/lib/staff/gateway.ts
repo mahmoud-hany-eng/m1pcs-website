@@ -143,6 +143,28 @@ const CALLS = {
   list_policy_versions: "select admin.list_policy_versions($1::text) as r",
   set_policy: "select admin.set_policy($1::text, $2::jsonb, $3::text, $4::text) as r",
   list_audit: "select admin.list_audit($1::integer) as r",
+  // Historical orders import (owner only: import.manage, decided by the database). The website parses the file; the database re-validates every row,
+  // decides every duplicate and does the whole commit in one transaction. JSON travels as one bound text parameter cast to jsonb; a file as a bound bytea.
+  hist_stage_batch: "select admin.hist_stage_batch($1::jsonb) as r",
+  hist_get_batch: "select admin.hist_get_batch($1::uuid) as r",
+  hist_list_batches: "select admin.hist_list_batches() as r",
+  hist_update_row: "select admin.hist_update_row($1::uuid, $2::uuid, $3::jsonb) as r",
+  hist_set_row_decision: "select admin.hist_set_row_decision($1::uuid, $2::uuid, $3::text, $4::text)::text as r",
+  hist_merge_groups: "select admin.hist_merge_groups($1::uuid, $2::uuid, $3::uuid)::text as r",
+  hist_unmerge_group: "select admin.hist_unmerge_group($1::uuid, $2::uuid)::text as r",
+  hist_set_group_customer: "select admin.hist_set_group_customer($1::uuid, $2::uuid, $3::text, $4::uuid)::text as r",
+  hist_resolve_flag: "select admin.hist_resolve_flag($1::uuid, $2::text, $3::text, $4::text)::text as r",
+  hist_discard_batch: "select admin.hist_discard_batch($1::uuid, $2::text)::text as r",
+  hist_commit_batch: "select admin.hist_commit_batch($1::uuid, $2::jsonb, $3::boolean) as r",
+  hist_store_attachment: "select admin.hist_store_attachment($1::uuid, $2::bytea, $3::text) as r",
+  hist_add_attachment: "select admin.hist_add_attachment($1::uuid, $2::text, $3::bytea, $4::text) as r",
+  hist_set_attachment_class: "select admin.hist_set_attachment_class($1::uuid, $2::text, $3::boolean)::text as r",
+  hist_mark_attachment_unavailable: "select admin.hist_mark_attachment_unavailable($1::uuid, $2::text)::text as r",
+  hist_get_attachment: "select admin.hist_get_attachment($1::uuid) as r",
+  hist_order_info: "select admin.hist_order_info($1::uuid) as r",
+  hist_set_order_items: "select admin.hist_set_order_items($1::uuid, $2::jsonb, $3::text) as r",
+  // What an order is (platform, or a historical import) and the date it is listed by: for any staff member who may read orders.
+  order_origin: "select admin.order_origin($1::uuid) as r",
 } as const;
 
 export type StaffCallName = keyof typeof CALLS;
@@ -153,6 +175,10 @@ const WRITE_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([
   "void_order_cost", "set_order_costs_complete", "verify_historical_completion", "transition_order", "publish_tracking_event",
   "publish_tracking_update", "publish_tracking_correction", "set_order_fulfillment_type", "adopt_new_workflow", "retract_tracking_event", "record_payment", "reverse_payment", "set_policy",
   "add_order_receipt", "remove_order_receipt",
+  // Reading a STAGED batch brings it up to date first (a purchase another batch imported meanwhile is skipped), so it is a write call.
+  "hist_stage_batch", "hist_get_batch", "hist_update_row", "hist_set_row_decision", "hist_merge_groups", "hist_unmerge_group", "hist_set_group_customer",
+  "hist_resolve_flag", "hist_discard_batch", "hist_commit_batch", "hist_store_attachment", "hist_add_attachment", "hist_set_attachment_class",
+  "hist_mark_attachment_unavailable", "hist_set_order_items",
 ]);
 /** The writes that carry an idempotency key: sending the same form again within the replay window cannot save it twice. */
 const KEYED_CALLS: ReadonlySet<StaffCallName> = new Set<StaffCallName>([

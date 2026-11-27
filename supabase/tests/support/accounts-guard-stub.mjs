@@ -20,3 +20,8 @@ export async function requireCustomerContext() {
 export async function requireCustomer() {
   return requireCustomerContext();
 }
+export async function requireLinkedCustomer() {
+  const context = globalThis.__M1_NAV__?.customerContext;
+  if (!context) throw new Error("the test did not install a customer context");
+  return { user: context.user, supabase: context.supabase };
+}

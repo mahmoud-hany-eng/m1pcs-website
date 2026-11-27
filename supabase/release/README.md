@@ -262,3 +262,50 @@ select count(*) from private.security_audit();                                  
 ```
 
 **Production is not touched by any of this**: the account routes and the new `/auth/continue` and `/auth/header-identity` routes answer the ordinary 404 on a production deployment whatever the variables say, and the Production header draws no account control (tested).
+
+## Historical orders import and retroactive loyalty (PLAT-0008): two migrations
+
+`20261128120000_historical_import_schema.sql` then `20261128120100_historical_import_functions.sql`, applied in that order. Both are **additive, forward-only and rerunnable**. Together they add: **two columns** on `public.orders`
+(`origin`, default `platform`, and the generated `order_date`) with an index; **one new permission**, `import.manage`, granted to the owner role only (the migration refuses to finish if any other role holds it); **eight private tables**
+(`private.historical_import_batches`, `…_groups`, `…_rows`, `…_resolutions`, `…_attachments`, `private.historical_orders`, `…_customers`, `…_item_revisions`; row-level security on, no privilege for `anon`, `authenticated` or
+`service_role`); a handful of guard triggers (the origin never changes, a completed historical order is created only by the import's own transaction, no payment or tracking row on a historical order, a committed batch is append-only,
+attachments are validated at the table); **19 new staff functions** (`admin.hist_*` ×18 and `admin.order_origin`); and **four restated staff functions** (`list_orders_overview`, `overview_summary`, `customer_orders`, `get_customer`: the same
+signatures, the same keys, with `order_date` and `origin` **added**). It changes no row, drops nothing, changes no policy and does **not** touch the Workflow V2 default. There is **no destructive undo on purpose**: the tables hold financial
+provenance once used, and leaving them in place is harmless. The design is `docs/project-memory/architecture/HISTORICAL_IMPORT.md`. **Nothing here has been applied to any hosted database, nothing has been pushed, and no real record has been imported anywhere.**
+
+### Compatibility, and why the order matters
+
+* **Database first, then the website.** The new pages call `admin.order_origin` and `admin.hist_*`; pushed before the migration they would fail on the order page and the import pages. The migration alone changes nothing visible (every existing order is `platform`).
+* **The deployed website keeps working against the migrated database** (the existing compatibility suites run the recorded statements of the deployed websites, statement by statement, against a database with the migration: only additive keys differ).
+* **Never import before the new website is live.** An older website would list a historical order as "placed" on the import day, show it a deposit tile and tracking, and its customer pages do not accept an `H-` order reference.
+* Importing is **irreversible in practice**: a committed historical order, its ledger award and its cost are financial records. Before the commit a batch can be discarded; after it, a mistake is corrected with the existing compensating tools. This is why the first import is a rehearsal.
+
+### The staged plan (each stage needs its own owner authorization; this branch stops before stage 1)
+
+| Stage | Action | Needs |
+| --- | --- | --- |
+| 0 | **Local (done):** the migrations, website and tests, one local commit. | — |
+| 1 | **Preflight on DEV:** worktree clean, HEAD is the approved commit, DEV is at `20261127120000_staff_header_profile.sql`; record a recovery baseline (a logical export of the business rows, **not** a backup); fingerprints of every function and the data digest of every table. | owner authorization |
+| 2 | **Apply to DEVELOPMENT only**, through the Supabase migration tool, the two files **unchanged and in order**; verify (below): the recorded statement's md5 equals each file's; the function fingerprint differs by exactly the **23** functions named above and the table fingerprint by exactly the **eight** tables and **two** columns; every other table's data digest is unchanged; no privilege for `anon`, PUBLIC or `service_role`. | the same |
+| 3 | **One normal, non-force push** of the approved commit; wait for CI and the Vercel Preview; confirm it is Ready, in `bom1`, and that no Production deployment occurred. | owner approval |
+| 4 | **Owner acceptance with synthetic data on DEV:** `HISTORICAL_IMPORT_OWNER_ACCEPTANCE_CHECKLIST.md`, using only `supabase/tests/fixtures/historical/synthetic-historical-orders.csv` (made-up names, phones and a reserved host), **once**. Expected report: 25 orders, 19 customers, QAR 106,334.00 revenue, QAR 91,346.00 cost, QAR 14,988.00 profit, 10,632 points, QAR 495.00 advertising apart. The synthetic orders stay in DEV (they are permanent by design); DEV holds no real customer. | owner |
+| 5 | **Production schema, later and separately authorized:** the same recovery baseline and fingerprints on Production; apply the two migrations; verify exactly as in stage 2; deploy the website (the order matters: database first). | a separate owner authorization |
+| 6 | **The real import, only after stage 5 and the owner's written acceptance of stage 4:** the owner uploads the real file in the Production Staff Dashboard; reads every decision and the month table; attaches the receipts that still exist (the export's links may have expired: that is expected, not an error); runs **Check without importing**; compares the figures with the source (25 orders / 19 customers / 106,334 / 91,346 / 14,988 / 10,632 for the file described in the brief); only then ticks the three statements, types the phrase and imports. | the owner, in person |
+| 7 | **After the import:** the owner issues claim codes one customer at a time, only when they want a customer to see their history; no automatic invitation exists. | owner |
+
+Read-only checks after the migrations (expect the stated results):
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'admin' and (p.proname like 'hist\_%' or p.proname = 'order_origin');                -- 19
+select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'private' and c.relname like 'historical\_%' and c.relkind = 'r';                    -- 8
+select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'private' and c.relname like 'historical\_%' and c.relkind = 'r' and not c.relrowsecurity;             -- 0
+select count(*) from private.role_permissions where permission_code = 'import.manage';                                                                                              -- 1 (the owner role)
+select count(*) from public.orders where origin <> 'platform';                                                                                                                       -- 0 (until an import)
+select has_function_privilege('anon', 'admin.hist_commit_batch(uuid, jsonb, boolean)', 'execute');                                                                                  -- false
+select has_function_privilege('service_role', 'admin.hist_commit_batch(uuid, jsonb, boolean)', 'execute');                                                                          -- false
+select has_function_privilege('authenticated', 'admin.hist_commit_batch(uuid, jsonb, boolean)', 'execute');                                                                         -- true (and the function refuses without import.manage and the second factor)
+select has_any_column_privilege('authenticated', 'private.historical_import_attachments', 'select,insert,update,references');                                                      -- false
+select count(*) from private.security_audit();                                                                                                                                       -- 0
+```
+
+**Production is not touched by any of this.** A real import needs the Production migrations, the website and the owner in the dashboard; none of them has been authorized.

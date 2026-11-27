@@ -97,7 +97,12 @@ export interface StatementLineView {
 
 export interface OrderSummaryView {
   ref: string;
+  /** The date shown beside the order: when it was placed, or (for a historical WhatsApp order, whose placement date is not known) when it was completed. */
   placedOn: string;
+  /** "Placed" for every ordinary order, "Completed" for a historical one. Never "Placed" for a date that is a completion date. */
+  dateLabel: "Placed" | "Completed";
+  /** True for a purchase made on WhatsApp before the website existed: it has no tracking steps and no deposit stage to show. */
+  isHistorical: boolean;
   status: StatusView;
   /** The order value BEFORE any discount or loyalty credit (the gross value). The deposit is worked out from it. */
   total: string;
@@ -123,9 +128,12 @@ export function buildOrderSummary(order: OrderRow, statuses: readonly OrderStatu
   const discount = order.discount_minor ?? 0;
   const credit = order.loyalty_credit_minor ?? 0;
   const net = order.net_payable_minor ?? order.total_minor - discount - credit;
+  const historical = order.origin === "historical_import";
   return {
     ref: order.order_ref,
-    placedOn: formatDate(order.created_at),
+    placedOn: formatDate(historical ? (order.order_date ?? order.completed_at ?? order.created_at) : order.created_at),
+    dateLabel: historical ? "Completed" : "Placed",
+    isHistorical: historical,
     status: buildStatusView(order.status, statuses, pathCodes),
     total: formatQar(order.total_minor),
     adjusted: discount > 0 || credit > 0,
@@ -303,7 +311,8 @@ export function buildOverview(
   loyalty: readonly LoyaltyBalanceRow[],
   stageRows: readonly StageRowInput[] = [],
 ): OverviewView {
-  const newestFirst = [...orders].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  // Listed by order_date: the creation date of an ordinary order, the completion date of a historical one (whose creation date is the day it was imported).
+  const newestFirst = [...orders].sort((a, b) => Date.parse(b.order_date ?? b.created_at) - Date.parse(a.order_date ?? a.created_at));
   const terminal = new Set(statuses.filter((s) => s.is_terminal).map((s) => s.code));
   // A cancelled order owes nothing, so its balance is left out of what the customer sees as outstanding. A delivered
   // order can still owe a balance (the public policy says the balance is paid on delivery), so it stays in.
@@ -323,5 +332,6 @@ export function buildOverview(
 
 /** Order refs are shown to people and used in addresses, so only the expected shape is accepted. */
 export function isOrderRef(value: unknown): value is string {
-  return typeof value === "string" && /^O-[0-9]{4}-[0-9]{5}$/.test(value);
+  // O-YYMM-NNNNN for an order made on this system, H-YYMM-NNNNN for a historical WhatsApp order.
+  return typeof value === "string" && /^[OH]-[0-9]{4}-[0-9]{5}$/.test(value);
 }

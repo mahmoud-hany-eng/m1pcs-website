@@ -49,7 +49,13 @@ const ORDERS_LIST_RELEASE_STATEMENTS = ["list_orders_page"];
 const ORDERS_OVERVIEW_RELEASE_STATEMENTS = ["add_order_receipt", "get_order_receipt", "list_orders_overview", "remove_order_receipt"];
 /** The one statement the unified-login release (20261127120000) adds: the staff member's own display name for the public header. */
 const STAFF_HEADER_RELEASE_STATEMENTS = ["my_staff_profile"];
-const LATER_STATEMENTS = [...LATER_RELEASE_STATEMENTS, ...ORDERS_LIST_RELEASE_STATEMENTS, ...ORDERS_OVERVIEW_RELEASE_STATEMENTS, ...STAFF_HEADER_RELEASE_STATEMENTS];
+/** The nineteen statements the historical-orders import release (20261128120000 / 20261128120100) adds: the owner's import wizard and what an order is. Earlier websites never call them. */
+const HISTORICAL_IMPORT_RELEASE_STATEMENTS = [
+  "hist_add_attachment", "hist_commit_batch", "hist_discard_batch", "hist_get_attachment", "hist_get_batch", "hist_list_batches", "hist_mark_attachment_unavailable", "hist_merge_groups",
+  "hist_order_info", "hist_resolve_flag", "hist_set_attachment_class", "hist_set_group_customer", "hist_set_order_items", "hist_set_row_decision", "hist_stage_batch",
+  "hist_store_attachment", "hist_unmerge_group", "hist_update_row", "order_origin",
+];
+const LATER_STATEMENTS = [...LATER_RELEASE_STATEMENTS, ...ORDERS_LIST_RELEASE_STATEMENTS, ...ORDERS_OVERVIEW_RELEASE_STATEMENTS, ...STAFF_HEADER_RELEASE_STATEMENTS, ...HISTORICAL_IMPORT_RELEASE_STATEMENTS];
 
 /** Keys the pricing release adds to the read answers (additive; the deployed pages ignore keys they do not know). */
 const ADDED_KEYS = new Set([
@@ -200,6 +206,7 @@ suite("the website deployed before the pricing release, run statement by stateme
     assert.deepEqual(added.filter((n) => LATER_RELEASE_STATEMENTS.includes(n)), [...LATER_RELEASE_STATEMENTS].sort(), "and every statement of the later release is present");
     assert.deepEqual(added.filter((n) => ORDERS_LIST_RELEASE_STATEMENTS.includes(n)), ORDERS_LIST_RELEASE_STATEMENTS, "and the Orders-list release adds exactly its one");
     assert.deepEqual(added.filter((n) => ORDERS_OVERVIEW_RELEASE_STATEMENTS.includes(n)), ORDERS_OVERVIEW_RELEASE_STATEMENTS, "and the Orders-overview release adds exactly its four");
+    assert.deepEqual(added.filter((n) => HISTORICAL_IMPORT_RELEASE_STATEMENTS.includes(n)), HISTORICAL_IMPORT_RELEASE_STATEMENTS, "and the historical-orders import release adds exactly its nineteen");
   });
 
   it("the control really is the deployed shape (no pricing objects) and the others really have them", () => {

@@ -70,6 +70,8 @@ suite("the staff order page, rendered with the hosted synthetic order's data (re
     customerOrders: async (cid, limit = 25, offset = 0) => q(`select admin.customer_orders(${lit(cid)}, ${limit}, ${offset})::text`),
     orderCosts: async (oid) => q(`select admin.order_costs(${lit(oid)})::text`),
     orderCompletion: async (oid) => q(`select admin.order_completion(${lit(oid)})::text`),
+    // What an order is (a platform order, or a historical WhatsApp order): the page asks it of every order.
+    orderOrigin: async (oid) => q(`select admin.order_origin(${lit(oid)})::text`),
   };
   async function renderPage(module, args = {}, permissions = ownerPermissions) {
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions, api };

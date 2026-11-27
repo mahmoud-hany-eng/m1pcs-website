@@ -578,7 +578,7 @@ suite("M1 order workflow: database layer (real PostgreSQL 16, real migrations, r
         for (const sql of [`select admin.list_payments(10, 0)`, `select admin.list_orders(null, null, 5, 0)`, `select admin.record_payment('${id}', 'deposit', 100, 'cash')`, `select admin.transition_order('${id}', 'on_hold')`, `select admin.create_customer('X', null, null, 'walk_in', 'en', null)`, `select admin.list_audit(5)`])
           refused(attempt(who, sql), /permission denied/, sql);
       }
-      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "26", "the owner holds 26 since PLAT-0006 added finance.verify");
+      assert.equal(read(`select count(*) from admin.my_permissions()`, AS.olivia), "27", "the owner holds 27: 26 since PLAT-0006 added finance.verify, and import.manage since the historical-orders import");
       assert.equal(read(`select count(*) from admin.my_permissions()`, AS.sam), "10");
     });
 

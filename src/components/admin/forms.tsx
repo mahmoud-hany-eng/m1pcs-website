@@ -39,14 +39,14 @@ import type { AdoptionOption, FulfillmentType, NextStatus } from "@/lib/workflow
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { Notice } from "@/components/account/ui";
 
-type Action = (previous: StaffFormState, formData: FormData) => Promise<StaffFormState>;
+export type Action = (previous: StaffFormState, formData: FormData) => Promise<StaffFormState>;
 
 /**
  * A successful create opens the new record with a full page load. The dashboard changes shape when a record appears
  * (new totals, new rows), and a clean load is the dependable choice after a server action: in the browser tests
  * Next 15.5's in-app navigation right after a server action sometimes did not complete.
  */
-function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => void, boolean] {
+export function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => void, boolean] {
   const [state, formAction, pending] = useActionState(action, staffIdleState);
   const href = state.status === "success" ? safeAdminHref(state.href) : null;
   useEffect(() => {
@@ -55,17 +55,17 @@ function useStaffForm(action: Action): [StaffFormState, (formData: FormData) => 
   return [state, formAction, pending];
 }
 
-const errorOf = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.fieldErrors?.[name] : undefined);
+export const errorOf = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.fieldErrors?.[name] : undefined);
 /** What was typed before an error: React clears an uncontrolled form after every submit, so the server hands the text back. */
-const echoed = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.values?.[name] : undefined);
+export const echoed = (state: StaffFormState, name: string): string | undefined => (state.status === "error" ? state.values?.[name] : undefined);
 
-function Feedback({ state }: { state: StaffFormState }) {
+export function Feedback({ state }: { state: StaffFormState }) {
   if (state.status === "error" && state.message) return <Notice tone="error">{state.message}</Notice>;
   if (state.status === "success") return <Notice tone="success">{state.message}</Notice>;
   return null;
 }
 
-function FieldError({ id, message }: { id: string; message?: string }) {
+export function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
     <p id={id} role="alert" className="text-xs text-error">
@@ -74,7 +74,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-function Field({ id, label, hint, error, children, required }: { id: string; label: string; hint?: string; error?: string; children: ReactNode; required?: boolean }) {
+export function Field({ id, label, hint, error, children, required }: { id: string; label: string; hint?: string; error?: string; children: ReactNode; required?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-white/90">
@@ -88,15 +88,15 @@ function Field({ id, label, hint, error, children, required }: { id: string; lab
   );
 }
 
-const inputClass = "glass-input min-h-[2.75rem] w-full px-3.5 py-2 text-sm";
+export const inputClass = "glass-input min-h-[2.75rem] w-full px-3.5 py-2 text-sm";
 
-function Input({ state, name, id, ...rest }: { state: StaffFormState; name: string; id: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ state, name, id, ...rest }: { state: StaffFormState; name: string; id: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   // A controlled input (it has `value`) keeps its own text; the others take it back from the server after an error.
   const kept = rest.value === undefined ? { defaultValue: echoed(state, name) ?? rest.defaultValue } : {};
   return <input id={id} name={name} aria-invalid={Boolean(errorOf(state, name))} aria-describedby={`${id}-error`} className={inputClass} {...rest} {...kept} />;
 }
 
-function Select({ state, name, id, children, ...rest }: { state: StaffFormState; name: string; id: string; children: ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ state, name, id, children, ...rest }: { state: StaffFormState; name: string; id: string; children: ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   const kept = rest.value === undefined ? { defaultValue: echoed(state, name) ?? rest.defaultValue } : {};
   // React does not move a <select>'s selected option when its defaultValue changes, so the element is re-created when the
   // value the server handed back changes: that is what puts the person's choice back after the form was cleared.
@@ -107,7 +107,7 @@ function Select({ state, name, id, children, ...rest }: { state: StaffFormState;
   );
 }
 
-function Check({ state, name, id, children }: { state: StaffFormState; name: string; id: string; children: ReactNode }) {
+export function Check({ state, name, id, children }: { state: StaffFormState; name: string; id: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="flex items-start gap-2.5 text-sm text-text-secondary">
@@ -119,7 +119,7 @@ function Check({ state, name, id, children }: { state: StaffFormState; name: str
   );
 }
 
-function Submit({ pending, children, tone = "red", pendingLabel = "Saving…", disabled = false }: { pending: boolean; children: ReactNode; tone?: "red" | "glass" | "danger"; pendingLabel?: string; disabled?: boolean }) {
+export function Submit({ pending, children, tone = "red", pendingLabel = "Saving…", disabled = false }: { pending: boolean; children: ReactNode; tone?: "red" | "glass" | "danger"; pendingLabel?: string; disabled?: boolean }) {
   const style = tone === "red" ? "btn-red" : tone === "danger" ? "btn-glass !border-error/50 !text-error" : "btn-glass";
   return (
     <button type="submit" disabled={pending || disabled} aria-busy={pending} className={`btn-sheen ${style} inline-flex min-h-[2.75rem] items-center justify-center rounded-full px-6 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}>

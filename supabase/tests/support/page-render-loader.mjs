@@ -37,6 +37,7 @@ const FILE_STUBS = new Map([
 const ACTION_MODULES = new Map([
   ["@/lib/staff/actions", join(ROOT, "src", "lib", "staff", "actions.ts")],
   ["@/lib/staff/mfa-actions", join(ROOT, "src", "lib", "staff", "mfa-actions.ts")],
+  ["@/lib/staff/historical/actions", join(ROOT, "src", "lib", "staff", "historical", "actions.ts")],
   ["@/lib/accounts/server/actions", join(ROOT, "src", "lib", "accounts", "server", "actions.ts")],
 ]);
 

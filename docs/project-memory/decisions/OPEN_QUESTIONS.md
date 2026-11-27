@@ -431,3 +431,38 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** The repository's templates (`supabase/templates`) build the emailed link as `{{ .RedirectTo }}&token_hash=...&type=...`. The connectors cannot read the hosted project's templates, redirect list or provider settings, so what DEV actually sends is **unverified**. Read-only evidence from the DEV database (counts and timestamps only): the two accounts that confirmed through the website on 21 Nov were confirmed through the token-hash path of this site (no PKCE code was ever issued for them, 319 s and 26 s after sign-up), when the app sent an address WITH a `?next=` query string, so a template of the repository's kind worked then. The unified-login commit 2cd3424 (deployed 26 Nov 20:26 UTC) removed that query string for sign-up and resend, which made the repository's template produce `/auth/confirm&token_hash=...` (fixed in PLAT-0007-a6: `confirmUrl` always adds `?next=`). The one sign-up on 26 Nov (18:24 UTC, before 2cd3424) was never confirmed.
 - **Recommendation:** The owner reads the three templates and the redirect list in the dashboard (the exact checks are in `supabase/tests/REAL_SUPABASE_CHECKS.md`), then runs the real-browser sign-up and password-reset steps in the a6 report on the new Preview.
 - **Source:** PLAT-0007-a6.
+
+### OQ-0063 — Does the "Date" column of the WhatsApp export mean the day the order was completed?
+- **Status:** open
+- **Blocks:** the real historical import (the three statements at the final confirmation are the owner's, not the system's)
+- **Question:** Every financial report counts an order in the month it was **completed**. The importer therefore stores the file's Date as the completion date (12:00 Qatar time) and requires the owner to attest, at the final confirmation, that it is the completion date and not the date the order was agreed. If the real file's Date is the date the order was placed, an order that took weeks to build would be reported in the wrong month. The file's own **Month** column is used as a cross-check (a mismatch is a warning on the row), but the system cannot know which meaning the owner intended.
+- **Recommendation:** The owner confirms the meaning for the real file before the real import, and reads the *month table* on the review page: it shows each month's orders and revenue exactly as the reports will. If the dates are placement dates, the import must not be run until the owner supplies completion dates (a column, or a correction per row).
+- **Source:** PLAT-0008.
+
+### OQ-0064 — What the real export's ambiguities are, and who decides them
+- **Status:** open
+- **Blocks:** the real historical import
+- **Question:** The real file was never in the repository, a log or the development database, so its actual ambiguities are known only to the owner. What the tool is built to surface and **not** to guess: the same phone under different names, the same name under different phones (kept separate until the owner says "same person"); possible duplicates of one purchase; Month and Date that disagree; the numeric date order if the file cannot say; the one purchase recorded at a **loss of QAR 100** (kept exactly as recorded; the owner should confirm it is a real loss and not a typing error); the ten advertising rows (QAR 495) and the `#ERROR!` row (left out and reported); receipts whose Airtable links have expired.
+- **Recommendation:** Decide each item on the review page with the file in front of you; nothing is imported while a decision is waiting. Keep the source spreadsheet; the importer does not delete or modify it.
+- **Source:** PLAT-0008.
+
+### OQ-0065 — Are the costs in the export the complete direct costs of each order?
+- **Status:** open
+- **Blocks:** whether imported profit is shown as verified or provisional
+- **Question:** The export has one Cost per purchase. If it is the complete direct cost (parts, shipping, import duties), profit is a fact; if some costs were never written down, profit is overstated. The same applies to Revenue being "the final amount the customer paid" (after any discount).
+- **Recommendation:** At the final confirmation answer *Yes* only if both are true for **every** order. If unsure, answer *Not sure*: the orders are imported with costs marked **provisional** (the existing reports already show profit as provisional), and the owner can confirm order by order afterwards with the existing cost editor.
+- **Source:** PLAT-0008.
+
+### OQ-0066 — Should customers be able to download the receipts that were imported?
+- **Status:** open
+- **Blocks:** nothing (customers see no files today)
+- **Question:** The import stores original PDFs and PNGs privately and lets the owner flag a *customer receipt* as customer-visible (never a supplier invoice). This release stores the flag but adds **no customer download route**, so no customer can see or download any imported file. Delivering one needs its own authorized route (signed in, linked customer only, `no-store`, content type allow-list) and a decision on which documents customers should get.
+- **Recommendation:** Keep it private until the owner has reviewed what the receipts contain (some carry supplier details). Then add a customer-only download route as a separate task.
+- **Source:** PLAT-0008.
+
+### OQ-0067 — Correcting a wrong import, and describing what each historical order contained
+- **Status:** open
+- **Blocks:** nothing
+- **Question:** A committed historical order, its loyalty award and its cost are immutable financial records: there is no un-import. A mistake found afterwards is corrected with the existing compensating tools (cost revisions, a ledger adjustment with a reason). Separately, each imported order has one line, "Historical order (items not recorded)", because the export carries no items; the owner can describe an order's items later (`hist_set_order_items`, every revision kept), but there is no bulk way.
+- **Recommendation:** Rehearse once on synthetic data in DEV (the checklist); on the real import use **Check without importing** first. Describe items only for orders where it matters (for example a customer asks).
+- **Source:** PLAT-0008.

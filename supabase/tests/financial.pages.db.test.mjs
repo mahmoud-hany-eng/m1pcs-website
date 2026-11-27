@@ -70,6 +70,7 @@ suite("the finance screens, rendered with the database's own answers (real funct
     customerOrders: async (cid, limit = 25, offset = 0) => q(`select admin.customer_orders(${lit(cid)}, ${limit}, ${offset})::text`, who),
     orderCosts: async (oid) => q(`select admin.order_costs(${lit(oid)})::text`, who),
     orderCompletion: async (oid) => q(`select admin.order_completion(${lit(oid)})::text`, who),
+    orderOrigin: async (oid) => q(`select admin.order_origin(${lit(oid)})::text`, who),
   });
   async function render(page, args = {}, { who = AS.olivia, permissions = ownerPerms } = {}) {
     globalThis.__M1_STAFF__ = { staff: { email: "owner@example.test" }, permissions, api: apiFor(who) };

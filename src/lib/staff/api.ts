@@ -6,6 +6,10 @@ import type {
   LoyaltyOverview, NewOrderCost, OrderCompletion, OrderCostsView, OrderDetail, OrderListRow, OrderPricingContext, OrdersOverview, OrdersPage, OrdersSort, OverviewSummary, PaymentListRow,
   PolicyRow, PolicyVersionRow, ReceiptFile, StaffHeaderProfile,
 } from "./types";
+import type {
+  AttachmentFile, CommitConfirmation, HistoricalItem, HistoricalOrderInfo, ImportBatch, ImportBatchListRow, ImportReport, OrderOrigin, StagedBatch, StoredAttachment,
+} from "./historical/types";
+import type { StagePayload, DbRow } from "./historical/payload";
 
 export interface NewOrderItem {
   kind: "component" | "build_service" | "delivery" | "discount" | "other";
@@ -68,6 +72,39 @@ export function staffApi(staff: VerifiedStaff) {
       return { id: value, replayed };
     },
     getOrderReceipt: (receiptId: string) => call<ReceiptFile>("get_order_receipt", [receiptId]),
+
+    // Historical orders import. Owner only: the database requires import.manage (and the second factor) on every one of these calls.
+    // The website only reads the file; the database re-validates every row, decides every duplicate and commits all of it or none of it.
+    histStageBatch: (payload: StagePayload) => call<StagedBatch>("hist_stage_batch", [JSON.stringify(payload)]),
+    histGetBatch: (batchId: string) => call<ImportBatch>("hist_get_batch", [batchId]),
+    histListBatches: () => call<ImportBatchListRow[]>("hist_list_batches"),
+    histUpdateRow: (batchId: string, rowId: string, row: DbRow) => call<{ row_id: string; batch_id: string }>("hist_update_row", [batchId, rowId, JSON.stringify(row)]),
+    histSetRowDecision: (batchId: string, rowId: string, decision: "import" | "skip", reason: string | null) =>
+      call<string>("hist_set_row_decision", [batchId, rowId, decision, reason]),
+    histMergeGroups: (batchId: string, fromGroup: string, intoGroup: string) => call<string>("hist_merge_groups", [batchId, fromGroup, intoGroup]),
+    histUnmergeGroup: (batchId: string, group: string) => call<string>("hist_unmerge_group", [batchId, group]),
+    histSetGroupCustomer: (batchId: string, group: string, choice: "new" | "existing", customerId: string | null) =>
+      call<string>("hist_set_group_customer", [batchId, group, choice, customerId]),
+    histResolveFlag: (batchId: string, flagKey: string, resolution: "keep_separate" | "import_anyway", note: string | null) =>
+      call<string>("hist_resolve_flag", [batchId, flagKey, resolution, note]),
+    histDiscardBatch: (batchId: string, reason: string) => call<string>("hist_discard_batch", [batchId, reason]),
+    histCommitBatch: (batchId: string, confirmation: CommitConfirmation, dryRun: boolean) =>
+      call<ImportReport>("hist_commit_batch", [batchId, JSON.stringify(confirmation), dryRun]),
+    // Files: bound bytea parameters, never text in a statement. The database checks the bytes, not the name.
+    histStoreAttachment: (attachmentId: string, content: Buffer, classification: string | null) =>
+      call<StoredAttachment>("hist_store_attachment", [attachmentId, content, classification]),
+    histAddAttachment: (rowId: string, fileName: string, content: Buffer, classification: string) =>
+      call<StoredAttachment>("hist_add_attachment", [rowId, fileName, content, classification]),
+    histSetAttachmentClass: (attachmentId: string, classification: string, customerVisible: boolean) =>
+      call<string>("hist_set_attachment_class", [attachmentId, classification, customerVisible]),
+    histMarkAttachmentUnavailable: (attachmentId: string, reason: string) => call<string>("hist_mark_attachment_unavailable", [attachmentId, reason]),
+    histGetAttachment: (attachmentId: string) => call<AttachmentFile>("hist_get_attachment", [attachmentId]),
+    // An imported order: where it came from (null for any other order), its files, and the later enrichment of its item lines.
+    histOrderInfo: (orderId: string) => call<HistoricalOrderInfo | null>("hist_order_info", [orderId]),
+    histSetOrderItems: (orderId: string, items: readonly HistoricalItem[], reason: string) =>
+      call<{ order_id: string; lines: number }>("hist_set_order_items", [orderId, JSON.stringify(items), reason]),
+    // What an order is and the date it is listed by: for any staff member who may read orders.
+    orderOrigin: (orderId: string) => call<OrderOrigin>("order_origin", [orderId]),
     // The idempotency key is chosen once per intended action and reused by every retry of it: a repeat returns the same order.
     createOrder: async (customerId: string, items: readonly NewOrderItem[], deliveryMethod: string | null, deliveryAddress: string | null, idempotencyKey: string): Promise<KeyedResult> => {
       const { value, replayed } = await staffCallMeta<string>(staff, "create_order", [customerId, JSON.stringify(items), deliveryMethod, deliveryAddress, idempotencyKey]);

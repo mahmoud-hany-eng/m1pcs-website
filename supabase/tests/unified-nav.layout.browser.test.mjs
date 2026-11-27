@@ -291,7 +291,7 @@ describe("the public header above the dashboards, in a real browser", { skip, ti
           assert.equal(await page.locator(`${side} button[aria-label*="menu" i], ${side} [aria-controls]`).count(), 0, `${where}: the dashboard has no menu button of its own`);
           // every section link is there, readable and tappable (the row scrolls sideways inside itself)
           const links = await page.locator(`${side} nav[aria-label="Admin sections"] a`).evaluateAll((as) => as.map((a) => ({ text: a.textContent.trim(), href: a.getAttribute("href"), h: a.getBoundingClientRect().height })));
-          assert.deepEqual(links.map((l) => l.href), ["/admin", "/admin/customers", "/admin/orders", "/admin/payments", "/admin/loyalty", "/admin/policies", "/admin/audit"]);
+          assert.deepEqual(links.map((l) => l.href), ["/admin", "/admin/customers", "/admin/orders", "/admin/payments", "/admin/loyalty", "/admin/import", "/admin/policies", "/admin/audit"]);
           assert.ok(links.every((l) => l.h >= 36), `${where}: touch-sized links`);
           const signOut = await rect(page, `${side} button:visible:has-text("Sign out")`);
           assert.ok(signOut.left >= 0 && signOut.right <= width && signOut.top >= bar.top, `${where}: Sign out is inside the block and the screen`);
@@ -428,10 +428,12 @@ describe("the public header above the dashboards, in a real browser", { skip, ti
       const { ctx, page } = await openAdmin({ width: 1280 });
       try {
         const order = [];
+        const rings = [];
         await page.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});
         await page.evaluate(() => document.activeElement?.blur());
         for (let i = 0; i < 24; i++) {
           await page.keyboard.press("Tab");
+          rings.push(await page.evaluate(() => (document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : "none")));
           order.push(await page.evaluate(() => {
             const el = document.activeElement;
             return el ? `${el.closest("header") ? "header" : el.closest('[data-testid="admin-sidebar"]') ? "sidebar" : el.closest('[data-testid="admin-shell"]') ? "work" : "other"}:${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 24)}` : "none";
@@ -444,8 +446,12 @@ describe("the public header above the dashboards, in a real browser", { skip, ti
         const lastSidebar = afterSidebar.findLastIndex((o) => o.startsWith("sidebar:"));
         assert.ok(afterSidebar.slice(0, lastSidebar + 1).every((o) => o.startsWith("sidebar:")), "then the dashboard navigation, as one run");
         assert.ok(afterSidebar.slice(lastSidebar + 1).some((o) => o.startsWith("work:")), "and then the work area");
-        const outline = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
-        assert.notEqual(outline, "none", "a focus ring is drawn");
+        // The ring is checked on the LAST control of the work area that the keys reached, not on the 24th key: the owner has one more dashboard section than other staff
+        // ("Import orders"), which moves the 24th key one control further on, to the page itself, which draws no ring.
+        const lastWork = order.findLastIndex((o) => o.startsWith("work:"));
+        assert.ok(lastWork >= 0);
+        assert.notEqual(rings[lastWork], "none", "a focus ring is drawn");
+        assert.ok(rings.slice(0, lastWork + 1).every((r) => r !== "none"), `every control reached in the header, the navigation and the work area draws its focus ring (${rings.slice(0, lastWork + 1).join(",")})`);
       } finally {
         await ctx.close();
       }

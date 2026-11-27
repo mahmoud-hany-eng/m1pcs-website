@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminMissing } from "@/components/admin/Missing";
-import { DataTable, LinkButton, Money, type Column } from "@/components/admin/ui";
+import { Badge, DataTable, LinkButton, Money, type Column } from "@/components/admin/ui";
 import { FinancialPerformance } from "@/components/admin/finance";
 import { OrdersPager } from "@/components/admin/orders-pager";
 import { OrdersToolbar } from "@/components/admin/orders-toolbar";
@@ -108,7 +108,20 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         { key: "profit", header: "Profit", cell: (r) => <ProfitCell row={r} />, align: "right" },
       );
     }
-    columns.push({ key: "placed", header: "Placed", cell: (r) => formatDay(r.created_at) });
+    columns.push({
+      key: "placed",
+      header: "Placed",
+      // A historical WhatsApp order has no known placement date: it is listed by the day it was completed, and says so.
+      cell: (r) =>
+        r.origin === "historical_import" ? (
+          <span className="flex flex-col gap-1" data-testid="historical-date">
+            <span>Completed {formatDay(r.order_date ?? r.created_at)}</span>
+            <Badge tone="neutral">Historical WhatsApp order</Badge>
+          </span>
+        ) : (
+          formatDay(r.created_at)
+        ),
+    });
     if (page.can_see_receipts) {
       const uploadKeys = new Map(page.rows.map((r) => [r.id, randomUUID()]));
       columns.push({
@@ -129,7 +142,12 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       title="Orders"
       description="Your latest orders. Search, sort or filter to find any other."
       previewLabel={process.env.CUSTOMER_ACCOUNTS_PREVIEW_LABEL?.slice(0, 160) ?? null}
-      actions={can("orders.create") ? <LinkButton href="/admin/orders/new" variant="red">New order</LinkButton> : undefined}
+      actions={
+        <>
+        {can("import.manage") ? <LinkButton href="/admin/import">Import historical orders</LinkButton> : null}
+        {can("orders.create") ? <LinkButton href="/admin/orders/new" variant="red">New order</LinkButton> : null}
+      </>
+      }
     >
       <section id="orders-list" aria-label="Orders" className="glass glass-flat p-4 sm:p-6" data-testid="orders-section">
         <OrdersToolbar query={query} statuses={STATUSES} years={page?.years ?? []} effectiveYear={page?.filters.year ?? null} reportParams={reportParams} canSeeFinance={financeAllowed} />

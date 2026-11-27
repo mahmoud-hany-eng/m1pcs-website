@@ -114,8 +114,10 @@ suite("release sequence: expand -> new website -> contract, with undo scripts (P
         "the paged Orders list (one additive function) is the release after that");
       assert.deepEqual(names.filter((f) => f >= "20261126" && f < "20261127"), ["20261126120000_orders_overview_and_receipts.sql"],
         "the simplified Orders page (the overview function and PDF receipts, additive) is the release after that");
-      assert.deepEqual(names.filter((f) => f >= "20261127"), ["20261127120000_staff_header_profile.sql"],
+      assert.deepEqual(names.filter((f) => f >= "20261127" && f < "20261128"), ["20261127120000_staff_header_profile.sql"],
         "the staff member's own display name for the public header (one additive function) is the release after that");
+      assert.deepEqual(names.filter((f) => f >= "20261128"), ["20261128120000_historical_import_schema.sql", "20261128120100_historical_import_functions.sql"],
+        "the owner's historical-orders import (an additive schema migration and its functions) is the release after that");
     });
 
     it("this release's operator scripts live outside supabase/migrations, so no pipeline applies them by itself", () => {
