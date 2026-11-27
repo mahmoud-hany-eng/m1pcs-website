@@ -54,6 +54,8 @@ imported order, its points and its cost are permanent financial records (there i
 | 5.2 | Tick all three, answer the cost question, type `IMPORT 24 ORDERS` (wrong count). | The **Import** button stays switched off while the phrase is wrong; the right phrase is shown in the label above the box. | |
 | 5.3 | Type `IMPORT 25 ORDERS` and press **Check without importing**. | "Check passed. Importing now would create 25 orders for 19 customers, record QAR 106,334.00 of revenue and award 10,632 points. Nothing was saved." **Orders** and **Customers** still show nothing from the file. | |
 | 5.4 | Press **Import 25 orders** (all three statements ticked, cost question answered). Then go Back and press **Import** again, or double-click it. | "Imported 25 orders. 10,632 loyalty points were awarded, once each. No customer was emailed and no account was created." The second attempt says "This import was already completed earlier, so nothing new was imported"; the order count is still 25. | |
+| 5.5 | **After** the import, upload the same file again with **one value changed** (for example one purchase's direct cost, or its phone number, or its revenue). | The review shows **Possible second copy of an order that already exists**, naming the earlier order and what matches; the other rows are "already imported"; **Import** is refused until you decide. | |
+| 5.6 | On that row choose **Skip** (it is the same purchase), then **Discard** the import. | Nothing is imported; the loyalty points, the orders and the customers are exactly as they were after 5.4. (Choosing "It is a different purchase" would be an explicit decision that imports it and awards points once: do **not** do this in the test.) | |
 
 ## Part 6: after the import: the numbers
 

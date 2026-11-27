@@ -60,6 +60,19 @@ end;
 $$;
 revoke all on function private.hist_phone_key(text) from public;
 
+-- A name folded loosely, to compare a name in the export with the name of a customer who already exists: case, spaces and the usual punctuation are ignored.
+-- This is deliberately weaker than the website's own name key (normalize.ts): it is only ever used to RAISE a question for the owner (never to merge or to
+-- skip anything), where a missed match costs more than an extra one. An empty result matches nothing.
+create or replace function private.hist_name_fold(p_name text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select lower(regexp_replace(btrim(coalesce(p_name, '')), '[[:space:]''".,_()-]+', '', 'g'))
+$$;
+revoke all on function private.hist_name_fold(text) from public;
+
 -- A purchase's identity, and the identity of every row (for the batch's content hash). Two rows with exactly the same values are two purchases,
 -- numbered in row order; which of them is which never matters. The text is the one the website builds (purchaseCanonical in normalize.ts).
 create or replace function private.hist_signatures(p_rows jsonb)
@@ -203,6 +216,48 @@ as $$
                   where r.batch_id = p_batch and r.kind = 'purchase' and r.decision = 'import' and r.status <> 'skipped' and coalesce(rg.merged_into, rg.id) = eg.id)
   ), res as (
     select x.flag_key, x.resolution from private.historical_import_resolutions x where x.batch_id = p_batch
+  ), oc as materialized (
+    -- every order a row of this import could be a second copy of: any order that is not cancelled (a website order, or one imported earlier), with the facts
+    -- the comparison needs worked out once per order. A historical order is dated by its completion day only (its created_at is the day it was imported);
+    -- a website order spans the days from when it was placed to when it was completed.
+    select o.id as order_id, o.order_ref, o.origin, c.customer_code, o.net_payable_minor as net_minor,
+           coalesce(private.hist_phone_key(c.phone), '') as phone_key,
+           private.hist_name_fold(c.full_name) as name_fold,
+           ir.phone_key as src_phone_key,
+           ir.name_key as src_name_key,
+           ho.cost_minor as src_cost_minor,
+           (case when o.origin = 'historical_import' then (o.completed_at at time zone 'Asia/Qatar')::date else (o.created_at at time zone 'Asia/Qatar')::date end) as day_a,
+           ((coalesce(o.completed_at, o.created_at)) at time zone 'Asia/Qatar')::date as day_b
+    from public.orders o
+    join public.customers c on c.id = o.customer_id
+    left join private.historical_orders ho on ho.order_id = o.id
+    left join private.historical_import_rows ir on ir.id = ho.row_id
+    where o.status <> 'cancelled'
+  ), m as (
+    -- The same purchase uploaded again with one value corrected has a NEW fingerprint (the fingerprint includes the values), and a purchase that was
+    -- already agreed on the website may be written down with another phone, another spelling or another date. So a purchase is compared with every order on
+    -- five signals, each independent of the others: the phone, the name, the amount actually paid, the date (within three days of the order's own days) and
+    -- the direct cost (only for an order that was imported, the only kind that has a cost from a file).
+    select r.id as row_id, x.order_id, x.order_ref, x.origin, x.customer_code, s.s_phone, s.s_name, s.s_amount, s.s_date, s.s_cost
+    from private.historical_import_rows r
+    join oc x on true
+    cross join lateral (
+      select
+        -- every signal is a plain true or false, never null (a missing value must count as "does not match", not wipe out the whole sum)
+        coalesce(r.phone_key <> '' and (x.phone_key = r.phone_key or coalesce(x.src_phone_key = r.phone_key, false)), false) as s_phone,
+        coalesce((x.name_fold <> '' and x.name_fold = private.hist_name_fold(r.customer_name)) or coalesce(x.src_name_key = r.name_key, false), false) as s_name,
+        coalesce(x.net_minor = r.revenue_minor, false) as s_amount,
+        coalesce(r.happened_on between (least(x.day_a, x.day_b) - 3) and (greatest(x.day_a, x.day_b) + 3), false) as s_date,
+        coalesce(x.src_cost_minor is not null and r.cost_minor is not null and x.src_cost_minor = r.cost_minor, false) as s_cost,
+        coalesce(r.happened_on in (x.day_a, x.day_b), false) as s_day
+    ) s
+    where r.batch_id = p_batch and r.kind = 'purchase' and r.decision = 'import' and r.status = 'staged'
+      and (
+        -- somebody it could be (the same phone or the same name) and at least three of the five signals agree: one corrected value, or two, still leaves three
+        ((s.s_phone or s.s_name) and (s.s_phone::int + s.s_name::int + s.s_amount::int + s.s_date::int + s.s_cost::int) >= 3)
+        -- nobody it could be, but the amount, the day and the direct cost are all the same: a customer whose name AND phone were both corrected looks exactly like this
+        or (s.s_amount and s.s_day and s.s_cost)
+      )
   )
   -- a row that cannot be imported as it is: correct it or skip it
   select 'row_invalid:' || r.id::text, 'row_invalid'::text, 'error'::text, r.id, null::uuid, null::uuid, null::uuid,
@@ -215,16 +270,32 @@ as $$
          'This purchase was already imported earlier and is skipped; it will not be imported or rewarded again.', true, null
   from private.historical_import_rows r where r.batch_id = p_batch and r.kind = 'purchase' and r.decision = 'skip' and r.skip_reason like 'already imported%'
   union all
-  -- an order of the same customer (matched by phone), the same amount and a date within three days already exists
-  select 'possible_duplicate:' || r.id::text || ':' || o.id::text, 'possible_duplicate', 'error', r.id, null, null, null,
-         'An order for the same customer, for the same amount, on a date within three days already exists (' || o.order_ref || '). Skip this purchase, or confirm it is a different one.',
+  -- a purchase that may be a second copy of an order that already exists (imported earlier, or agreed on the website): the owner decides, per order it resembles.
+  -- Skipping it is "it is the same purchase"; "import anyway" is "it is a different one". The decision is asked again at the moment of confirming, so an
+  -- order that appeared after the review (another import, a website order) is a new question, never an answer already given.
+  select 'possible_duplicate:' || m.row_id::text || ':' || m.order_id::text, 'possible_duplicate', 'error', m.row_id, null, null, null,
+         'This purchase looks like ' || case when m.origin = 'historical_import' then 'one that was already imported' else 'an order that is already on the website' end
+         || ' (' || m.order_ref || ', customer ' || m.customer_code || '): '
+         || case when m.s_phone or m.s_name
+                 then concat_ws(', ', case when m.s_phone then 'the same phone number' end, case when m.s_name then 'the same name' end,
+                                case when m.s_amount then 'the same amount' end, case when m.s_date then 'a date within three days' end,
+                                case when m.s_cost then 'the same direct cost' end)
+                 else 'no customer detail matches, but the amount, the day and the direct cost are all the same' end
+         || '. If it is the same purchase, skip it: importing it again would count it, and reward it, a second time (to correct an order that exists, use its cost editor or a loyalty adjustment). If it is a different purchase, confirm that.',
          rs.resolution is not null, rs.resolution
+  from m
+  left join res rs on rs.flag_key = 'possible_duplicate:' || m.row_id::text || ':' || m.order_id::text
+  union all
+  -- identical rows inside one file: two purchases (a customer can buy two of the same thing on one day), never merged and never dropped, but worth a look
+  select 'identical_rows:' || md5(concat_ws('|', r.name_key, r.phone_key, r.happened_on::text, r.revenue_minor::text, coalesce(r.cost_minor::text, '-'))),
+         'identical_rows', 'warning', (array_agg(r.id order by r.row_number))[1], null, null, null,
+         count(*)::text || ' rows of the file are identical (the same customer, date, revenue and cost). They are imported as ' || count(*)::text
+         || ' separate purchases, each with its own points. If one of them is a copy made by mistake, skip it.',
+         true, null
   from private.historical_import_rows r
-  join public.customers c on r.phone_key <> '' and private.hist_phone_key(c.phone) = r.phone_key
-  join public.orders o on o.customer_id = c.id and o.net_payable_minor = r.revenue_minor
-                      and abs((o.order_date at time zone 'Asia/Qatar')::date - r.happened_on) <= 3
-  left join res rs on rs.flag_key = 'possible_duplicate:' || r.id::text || ':' || o.id::text
   where r.batch_id = p_batch and r.kind = 'purchase' and r.decision = 'import' and r.status = 'staged'
+  group by r.name_key, r.phone_key, r.happened_on, r.revenue_minor, r.cost_minor
+  having count(*) > 1
   union all
   -- different names, one phone number: one person spelled two ways, or two people sharing a phone?
   select 'shared_phone:' || a.phone_key, 'shared_phone', 'error', null, (array_agg(a.id order by a.group_no))[1], (array_agg(b.id order by b.group_no))[1], null,

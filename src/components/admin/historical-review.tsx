@@ -171,7 +171,9 @@ function flagTitle(flag: ImportFlag): string {
     case "row_invalid":
       return "A row cannot be imported as it is";
     case "possible_duplicate":
-      return "Possible duplicate of an existing order";
+      return "Possible second copy of an order that already exists";
+    case "identical_rows":
+      return "Identical rows in the file";
     case "shared_phone":
       return "One phone number, different names";
     case "same_name_other_phone":

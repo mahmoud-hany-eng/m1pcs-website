@@ -466,3 +466,10 @@ Items 1 to 19 are the unresolved decisions from the Phase 0 platform report; 20 
 - **Question:** A committed historical order, its loyalty award and its cost are immutable financial records: there is no un-import. A mistake found afterwards is corrected with the existing compensating tools (cost revisions, a ledger adjustment with a reason). Separately, each imported order has one line, "Historical order (items not recorded)", because the export carries no items; the owner can describe an order's items later (`hist_set_order_items`, every revision kept), but there is no bulk way.
 - **Recommendation:** Rehearse once on synthetic data in DEV (the checklist); on the real import use **Check without importing** first. Describe items only for orders where it matters (for example a customer asks).
 - **Source:** PLAT-0008.
+
+### OQ-0068 — Corrected re-uploads that share too little with the original to be recognised
+- **Status:** open
+- **Blocks:** nothing (it is a stated limit of the duplicate check, not a defect)
+- **Question:** The import compares every purchase with every order that exists (not cancelled) on five signals and asks the owner whenever the phone or the name matches and three signals agree, or when the amount, the day and the direct cost are identical. A corrected row that changes the name **and** the phone **and** also the amount, the date or the cost shares too little with the original to be recognised, and so does a corrected row of an order whose cost was never in the file; such a row is indistinguishable from a different purchase and imports as one, with its own points.
+- **Recommendation:** Accept it, with the existing safeguards: review the month table, the customer list and the totals before confirming; never upload a corrected file that changes several identifying values at once (correct the one value in the file you keep, and re-upload that); rehearse once on synthetic data in DEV.
+- **Source:** PLAT-0008 attempt 2 (the duplicate-import audit).

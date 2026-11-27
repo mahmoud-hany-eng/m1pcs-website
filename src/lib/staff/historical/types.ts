@@ -33,7 +33,7 @@ export interface ImportTotals {
 /** A thing the owner must look at: `error` blocks the import until decided, `warning`/`info` do not. */
 export interface ImportFlag {
   flag_key: string;
-  kind: "row_invalid" | "already_imported" | "possible_duplicate" | "shared_phone" | "same_name_other_phone" | "missing_phone" | "existing_customer" | "previous_import" | string;
+  kind: "row_invalid" | "already_imported" | "possible_duplicate" | "identical_rows" | "shared_phone" | "same_name_other_phone" | "missing_phone" | "existing_customer" | "previous_import" | string;
   severity: "error" | "warning" | "info";
   row_id: string | null;
   group_id: string | null;
